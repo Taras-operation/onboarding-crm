@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Онбординг менеджера</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+  <!-- 🔷 Стилі для гіперпосилань -->
+  <style>
+    a {
+      color: #2563eb;
+      text-decoration: underline;
+      font-weight: 500;
+    }
+
+    a:hover {
+      color: #1d4ed8;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-6">
+
+  <div class="max-w-5xl mx-auto">
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-3xl font-extrabold text-gray-900">Привіт, {{ current_user.tg_nick or current_user.login }}!</h1>
+      <a href="{{ url_for('main.logout') }}" class="text-red-600 hover:underline text-lg">Вийти</a>
+    </div>
+
+    {% for block in blocks %}
+      {% set i = loop.index0 %}
+      <div class="bg-white rounded-2xl shadow-lg p-8 mb-6 border-2 {{ 'border-blue-600' if i == current_step else 'border-gray-300' }}">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900">{{ block.title }}</h2>
+        <p class="text-gray-700 mb-6 leading-relaxed text-lg whitespace-pre-line">
+          {{ block.description | autolink | safe }}
+        </p>
+
+        {% if i < current_step %}
+          <div class="flex justify-between items-center">
+            <a href="{{ url_for('main.manager_step', step=i) }}"
+               class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-3 rounded-xl shadow">
+              Перейти
+            </a>
+            <span class="text-green-600 font-semibold text-lg">✅ Пройдено</span>
+          </div>
+
+        {% elif i == current_step %}
+          <a href="{{ url_for('main.manager_step', step=i) }}"
+             class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-3 rounded-xl shadow">
+            Перейти
+          </a>
+
+        {% else %}
+          <button class="bg-gray-400 text-white text-lg px-6 py-3 rounded-xl cursor-not-allowed" disabled>
+            Заблоковано
+          </button>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+</body>
+</html>

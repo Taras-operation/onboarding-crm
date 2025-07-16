@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Редактор шаблону онбордингу</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-6">
+
+  <div class="max-w-5xl mx-auto bg-white p-6 rounded shadow">
+    <h1 class="text-2xl font-bold mb-4">Редактор онбордингу</h1>
+
+    <form method="POST">
+      <input type="text" name="name" value="{{ name or '' }}" placeholder="Назва шаблону" class="w-full border rounded p-2 mb-4" required>
+
+      {% if managers %}
+      <select name="selected_manager" class="w-full border rounded p-2 mb-4">
+        <option value="template" {% if selected_manager == 'template' %}selected{% endif %}>Зберегти як шаблон</option>
+        {% for manager in managers %}
+          <option value="{{ manager.id }}" {% if selected_manager == manager.id %}selected{% endif %}>{{ manager.full_name or manager.username or manager.login }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+
+      <div id="blocks-container" class="space-y-4"></div>
+
+      <button type="button" onclick="addStage()" class="bg-blue-500 text-white px-4 py-2 rounded mt-4">+ Додати етап</button>
+
+      <input type="hidden" name="structure" id="structure">
+
+      <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded mt-4">Зберегти</button>
+    </form>
+  </div>
+
+  <script>
+    window.templateData = {{ structure | tojson | safe }};
+    window.onboarding_step = {{ onboarding_step | default(0) }};
+  </script>
+  <script src="{{ url_for('static', filename='js/editor_blocks.js') }}"></script>
+</body>
+</html>

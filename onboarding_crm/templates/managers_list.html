@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Список Менеджерів</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+    <h2 class="mb-4 text-center">📋 Список Менеджерів</h2>
+
+    <a href="{{ url_for('main.mentor_dashboard') }}" class="btn btn-secondary mb-3">⬅️ Назад</a>
+
+    <table class="table table-striped align-middle text-center">
+        <thead class="align-middle">
+            <tr>
+                <th>ID</th>
+                <th>TG нік</th>
+                <th>Відділ</th>
+                <th>Логін</th>
+                <th>Посада</th>
+                <th>Статус онбордингу</th>
+                <th>Етап</th>
+                <th>Дата створення</th>
+                <th>Відповідальний</th>
+                <th>Дії</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for manager in managers %}
+            <tr id="manager-row-{{ manager.id }}">
+                <td>{{ manager.id }}</td>
+                <td>{{ manager.tg_nick }}</td>
+                <td>{{ manager.department }}</td>
+                <td>{{ manager.username }}</td>
+                <td>{{ manager.position or '—' }}</td>
+                <td>{{ manager.onboarding_status or '—' }}</td>
+                <td>
+                    {{ manager.onboarding_step or 0 }}/{{ manager.total_steps_calculated or 0 }}
+                </td>
+                <td>{{ manager.created_at.strftime('%d.%m.%Y %H:%M') if manager.created_at else '—' }}</td>
+                <td>{{ manager.added_by.tg_nick if manager.added_by else '—' }}</td>
+                <td>
+                    <a href="{{ url_for('main.manager_results', manager_id=manager.id) }}"
+                       class="btn btn-outline-secondary btn-sm mb-1">
+                        📊 Результати
+                    </a>
+                    {% if current_user.role in ['teamlead', 'developer'] %}
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteManager({{ manager.id }})">🗑️</button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+  function deleteManager(managerId) {
+    if (!confirm("Ви впевнені, що хочете видалити цього менеджера?")) return;
+
+    fetch(`/onboarding/user/delete/${managerId}`, {
+      method: 'DELETE'
+    }).then(res => {
+      if (res.ok) {
+        document.getElementById(`manager-row-${managerId}`)?.remove();
+      } else {
+        alert("❌ Помилка при видаленні менеджера");
+      }
+    });
+  }
+</script>
+
+</body>
+</html>

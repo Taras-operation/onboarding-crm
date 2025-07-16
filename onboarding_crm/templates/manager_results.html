@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Результати тестів {{ manager.login }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-6">
+  <div class="max-w-4xl mx-auto bg-white p-6 rounded shadow">
+    <h1 class="text-2xl font-bold mb-4">Результати тестів для {{ manager.tg_nick or manager.login }}</h1>
+
+    {% if results %}
+      <table class="w-full table-auto border border-gray-300">
+        <thead class="bg-gray-100 text-left">
+          <tr>
+            <th class="border p-2">Крок</th>
+            <th class="border p-2">Питання</th>
+            <th class="border p-2">Відповідь</th>
+            <th class="border p-2">Правильна відповідь</th>
+            <th class="border p-2">✅</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in results %}
+          <tr class="border-b">
+            <td class="border p-2">{{ r.step }}</td>
+            <td class="border p-2">{{ r.question }}</td>
+            <td class="border p-2">{{ r.selected_answer }}</td>
+            <td class="border p-2">{{ r.correct_answer }}</td>
+            <td class="border p-2 text-center">
+              {% if r.is_correct %}
+                ✅
+              {% else %}
+                ❌
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>Немає результатів.</p>
+    {% endif %}
+
+    <a href="{{ url_for('main.managers_list') }}" class="mt-6 inline-block text-blue-600 hover:underline">← Назад</a>
+  </div>
+</body>
+</html>
