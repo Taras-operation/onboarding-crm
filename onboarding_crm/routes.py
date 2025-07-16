@@ -28,6 +28,10 @@ def login():
         return "Невірний логін або пароль", 401
     return render_template('login.html')
 
+@bp.route("/")
+def index():
+    return redirect(url_for('main.login'))  
+
 @bp.route('/logout')
 @login_required
 def logout():
