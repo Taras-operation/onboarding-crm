@@ -230,27 +230,7 @@ def onboarding_plans():
         "onboarding_plans.html",
         templates=templates,
         user_plans=user_plans_data
-    )
-
-@bp.route('/autosave-template/<int:template_id>', methods=['POST'])
-@login_required
-def autosave_template(template_id):
-    template = OnboardingTemplate.query.get_or_404(template_id)
-
-    # 🔐 Перевірка прав доступу (автор або розробник)
-    if current_user.id != template.created_by and current_user.role != 'developer':
-        return {'status': 'error', 'message': 'Немає доступу'}, 403
-
-    data = request.get_json()
-
-    try:
-        # 🧩 Зберігаємо оновлену структуру
-        template.structure = data.get('structure', [])
-        db.session.commit()
-        return {'status': 'ok'}
-    except Exception as e:
-        db.session.rollback()
-        return {'status': 'error', 'message': str(e)}, 500    
+    )  
 
 @bp.route('/onboarding/editor')
 @login_required
@@ -730,3 +710,20 @@ def manager_results(manager_id):
     results = TestResult.query.filter_by(manager_id=manager.id).order_by(TestResult.step.asc()).all()
 
     return render_template('manager_results.html', manager=manager, results=results)
+
+@bp.route('/autosave_template/<int:template_id>', methods=['POST'])
+@login_required
+def autosave_template(template_id):
+    template = OnboardingTemplate.query.get_or_404(template_id)
+    data = request.get_json()
+
+    if not data or 'structure' not in data:
+        return jsonify({'error': 'Invalid data'}), 400
+
+    try:
+        template.structure = json.dumps({'blocks': data['structure']})
+        db.session.commit()
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        print("❌ Error saving autosave:", e)
+        return jsonify({'error': str(e)}), 500   

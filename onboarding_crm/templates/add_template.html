@@ -35,7 +35,7 @@
   <script>
     window.templateData = {{ structure | tojson | safe }};
     window.onboarding_step = {{ onboarding_step | default(0) }};
-    const TEMPLATE_ID = {{ template.id }};
+      window.templateId = {{ template.id if template and template.id else 'null' }};
   </script>
   <script src="{{ url_for('static', filename='js/editor_blocks.js') }}"></script>
 </body>

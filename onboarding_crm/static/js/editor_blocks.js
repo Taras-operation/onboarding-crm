@@ -22,15 +22,12 @@ function addStage(data = {}, index = null) {
 
   container.appendChild(block);
 
-  // Сабблоки
   const subblocks = data.subblocks || [];
   subblocks.forEach((sub, i) => addSubblock(block.querySelector('.subblocks'), blockIndex, i, sub));
 
-  // Тести (один набір питань на блок)
   const questions = data.test?.questions || [];
   questions.forEach((test, i) => addTest(block.querySelector('.tests'), blockIndex, i, test));
 
-  // 🔒 Блокуємо редагування, якщо блок вже пройдений
   if (typeof window.onboarding_step !== 'undefined' && blockIndex < window.onboarding_step) {
     block.querySelectorAll('input, textarea, button, select').forEach(el => {
       el.disabled = true;
@@ -41,15 +38,18 @@ function addStage(data = {}, index = null) {
     blockCounter = blockIndex + 1;
   }
 
-   const tempStructure = parseStructure();
-  fetch('/autosave_template', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ structure: tempStructure.blocks })
-  })
-  .then(res => res.json())
-  .then(data => console.log("✔️ Автосохранение успішне"))
-  .catch(err => console.warn("⚠️ Помилка автосохранения", err));
+  // ✅ Автозбереження
+  if (window.templateId && window.templateId !== 'null') {
+    const tempStructure = parseStructure();
+    fetch(`/autosave_template/${window.templateId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ structure: tempStructure.blocks })
+    })
+    .then(res => res.json())
+    .then(data => console.log("✔️ Автозбереження успішне"))
+    .catch(err => console.warn("⚠️ Помилка автозбереження", err));
+  }
 }
 
 function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
