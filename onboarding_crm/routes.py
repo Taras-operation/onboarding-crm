@@ -368,7 +368,8 @@ def edit_onboarding_template(template_id):
         structure_json=structure_data,
         name=template.name,
         selected_manager='template',
-        managers=[]
+        managers=[],
+        template=template
     )
 
 
