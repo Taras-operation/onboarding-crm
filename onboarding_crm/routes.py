@@ -232,6 +232,26 @@ def onboarding_plans():
         user_plans=user_plans_data
     )
 
+@bp.route('/autosave-template/<int:template_id>', methods=['POST'])
+@login_required
+def autosave_template(template_id):
+    template = OnboardingTemplate.query.get_or_404(template_id)
+
+    # 🔐 Перевірка прав доступу (автор або розробник)
+    if current_user.id != template.created_by and current_user.role != 'developer':
+        return {'status': 'error', 'message': 'Немає доступу'}, 403
+
+    data = request.get_json()
+
+    try:
+        # 🧩 Зберігаємо оновлену структуру
+        template.structure = data.get('structure', [])
+        db.session.commit()
+        return {'status': 'ok'}
+    except Exception as e:
+        db.session.rollback()
+        return {'status': 'error', 'message': str(e)}, 500    
+
 @bp.route('/onboarding/editor')
 @login_required
 def onboarding_editor():

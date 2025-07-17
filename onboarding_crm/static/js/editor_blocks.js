@@ -40,6 +40,16 @@ function addStage(data = {}, index = null) {
   if (blockIndex >= blockCounter) {
     blockCounter = blockIndex + 1;
   }
+
+   const tempStructure = parseStructure();
+  fetch('/autosave_template', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structure: tempStructure.blocks })
+  })
+  .then(res => res.json())
+  .then(data => console.log("✔️ Автосохранение успішне"))
+  .catch(err => console.warn("⚠️ Помилка автосохранения", err));
 }
 
 function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {

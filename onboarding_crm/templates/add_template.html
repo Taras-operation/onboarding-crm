@@ -24,7 +24,7 @@
 
       <div id="blocks-container" class="space-y-4"></div>
 
-      <button type="button" onclick="addStage()" class="bg-blue-500 text-white px-4 py-2 rounded mt-4">+ Додати етап</button>
+      <button type="button" onclick="addStage(); autosaveTemplate();" class="bg-blue-500 text-white px-4 py-2 rounded mt-4">+ Додати етап</button>
 
       <input type="hidden" name="structure" id="structure">
 
@@ -35,6 +35,7 @@
   <script>
     window.templateData = {{ structure | tojson | safe }};
     window.onboarding_step = {{ onboarding_step | default(0) }};
+    const TEMPLATE_ID = {{ template.id }};
   </script>
   <script src="{{ url_for('static', filename='js/editor_blocks.js') }}"></script>
 </body>
