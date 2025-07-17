@@ -698,14 +698,24 @@ def manager_step(step):
 @bp.route('/manager_results/<int:manager_id>')
 @login_required
 def manager_results(manager_id):
-    if current_user.role not in ['mentor', 'teamlead']:
+    if current_user.role not in ['mentor', 'teamlead', 'developer']:
         return redirect(url_for('main.login'))
 
     manager = User.query.get_or_404(manager_id)
 
-    # Перевірка, чи ментор/ТЛ додав цього менеджера
-    if manager.added_by_id != current_user.id:
+    if manager.role != 'manager':
         abort(403)
+
+    # 🔐 Перевірка доступу:
+    if current_user.role == 'mentor':
+        if manager.added_by_id != current_user.id:
+            abort(403)
+    elif current_user.role == 'teamlead':
+        # Отримуємо ментора, що додав менеджера
+        mentor = User.query.get(manager.added_by_id)
+        if not mentor or mentor.added_by_id != current_user.id:
+            abort(403)
+    # developer бачить всіх — нічого не робимо
 
     results = TestResult.query.filter_by(manager_id=manager.id).order_by(TestResult.step.asc()).all()
 
