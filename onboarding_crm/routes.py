@@ -706,17 +706,23 @@ def manager_results(manager_id):
     if manager.role != 'manager':
         abort(403)
 
-    # 🔐 Перевірка доступу:
+    # 🔐 Проверка доступа
     if current_user.role == 'mentor':
+        # Ментор видит только своих менеджеров
         if manager.added_by_id != current_user.id:
             abort(403)
-    elif current_user.role == 'teamlead':
-        # Отримуємо ментора, що додав менеджера
-        mentor = User.query.get(manager.added_by_id)
-        if not mentor or mentor.added_by_id != current_user.id:
-            abort(403)
-    # developer бачить всіх — нічого не робимо
 
+    elif current_user.role == 'teamlead':
+        # 1️⃣ Если ТЛ сам добавил менеджера
+        if manager.added_by_id == current_user.id:
+            pass
+        else:
+            # 2️⃣ Если менеджера добавил ментор команды ТЛ
+            mentor = User.query.get(manager.added_by_id)
+            if not mentor or mentor.added_by_id != current_user.id:
+                abort(403)
+
+    # developer видит всех
     results = TestResult.query.filter_by(manager_id=manager.id).order_by(TestResult.step.asc()).all()
 
     return render_template('manager_results.html', manager=manager, results=results)
