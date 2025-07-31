@@ -250,13 +250,19 @@ def onboarding_editor():
 @bp.route('/onboarding/template/add', methods=['GET', 'POST'])
 @login_required
 def add_onboarding_template():
+    # 📌 POST — сохранение нового шаблона или онбординга
     if request.method == 'POST':
         raw_structure = request.form.get('structure')
-        structure = json.loads(raw_structure)
+        try:
+            structure = json.loads(raw_structure)
+        except Exception as e:
+            print("❌ Ошибка парсинга structure при POST:", e)
+            structure = []
 
         selected_manager_id = request.form.get('selected_manager')
         name = request.form.get('name')
 
+        # Если сохраняем как шаблон
         if selected_manager_id == 'template':
             new_template = OnboardingTemplate(
                 name=name,
@@ -266,6 +272,7 @@ def add_onboarding_template():
             db.session.add(new_template)
             db.session.commit()
         else:
+            # Если создаём онбординг для менеджера
             new_instance = OnboardingInstance(
                 name=name,
                 structure=json.dumps({'blocks': structure}),
@@ -275,6 +282,7 @@ def add_onboarding_template():
             db.session.add(new_instance)
             db.session.commit()
 
+            # Обновляем данные менеджера
             manager = User.query.get(int(selected_manager_id))
             manager.onboarding_name = name
             manager.onboarding_status = 'in_progress'
@@ -286,7 +294,7 @@ def add_onboarding_template():
 
         return redirect(url_for('main.onboarding_plans'))
 
-    # GET — підготовка форми
+    # 📌 GET — подготовка данных для формы
     if current_user.role == 'mentor':
         managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
     elif current_user.role == 'teamlead':
@@ -299,18 +307,30 @@ def add_onboarding_template():
     name = ""
     template = None
 
+    # Если есть template_id — открываем шаблон
     if template_id:
         template = OnboardingTemplate.query.get_or_404(int(template_id))
-        name = template.name
         try:
             parsed = json.loads(template.structure)
             structure = parsed.get('blocks', []) if isinstance(parsed, dict) else parsed
         except Exception as e:
-            print("❌ JSON load error:", e)
+            print("❌ JSON load error при GET:", e)
             structure = []
 
+        # 📌 COPY — создаём новый шаблон как копию
         if request.args.get('copy') == '1':
-            name += " (копія)"
+            new_template = OnboardingTemplate(
+                name=f"{template.name} (копія)",
+                structure=json.dumps({'blocks': structure}),
+                created_by=current_user.id
+            )
+            db.session.add(new_template)
+            db.session.commit()
+
+            return redirect(url_for('main.add_onboarding_template', template_id=new_template.id))
+
+        # Если просто редактируем
+        name = template.name
 
     return render_template(
         'add_template.html',
@@ -321,48 +341,6 @@ def add_onboarding_template():
         name=name,
         selected_manager='template'
     )
-
-@bp.route('/onboarding/template/edit/<int:template_id>', methods=['GET', 'POST'])
-@login_required
-def edit_onboarding_template(template_id):
-    template = OnboardingTemplate.query.get_or_404(template_id)
-
-    if request.method == 'POST':
-        raw_structure = request.form.get('structure')
-        structure = json.loads(raw_structure)
-        template.name = request.form['name']
-        template.structure = json.dumps({'blocks': structure})
-        db.session.commit()
-        return redirect(url_for('main.onboarding_plans'))
-
-    try:
-        parsed = json.loads(template.structure)
-        structure_data = parsed.get('blocks', []) if isinstance(parsed, dict) else parsed
-    except Exception as e:
-        print("❌ JSON error:", e)
-        structure_data = []
-
-    return render_template(
-        'add_template.html',
-        structure=structure_data,
-        structure_json=structure_data,
-        name=template.name,
-        selected_manager='template',
-        managers=[],
-        template=template
-    )
-
-
-@bp.route('/onboarding/template/copy/<int:template_id>', methods=['GET'])
-@login_required
-def copy_onboarding_template(template_id):
-    """
-    Перенаправляє на форму додавання шаблону з уже існуючим template_id,
-    але як копія (copy=1), без прямого рендера.
-    """
-    template = OnboardingTemplate.query.get_or_404(template_id)
-    return redirect(url_for('main.add_onboarding_template', template_id=template.id, copy='1'))
-
 
 @bp.route('/onboarding/user/edit/<int:manager_id>', methods=['GET', 'POST'])
 @login_required

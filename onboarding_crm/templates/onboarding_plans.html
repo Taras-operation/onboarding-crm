@@ -127,8 +127,8 @@
               <td>{{ template.step_count }} етапів</td>
               <td>{{ template.created_at.strftime('%d/%m/%Y') }}</td>
               <td>
-                <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/template/edit/{{ template.id }}'">✏️</button>
-                <button class="icon-btn" title="Копіювати" onclick="location.href='/onboarding/template/copy/{{ template.id }}'">📄</button>
+                <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/template/add?template_id={{ template.id }}'">✏️</button>
+                <button class="icon-btn" title="Копіювати" onclick="location.href='/onboarding/template/add?template_id={{ template.id }}&copy=1'">📄</button>
                 <button class="icon-btn" title="Видалити" onclick="confirmDelete('{{ template.id }}', '{{ template.name }}')">🗑️</button>
               </td>
             </tr>
