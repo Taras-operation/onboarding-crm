@@ -108,19 +108,22 @@ def managers_list():
         managers = User.query.filter_by(role='manager').all()
 
     elif current_user.role == 'teamlead':
-        mentors = User.query.filter_by(role='mentor', added_by_id=current_user.id).all()
+        mentors = User.query.filter_by(role='mentor', added_by_id=current_user.id, department=current_user.department).all()
         mentor_ids = [mentor.id for mentor in mentors]
-        print(f"[DEBUG] Mentors added_by TL {current_user.username}: {[m.username for m in mentors]}")
-        print(f"[DEBUG] Mentor IDs: {mentor_ids}")
-
         mentor_ids.append(current_user.id)  # додати себе теж
 
-        managers = User.query.filter(User.role == 'manager', User.added_by_id.in_(mentor_ids)).all()
-        print(f"[DEBUG] Found managers: {[m.username for m in managers]}")
+        managers = User.query.filter(
+            User.role == 'manager',
+            User.added_by_id.in_(mentor_ids),
+            User.department == current_user.department
+        ).all()
 
     elif current_user.role == 'mentor':
-        managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
-        print(f"[DEBUG] Mentor's own managers: {[m.username for m in managers]}")
+        managers = User.query.filter_by(
+            role='manager',
+            added_by_id=current_user.id,
+            department=current_user.department
+        ).all()
 
     # Підрахунок етапів
     for manager in managers:
@@ -149,17 +152,20 @@ def add_manager():
     if current_user.role not in ['mentor', 'teamlead']:
         return redirect(url_for('main.login'))
 
-    # 🟢 Формуємо список менторів
+    # 🟢 Формуємо список менторів тільки з того ж відділу
     if current_user.role == 'mentor':
         mentors = [current_user]
     elif current_user.role == 'teamlead':
-        mentors = User.query.filter(User.role.in_(['mentor', 'teamlead'])).all()
+        mentors = User.query.filter(
+            User.role.in_(['mentor', 'teamlead']),
+            User.department == current_user.department
+        ).all()
     else:
         mentors = []
 
     if request.method == 'POST':
         tg_nick = request.form['tg_nick']
-        department = request.form['department']
+        department = current_user.department  # 🔹 Фіксуємо департамент по ролі, а не з форми
         position = request.form.get('position')
         username = request.form['username']
         password = generate_password_hash(request.form['password'])
@@ -169,6 +175,14 @@ def add_manager():
         if not mentor_id:
             mentor_id = current_user.id
 
+        # 🔍 Перевірка унікальності username
+        base_username = username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f"{base_username}_{counter}"
+            counter += 1
+
+        # 🟢 Створення менеджера
         new_user = User(
             tg_nick=tg_nick,
             position=position,
@@ -180,6 +194,7 @@ def add_manager():
         )
         db.session.add(new_user)
         db.session.commit()
+
         return redirect(url_for('main.managers_list'))
 
     return render_template('add_manager.html', mentors=mentors)
@@ -189,49 +204,58 @@ def add_manager():
 def onboarding_plans():
     import json
 
-    if current_user.role not in ['mentor', 'teamlead']:
+    if current_user.role not in ['mentor', 'teamlead', 'developer']:
         return redirect(url_for('main.login'))
 
-    # 🔹 Шаблони онбордингу
+    # 🔹 Шаблони онбордингу (можно оставить без фильтра, они общие)
     templates = OnboardingTemplate.query.all()
     for t in templates:
         try:
             parsed = json.loads(t.structure) if isinstance(t.structure, str) else t.structure
-            if isinstance(parsed, dict) and 'blocks' in parsed:
-                blocks = parsed['blocks']
-            else:
-                blocks = parsed
+            blocks = parsed.get('blocks') if isinstance(parsed, dict) else parsed
             t.step_count = sum(1 for block in blocks if block.get('type') == 'stage')
         except Exception as e:
             print(f"[plans] Шаблон {t.id}: помилка JSON: {e}")
             t.step_count = 0
 
-    # 🔹 Менеджери
+    # 🔹 Фільтруємо менеджерів по ролі та відділу
     if current_user.role == 'mentor':
-        managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
+        managers = User.query.filter_by(
+            role='manager',
+            added_by_id=current_user.id,
+            department=current_user.department
+        ).all()
     elif current_user.role == 'teamlead':
+        mentors = User.query.filter_by(
+            role='mentor',
+            added_by_id=current_user.id,
+            department=current_user.department
+        ).all()
+        mentor_ids = [mentor.id for mentor in mentors] + [current_user.id]
+
+        managers = User.query.filter(
+            User.role == 'manager',
+            User.added_by_id.in_(mentor_ids),
+            User.department == current_user.department
+        ).all()
+    elif current_user.role == 'developer':
         managers = User.query.filter_by(role='manager').all()
     else:
         managers = []
 
-    # 🔹 Плани онбордингу для кожного менеджера
+    # 🔹 Плани онбордингу
     user_plans_data = []
     for m in managers:
         instance = OnboardingInstance.query.filter_by(manager_id=m.id).first()
-
         total_steps = 0
         if instance and instance.structure:
             try:
                 raw = instance.structure
                 parsed = json.loads(raw) if isinstance(raw, str) else raw
-                if isinstance(parsed, dict) and 'blocks' in parsed:
-                    blocks = parsed['blocks']
-                else:
-                    blocks = parsed
+                blocks = parsed.get('blocks') if isinstance(parsed, dict) else parsed
                 total_steps = len([b for b in blocks if b.get("type") == "stage"])
             except Exception as e:
                 print(f"[plans] ❌ manager {m.id} structure error: {e}")
-                total_steps = 0
 
         user_plans_data.append({
             'id': m.id,
@@ -245,7 +269,7 @@ def onboarding_plans():
         "onboarding_plans.html",
         templates=templates,
         user_plans=user_plans_data
-    )  
+    )
 
 @bp.route('/onboarding/editor')
 @login_required
@@ -254,9 +278,23 @@ def onboarding_editor():
         return redirect(url_for('main.login'))
 
     if current_user.role == 'mentor':
-        managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
+        managers = User.query.filter_by(
+            role='manager',
+            added_by_id=current_user.id,
+            department=current_user.department
+        ).all()
     elif current_user.role == 'teamlead':
-        managers = User.query.filter_by(role='manager').all()
+        mentors = User.query.filter_by(
+            role='mentor',
+            added_by_id=current_user.id,
+            department=current_user.department
+        ).all()
+        mentor_ids = [mentor.id for mentor in mentors] + [current_user.id]
+        managers = User.query.filter(
+            User.role == 'manager',
+            User.added_by_id.in_(mentor_ids),
+            User.department == current_user.department
+        ).all()
     else:
         managers = []
 
