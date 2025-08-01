@@ -58,6 +58,13 @@ def developer_dashboard():
             if teamlead_id:
                 added_by_id = int(teamlead_id)
 
+        # 🔍 Проверка уникальности username
+        base_username = username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f"{base_username}_{counter}"
+            counter += 1
+
         new_user = User(
             tg_nick=tg_nick,
             role=role,
@@ -81,6 +88,7 @@ def developer_dashboard():
     teamleads = User.query.filter_by(role='teamlead').all()
     users = User.query.all()
     return render_template('developer_dashboard.html', users=users, teamleads=teamleads)
+
 @bp.route('/dashboard/mentor')
 @login_required
 def mentor_dashboard():
