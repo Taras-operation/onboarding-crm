@@ -48,15 +48,18 @@ def developer_dashboard():
         tg_nick = request.form.get('tg_nick')
         role = request.form.get('role')
         department = request.form.get('department')
-        position = request.form.get('position') or 'Teamlead'
+        position = request.form.get('position') or ('Teamlead' if role == 'teamlead' else '')
         username = request.form.get('username')
         password = generate_password_hash(request.form.get('password'))
 
         added_by_id = None
+        # 🔹 Если создаём ментора, он должен быть привязан к ТЛ или разработчику
         if role == 'mentor':
             teamlead_id = request.form.get('teamlead_id')
             if teamlead_id:
                 added_by_id = int(teamlead_id)
+            else:
+                added_by_id = current_user.id  # разработчик как создатель
 
         # 🔍 Проверка уникальности username
         base_username = username
@@ -84,7 +87,6 @@ def developer_dashboard():
         flash(f"Користувач {username} ({role}) успішно створений!", "success")
         return redirect(url_for('main.developer_dashboard'))
 
-    # ⬇️ Передаємо список ТЛів у шаблон
     teamleads = User.query.filter_by(role='teamlead').all()
     users = User.query.all()
     return render_template('developer_dashboard.html', users=users, teamleads=teamleads)
