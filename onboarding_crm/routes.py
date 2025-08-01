@@ -45,12 +45,12 @@ def developer_dashboard():
         return redirect(url_for('main.login'))
 
     if request.method == 'POST':
-        tg_nick = request.form['tg_nick']
-        role = request.form['role']
-        department = request.form['department']
-        position = request.form['position']
-        username = request.form['username']
-        password = generate_password_hash(request.form['password'])
+        tg_nick = request.form.get('tg_nick')
+        role = request.form.get('role')
+        department = request.form.get('department')
+        position = request.form.get('position') or 'Teamlead'
+        username = request.form.get('username')
+        password = generate_password_hash(request.form.get('password'))
 
         added_by_id = None
         if role == 'mentor':
@@ -65,17 +65,22 @@ def developer_dashboard():
             position=position,
             username=username,
             password=password,
-            added_by_id=added_by_id
+            added_by_id=added_by_id,
+            onboarding_status='Не розпочато',
+            onboarding_step=0,
+            onboarding_step_total=0,
+            created_at=datetime.utcnow()
         )
         db.session.add(new_user)
         db.session.commit()
+
+        flash(f"Користувач {username} ({role}) успішно створений!", "success")
         return redirect(url_for('main.developer_dashboard'))
 
     # ⬇️ Передаємо список ТЛів у шаблон
     teamleads = User.query.filter_by(role='teamlead').all()
     users = User.query.all()
     return render_template('developer_dashboard.html', users=users, teamleads=teamleads)
-
 @bp.route('/dashboard/mentor')
 @login_required
 def mentor_dashboard():
