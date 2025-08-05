@@ -641,22 +641,22 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
-    # 🔍 Обработка тестовых вопросов
-    def process_questions(questions, answers_dict):
+    # 🔍 Универсальная обработка вопросов
+    def process_questions(questions, answers_dict, step):
         correct_count = 0
         total_test_questions = 0
         open_questions_count = 0
 
         for q in questions:
-            q_text = q['question']
-            q_type = q.get('type', 'choice')  # choice / open
+            q_text = q.get('question', '')
+            q_type = q.get('type', 'choice')
             normalized = re.sub(r'\W+', '_', q_text.strip().lower())
             field_name = f"q0_{normalized}"
 
             if q_type == 'choice':
                 # Вопрос с выбором
                 user_input = answers_dict.getlist(field_name) if q.get('multiple') else answers_dict.get(field_name)
-                correct_answers = [a['value'] for a in q['answers'] if a.get('correct')]
+                correct_answers = [a['value'] for a in q.get('answers', []) if a.get('correct')]
 
                 selected = ", ".join(user_input) if isinstance(user_input, list) else (user_input or "")
                 is_correct = (set(user_input) == set(correct_answers)) if isinstance(user_input, list) else (selected in correct_answers)
@@ -665,31 +665,28 @@ def manager_step(step):
                     correct_count += 1
                 total_test_questions += 1
 
-                # Сохраняем в БД
-                tr = TestResult(
+                db.session.add(TestResult(
                     manager_id=current_user.id,
                     step=step,
                     question=q_text,
                     correct_answer=", ".join(correct_answers),
                     selected_answer=selected,
                     is_correct=is_correct
-                )
-                db.session.add(tr)
+                ))
 
             elif q_type == 'open':
-                # Открытый вопрос
+                # Открытый вопрос внутри теста
                 user_input = answers_dict.get(field_name)
                 open_questions_count += 1
 
-                tr = TestResult(
+                db.session.add(TestResult(
                     manager_id=current_user.id,
                     step=step,
                     question=q_text,
                     correct_answer=None,
                     selected_answer=user_input,
-                    is_correct=None  # ждёт проверки ментора
-                )
-                db.session.add(tr)
+                    is_correct=None
+                ))
 
         return correct_count, total_test_questions, open_questions_count
 
@@ -699,9 +696,9 @@ def manager_step(step):
 
         correct, total_choice, open_q_count = 0, 0, 0
 
-        # Вопросы блока
+        # Вопросы блока (тест)
         if 'test' in block and 'questions' in block['test']:
-            c, t, o = process_questions(block['test']['questions'], form_data)
+            c, t, o = process_questions(block['test']['questions'], form_data, step)
             correct += c
             total_choice += t
             open_q_count += o
@@ -710,15 +707,31 @@ def manager_step(step):
         if 'subblocks' in block:
             for sb in block['subblocks']:
                 if 'test' in sb and 'questions' in sb['test']:
-                    c, t, o = process_questions(sb['test']['questions'], form_data)
+                    c, t, o = process_questions(sb['test']['questions'], form_data, step)
                     correct += c
                     total_choice += t
                     open_q_count += o
 
+        # 🔍 Обработка отдельных open_questions
+        if 'open_questions' in block:
+            for i, oq in enumerate(block['open_questions']):
+                q_text = oq.get('question', '')
+                field_name = f"open_q_{i}"
+                user_input = form_data.get(field_name)
+                open_q_count += 1
+
+                db.session.add(TestResult(
+                    manager_id=current_user.id,
+                    step=step,
+                    question=q_text,
+                    correct_answer=None,
+                    selected_answer=user_input,
+                    is_correct=None
+                ))
+
         # Обновляем прогресс
         instance.onboarding_step = step + 1
-        user = User.query.get(current_user.id)
-        user.onboarding_step = step + 1
+        current_user.onboarding_step = step + 1
         db.session.commit()
 
         return jsonify({
