@@ -605,108 +605,112 @@ def manager_dashboard():
 @bp.route('/manager_step/<int:step>', methods=['GET', 'POST'])
 @login_required
 def manager_step(step):
-    import json
-    import re
     from flask import jsonify
-    from onboarding_crm.models import TestResult, User  # 🟢 Додано User
+    import re
 
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
+    # Загружаем онбординг
     instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first()
     if not instance:
         return redirect(url_for('main.manager_dashboard'))
 
-    # ✅ Парсимо structure
+    # Парсим структуру
     try:
         raw = instance.structure
-
-        if isinstance(raw, str):
-            parsed = json.loads(raw)
-        else:
-            parsed = raw
-
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(parsed, str):
             parsed = json.loads(parsed)
 
-        if isinstance(parsed, dict) and 'blocks' in parsed:
-            blocks = parsed['blocks']
-        elif isinstance(parsed, list):
-            blocks = parsed
-        else:
-            raise ValueError("Unsupported structure format")
-
+        blocks = parsed.get('blocks', []) if isinstance(parsed, dict) else parsed
     except Exception as e:
         print(f"[manager_step] ❌ JSON parse error: {e}")
         blocks = []
 
-    # 🔢 Отримуємо лише stage-блоки
+    # Достаём stage-блоки
     stage_blocks = [b for b in blocks if b.get("type") == "stage"]
     total_steps = len(stage_blocks)
-
     if step >= total_steps:
         return redirect(url_for('main.manager_dashboard'))
 
     block = stage_blocks[step]
 
-    # ✅ Обробка тестів
+    # 🔍 Обработка тестовых вопросов
     def process_questions(questions, answers_dict):
         correct_count = 0
+        total_test_questions = 0
+        open_questions_count = 0
+
         for q in questions:
             q_text = q['question']
+            q_type = q.get('type', 'choice')  # choice / open
             normalized = re.sub(r'\W+', '_', q_text.strip().lower())
             field_name = f"q0_{normalized}"
-            user_input = answers_dict.getlist(field_name) if q.get('multiple') else answers_dict.get(field_name)
-            correct_answers = [a['value'] for a in q['answers'] if a.get('correct')]
 
-            if isinstance(user_input, list):
-                selected = ", ".join(user_input)
-                is_correct = set(user_input) == set(correct_answers)
-            else:
-                selected = user_input or ""
-                is_correct = selected in correct_answers
+            if q_type == 'choice':
+                # Вопрос с выбором
+                user_input = answers_dict.getlist(field_name) if q.get('multiple') else answers_dict.get(field_name)
+                correct_answers = [a['value'] for a in q['answers'] if a.get('correct')]
 
-            if is_correct:
-                correct_count += 1
+                selected = ", ".join(user_input) if isinstance(user_input, list) else (user_input or "")
+                is_correct = (set(user_input) == set(correct_answers)) if isinstance(user_input, list) else (selected in correct_answers)
 
-            # ✅ Зберігаємо результат
-            tr = TestResult(
-                manager_id=current_user.id,
-                step=step,
-                question=q_text,
-                correct_answer=", ".join(correct_answers),
-                selected_answer=selected,
-                is_correct=is_correct
-            )
+                if is_correct:
+                    correct_count += 1
+                total_test_questions += 1
 
-            print("🧠 Question:", q_text)
-            print("➡️ User input:", user_input)
-            print("✅ Correct values:", correct_answers)
-            print("🎯 Is correct:", is_correct)
+                # Сохраняем в БД
+                tr = TestResult(
+                    manager_id=current_user.id,
+                    step=step,
+                    question=q_text,
+                    correct_answer=", ".join(correct_answers),
+                    selected_answer=selected,
+                    is_correct=is_correct
+                )
+                db.session.add(tr)
 
-            db.session.add(tr)
+            elif q_type == 'open':
+                # Открытый вопрос
+                user_input = answers_dict.get(field_name)
+                open_questions_count += 1
 
-        return correct_count
+                tr = TestResult(
+                    manager_id=current_user.id,
+                    step=step,
+                    question=q_text,
+                    correct_answer=None,
+                    selected_answer=user_input,
+                    is_correct=None  # ждёт проверки ментора
+                )
+                db.session.add(tr)
 
-    # ✅ POST: обробка тесту
+        return correct_count, total_test_questions, open_questions_count
+
+    # POST — обработка формы
     if request.method == 'POST':
         form_data = request.form
-        correct = 0
-        total = 0
 
-        # Блоковий тест
+        correct, total_choice, open_q_count = 0, 0, 0
+
+        # Вопросы блока
         if 'test' in block and 'questions' in block['test']:
-            correct += process_questions(block['test']['questions'], form_data)
-            total += len(block['test']['questions'])
+            c, t, o = process_questions(block['test']['questions'], form_data)
+            correct += c
+            total_choice += t
+            open_q_count += o
 
-        # Сабблокові тести
+        # Вопросы сабблоков
         if 'subblocks' in block:
             for sb in block['subblocks']:
                 if 'test' in sb and 'questions' in sb['test']:
-                    correct += process_questions(sb['test']['questions'], form_data)
-                    total += len(sb['test']['questions'])
+                    c, t, o = process_questions(sb['test']['questions'], form_data)
+                    correct += c
+                    total_choice += t
+                    open_q_count += o
 
-        # 🟢 Оновлюємо обидва джерела прогресу
+        # Обновляем прогресс
         instance.onboarding_step = step + 1
         user = User.query.get(current_user.id)
         user.onboarding_step = step + 1
@@ -715,10 +719,11 @@ def manager_step(step):
         return jsonify({
             'status': 'ok',
             'correct': correct,
-            'total': total
+            'total_choice': total_choice,
+            'open_questions': open_q_count
         })
 
-    # ✅ GET: показ блоку
+    # GET — рендер страницы
     return render_template(
         'manager_step.html',
         step=step,
@@ -739,24 +744,28 @@ def manager_results(manager_id):
 
     # 🔐 Проверка доступа
     if current_user.role == 'mentor':
-        # Ментор видит только своих менеджеров
         if manager.added_by_id != current_user.id:
             abort(403)
 
     elif current_user.role == 'teamlead':
-        # 1️⃣ Если ТЛ сам добавил менеджера
-        if manager.added_by_id == current_user.id:
-            pass
-        else:
-            # 2️⃣ Если менеджера добавил ментор команды ТЛ
+        if manager.added_by_id != current_user.id:
             mentor = User.query.get(manager.added_by_id)
             if not mentor or mentor.added_by_id != current_user.id:
                 abort(403)
 
-    # developer видит всех
+    # 🔍 Получаем ВСЕ ответы (включая открытые)
     results = TestResult.query.filter_by(manager_id=manager.id).order_by(TestResult.step.asc()).all()
 
-    return render_template('manager_results.html', manager=manager, results=results)
+    # 🟢 Разделяем тестовые и открытые (чтобы удобно в шаблоне)
+    choice_results = [r for r in results if r.is_correct is not None]
+    open_results = [r for r in results if r.is_correct is None]
+
+    return render_template(
+        'manager_results.html',
+        manager=manager,
+        choice_results=choice_results,
+        open_results=open_results
+    )
 
 @bp.route('/autosave_template/<int:template_id>', methods=['POST'])
 @login_required

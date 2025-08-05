@@ -102,11 +102,19 @@ class OnboardingInstance(db.Model):
 # 🔹 Результати тестів
 # ─────────────────────────────────────────────
 class TestResult(db.Model):
+    __tablename__ = 'test_result'
+
     id = db.Column(db.Integer, primary_key=True)
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    question = db.Column(db.String(512), nullable=False)
-    correct_answer = db.Column(db.String(512), nullable=False)
-    selected_answer = db.Column(db.String(512), nullable=False)
-    is_correct = db.Column(db.Boolean, nullable=False)
-    step = db.Column(db.Integer, nullable=True)
+
+    question = db.Column(db.String(512), nullable=False)            # Текст вопроса
+    correct_answer = db.Column(db.String(512), nullable=True)       # Для открытых вопросов можно оставить пустым
+    selected_answer = db.Column(db.String(512), nullable=True)      # Ответ менеджера (или ссылка)
+    
+    # ✅ Теперь можно хранить NULL (None), чтобы различать:
+    #   True / False — проверенные тестовые вопросы
+    #   None         — открытые вопросы, ожидающие проверки
+    is_correct = db.Column(db.Boolean, nullable=True)               
+    
+    step = db.Column(db.Integer, nullable=True)                     # Номер шага онбординга
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
