@@ -576,25 +576,30 @@ def manager_dashboard():
     if not instance:
         return "Онбординг ще не призначено", 404
 
-    # ✅ Парсимо структуру
+    # ✅ Парсим структуру (поддержка dict/list)
     try:
         raw = instance.structure
-        if isinstance(raw, str):
-            parsed = json.loads(raw)
-        else:
-            parsed = raw
-
-        if isinstance(parsed, str):  # подвійний json
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+        if isinstance(parsed, str):  # двойной json
             parsed = json.loads(parsed)
 
-        blocks = parsed.get('blocks', [])
+        if isinstance(parsed, dict) and 'blocks' in parsed:
+            blocks = parsed['blocks']
+        elif isinstance(parsed, list):
+            blocks = parsed
+        else:
+            blocks = []
     except Exception as e:
-        print(f"[manager_dashboard] JSON error: {e}")
+        print(f"[manager_dashboard] ❌ JSON error: {e}")
         blocks = []
 
-    # ✅ Збираємо тільки stage-блоки
+    # ✅ Берём только stage-блоки
     stage_blocks = [b for b in blocks if b.get("type") == "stage"]
+
+    # 🛠 Коррекция шага, если вышел за пределы
     current_step = instance.onboarding_step or 0
+    if current_step >= len(stage_blocks):
+        current_step = len(stage_blocks) - 1 if stage_blocks else 0
 
     return render_template(
         'manager_dashboard.html',

@@ -12,6 +12,7 @@ function renumberBlocks() {
     });
     renumberSubblocks(blockDiv, i);
     renumberTests(blockDiv, i);
+    renumberOpenQuestions(blockDiv, i);
   });
   blockCounter = blocks.length;
 }
@@ -30,7 +31,7 @@ function renumberSubblocks(blockDiv, blockIndex) {
 
 // 🔄 Перенумерация тестов
 function renumberTests(blockDiv, blockIndex) {
-  const tests = blockDiv.querySelectorAll('.test, .open-question');
+  const tests = blockDiv.querySelectorAll('.test');
   tests.forEach((testDiv, i) => {
     testDiv.querySelectorAll('input, textarea').forEach(input => {
       if (input.name.includes('questions')) {
@@ -38,6 +39,18 @@ function renumberTests(blockDiv, blockIndex) {
       }
     });
     renumberAnswers(testDiv, blockIndex, i);
+  });
+}
+
+// 🔄 Перенумерация открытых вопросов
+function renumberOpenQuestions(blockDiv, blockIndex) {
+  const openQs = blockDiv.querySelectorAll('.open-question');
+  openQs.forEach((qDiv, i) => {
+    qDiv.querySelectorAll('input').forEach(input => {
+      if (input.name.includes('open_questions')) {
+        input.name = input.name.replace(/open_questions\]\[\d+\]/, `open_questions][${i}]`);
+      }
+    });
   });
 }
 
@@ -66,10 +79,10 @@ function deleteSubblock(btn) {
   renumberSubblocks(blockDiv);
 }
 
-// ❌ Удаление теста или открытого вопроса
+// ❌ Удаление теста
 function deleteTest(btn) {
   const blockDiv = btn.closest('.block');
-  btn.closest('.test, .open-question').remove();
+  btn.closest('.test').remove();
   renumberTests(blockDiv);
 }
 
@@ -80,7 +93,13 @@ function deleteAnswer(btn) {
   renumberAnswers(testDiv);
 }
 
-// ➕ Добавление блока
+// ❌ Удаление открытого вопроса
+function deleteOpenQuestion(btn) {
+  const blockDiv = btn.closest('.block');
+  btn.closest('.open-question').remove();
+  renumberOpenQuestions(blockDiv);
+}
+
 function addStage(data = {}, index = null) {
   const container = document.getElementById('blocks-container');
   const blockIndex = index !== null ? index : blockCounter++;
@@ -97,33 +116,30 @@ function addStage(data = {}, index = null) {
     <div class="subblocks mb-2"></div>
     <button type="button" onclick="addSubblock(this, ${blockIndex})" class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm mb-2">+ Сабблок</button>
 
-    <div class="tests"></div>
+    <div class="tests mb-2"></div>
     <button type="button" onclick="addTest(this, ${blockIndex})" class="bg-green-100 text-green-700 px-2 py-1 rounded text-sm">+ Тест</button>
+
+    <div class="open-questions mt-2"></div>
     <button type="button" onclick="addOpenQuestion(this, ${blockIndex})" class="bg-purple-100 text-purple-700 px-2 py-1 rounded text-sm">+ Відкрите питання</button>
   `;
 
   container.appendChild(block);
 
-  const subblocks = data.subblocks || [];
-  subblocks.forEach((sub, i) => addSubblock(block.querySelector('.subblocks'), blockIndex, i, sub));
+  // Загружаем сабблоки
+  (data.subblocks || []).forEach((sub, i) => addSubblock(block.querySelector('.subblocks'), blockIndex, i, sub));
 
-  const questions = data.test?.questions || [];
-  questions.forEach((test, i) => {
-    if (test.type === 'open') {
-      addOpenQuestion(block.querySelector('.tests'), blockIndex, i, test);
-    } else {
-      addTest(block.querySelector('.tests'), blockIndex, i, test);
-    }
-  });
+  // Загружаем тесты
+  (data.test?.questions || []).forEach((test, i) => addTest(block.querySelector('.tests'), blockIndex, i, test));
+
+  // Загружаем открытые вопросы
+  (data.open_questions || []).forEach((q, i) => addOpenQuestion(block.querySelector('.open-questions'), blockIndex, i, q));
 
   if (blockIndex >= blockCounter) blockCounter = blockIndex + 1;
 }
 
-// ➕ Сабблок
 function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
-  const container = typeof parentEl === 'object' && parentEl.classList?.contains('subblocks') ? parentEl : parentEl.previousElementSibling;
-  const subblocks = container.querySelectorAll('.subblock');
-  const idx = subIndex !== null ? subIndex : subblocks.length;
+  const container = typeof parentEl === 'object' && parentEl.classList.contains('subblocks') ? parentEl : parentEl.previousElementSibling;
+  const idx = subIndex !== null ? subIndex : container.querySelectorAll('.subblock').length;
 
   const div = document.createElement('div');
   div.className = "subblock border p-2 mb-2 rounded bg-blue-50 relative";
@@ -135,11 +151,9 @@ function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
   container.appendChild(div);
 }
 
-// ➕ Тест
 function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
-  const container = typeof parentEl === 'object' && parentEl.classList?.contains('tests') ? parentEl : parentEl.previousElementSibling;
-  const tests = container.querySelectorAll('.test, .open-question');
-  const idx = testIndex !== null ? testIndex : tests.length;
+  const container = typeof parentEl === 'object' && parentEl.classList.contains('tests') ? parentEl : parentEl.previousElementSibling;
+  const idx = testIndex !== null ? testIndex : container.querySelectorAll('.test').length;
 
   const div = document.createElement('div');
   div.className = "test border p-2 mb-2 rounded bg-green-50 relative";
@@ -151,51 +165,53 @@ function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
   `;
   container.appendChild(div);
 
-  (data.answers || []).forEach((ans, aIndex) => addAnswer(div.querySelector('.answers'), blockIndex, idx, aIndex, ans));
+  // Автодобавляем 2 ответа по умолчанию
+  if (!data.answers || data.answers.length === 0) {
+    addAnswer(div.querySelector('.answers'), blockIndex, idx, 0);
+    addAnswer(div.querySelector('.answers'), blockIndex, idx, 1);
+  } else {
+    data.answers.forEach((ans, i) => addAnswer(div.querySelector('.answers'), blockIndex, idx, i, ans));
+  }
 }
 
-// ➕ Відкрите питання
-function addOpenQuestion(parentEl, blockIndex, testIndex = null, data = {}) {
-  const container = typeof parentEl === 'object' && parentEl.classList?.contains('tests') ? parentEl : parentEl.previousElementSibling;
-  const tests = container.querySelectorAll('.test, .open-question');
-  const idx = testIndex !== null ? testIndex : tests.length;
-
-  const div = document.createElement('div');
-  div.className = "open-question border p-2 mb-2 rounded bg-purple-50 relative";
-  div.innerHTML = `
-    <button type="button" class="absolute top-1 right-2 text-red-500 hover:text-red-700 text-xl" onclick="deleteTest(this)">✖</button>
-    <input type="hidden" name="blocks[${blockIndex}][test][questions][${idx}][type]" value="open" />
-    <input type="text" name="blocks[${blockIndex}][test][questions][${idx}][question]" placeholder="Відкрите питання" class="w-full p-1 mb-1 border rounded" value="${data.question || ''}" />
-  `;
-  container.appendChild(div);
-}
-
-// ➕ Ответ
 function addAnswer(parentEl, blockIndex, testIndex, answerIndex = null, data = {}) {
-  const container = typeof parentEl === 'object' && parentEl.classList?.contains('answers') ? parentEl : parentEl.previousElementSibling;
-  const answers = container.querySelectorAll('.answer');
-  const idx = answerIndex !== null ? answerIndex : answers.length;
+  const container = typeof parentEl === 'object' && parentEl.classList.contains('answers') ? parentEl : parentEl.previousElementSibling;
+  const idx = answerIndex !== null ? answerIndex : container.querySelectorAll('.answer').length;
 
   const div = document.createElement('div');
   div.className = "answer flex items-center gap-2 mb-1";
   div.innerHTML = `
     <button type="button" class="text-red-500 hover:text-red-700" onclick="deleteAnswer(this)">✖</button>
-    <input type="text" name="blocks[${blockIndex}][test][questions][${testIndex}][answers][${idx}][value]" placeholder="Відповідь" class="flex-1 p-1 border rounded" value="${data.value || ''}" />
-    <label><input type="checkbox" name="blocks[${blockIndex}][test][questions][${testIndex}][answers][${idx}][correct]" ${data.correct ? 'checked' : ''}/> Правильна</label>
+    <input type="text" name="blocks[${blockIndex}][test][questions][${testIndex}][answers][${idx}][value]" placeholder="Відповідь" class="flex-1 p-1 border rounded" value="${data?.value || ''}" />
+    <label><input type="checkbox" name="blocks[${blockIndex}][test][questions][${testIndex}][answers][${idx}][correct]" ${data?.correct ? 'checked' : ''}/> Правильна</label>
   `;
   container.appendChild(div);
 }
 
-// 📦 Сбор структуры
+// 🆕 Открытый вопрос
+function addOpenQuestion(parentEl, blockIndex, qIndex = null, data = {}) {
+  const container = typeof parentEl === 'object' && parentEl.classList.contains('open-questions') ? parentEl : parentEl.previousElementSibling;
+  const idx = qIndex !== null ? qIndex : container.querySelectorAll('.open-question').length;
+
+  const div = document.createElement('div');
+  div.className = "open-question border p-2 mb-2 rounded bg-purple-50 relative";
+  div.innerHTML = `
+    <button type="button" class="absolute top-1 right-2 text-red-500 hover:text-red-700 text-xl" onclick="deleteOpenQuestion(this)">✖</button>
+    <input type="text" name="blocks[${blockIndex}][open_questions][${idx}][question]" placeholder="Відкрите питання" class="w-full p-1 mb-1 border rounded" value="${data.question || ''}" />
+  `;
+  container.appendChild(div);
+}
+
 function parseStructure() {
   const blocks = [];
   document.querySelectorAll('.block').forEach((blockDiv) => {
     const block = {
       type: 'stage',
-      title: blockDiv.querySelector('[name$="[title]"]')?.value || '',
-      description: blockDiv.querySelector('[name$="[description]"]')?.value || '',
+      title: blockDiv.querySelector('[name^="blocks"][name$="[title]"]')?.value || '',
+      description: blockDiv.querySelector('[name^="blocks"][name$="[description]"]')?.value || '',
       subblocks: [],
-      test: { questions: [] }
+      test: { questions: [] },
+      open_questions: []
     };
 
     blockDiv.querySelectorAll('.subblock').forEach((subDiv) => {
@@ -206,19 +222,25 @@ function parseStructure() {
     });
 
     blockDiv.querySelectorAll('.test').forEach((testDiv) => {
-      const question = testDiv.querySelector('[name$="[question]"]')?.value || '';
+      const questionInput = testDiv.querySelector('[name$="[question]"]');
+      const question = questionInput?.value || '';
+
       const answers = [];
       testDiv.querySelectorAll('.answer').forEach((aDiv) => {
         const value = aDiv.querySelector('[name$="[value]"]')?.value || '';
         const correct = aDiv.querySelector('[name$="[correct]"]')?.checked || false;
         if (value.trim()) answers.push({ value, correct });
       });
-      if (question) block.test.questions.push({ type: 'choice', question, multiple: false, answers });
+
+      if (question) {
+        block.test.questions.push({ question, multiple: false, answers });
+      }
     });
 
-    blockDiv.querySelectorAll('.open-question').forEach((openDiv) => {
-      const question = openDiv.querySelector('[name$="[question]"]')?.value || '';
-      if (question) block.test.questions.push({ type: 'open', question });
+    blockDiv.querySelectorAll('.open-question').forEach((qDiv) => {
+      block.open_questions.push({
+        question: qDiv.querySelector('[name$="[question]"]')?.value || ''
+      });
     });
 
     blocks.push(block);
@@ -240,6 +262,6 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addStage = addStage;
   window.addSubblock = addSubblock;
   window.addTest = addTest;
-  window.addOpenQuestion = addOpenQuestion;
   window.addAnswer = addAnswer;
+  window.addOpenQuestion = addOpenQuestion;
 });

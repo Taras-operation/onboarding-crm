@@ -27,7 +27,7 @@
   {% endif %}
 
   <div class="mt-6">
-    <button id="proceedToTest"
+    <button id="proceedToTest_{{ index }}"
             type="button"
             class="bg-blue-500 text-white px-4 py-2 rounded opacity-50 cursor-not-allowed"
             disabled>
@@ -37,21 +37,20 @@
 
   {% if block.test and block.test.questions %}
     <div class="test-section hidden mt-6">
-      <form method="POST" id="testFormBlock" class="space-y-6">
+      <form method="POST" id="testFormBlock_{{ index }}" class="space-y-6">
         {% for q in block.test.questions %}
           {% set qid = 'q0_' + (q.question | regex_replace('\\W+', '_') | lower) %}
           <div class="border p-4 rounded bg-white shadow">
             <h4 class="font-semibold mb-2">{{ loop.index }}. {{ q.question }}</h4>
 
             {% if q.type == 'open' %}
-              <!-- 🔹 Открытый вопрос (ответ в свободной форме или ссылка) -->
+              <!-- 🔹 Открытый вопрос -->
               <textarea name="{{ qid }}" 
                         class="w-full border rounded p-2" 
                         placeholder="Введіть вашу відповідь або вставте посилання"
                         required></textarea>
-
             {% else %}
-              <!-- 🔹 Вопрос с выбором ответа -->
+              <!-- 🔹 Вопрос с выбором -->
               {% for a in q.answers %}
                 <label class="block ml-4">
                   <input type="{{ 'checkbox' if q.get('multiple') else 'radio' }}"
@@ -65,7 +64,7 @@
           </div>
         {% endfor %}
 
-        <div id="submitWrap" class="mt-6">
+        <div id="submitWrap_{{ index }}" class="mt-6">
           <button type="submit"
                   class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">
             Завершити тест
@@ -76,11 +75,11 @@
   {% endif %}
 
   <!-- Модальне вікно результату -->
-  <div id="resultModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+  <div id="resultModal_{{ index }}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md transform transition-all scale-95">
       <h2 class="text-2xl font-bold text-green-600 mb-2">Тест завершено!</h2>
-      <p id="resultTextModal" class="text-gray-700 mb-4">Ви дали правильних відповідей: X із Y<br>Відкриті відповіді відправлені на перевірку</p>
-      <p id="motivationText" class="italic text-sm text-gray-500 mb-6">Ти молодець, так тримати!</p>
+      <p id="resultTextModal_{{ index }}" class="text-gray-700 mb-4">Ви дали правильних відповідей: X із Y<br>Відкриті відповіді відправлені на перевірку</p>
+      <p id="motivationText_{{ index }}" class="italic text-sm text-gray-500 mb-6">Ти молодець, так тримати!</p>
       <a href="{{ url_for('main.manager_dashboard') }}"
          class="block text-center bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
         До наступного блоку
@@ -91,13 +90,13 @@
   <script>
   setTimeout(function () {
     const checkboxes = document.querySelectorAll(".checkbox-confirm");
-    const proceedBtn = document.getElementById("proceedToTest");
-    const form = document.getElementById("testFormBlock");
-    const testSections = document.querySelectorAll(".test-section");
+    const proceedBtn = document.getElementById("proceedToTest_{{ index }}");
+    const form = document.getElementById("testFormBlock_{{ index }}");
+    const testSection = form?.closest(".test-section");
     const infoSections = document.querySelectorAll(".info-section");
-    const resultModal = document.getElementById("resultModal");
-    const resultTextModal = document.getElementById("resultTextModal");
-    const motivationText = document.getElementById("motivationText");
+    const resultModal = document.getElementById("resultModal_{{ index }}");
+    const resultTextModal = document.getElementById("resultTextModal_{{ index }}");
+    const motivationText = document.getElementById("motivationText_{{ index }}");
 
     const motivations = [
       "Ти молодець! 🔥",
@@ -119,7 +118,7 @@
 
     if (proceedBtn) {
       proceedBtn.addEventListener("click", () => {
-        testSections.forEach(el => el.classList.remove("hidden"));
+        if (testSection) testSection.classList.remove("hidden");
         infoSections.forEach(el => el.classList.add("hidden"));
         proceedBtn.classList.add("hidden");
       });
@@ -138,7 +137,7 @@
           .then(data => {
             if (data.status === "ok") {
               form.classList.add("hidden");
-              resultTextModal.innerText = `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total}\nВідкриті відповіді відправлені на перевірку`;
+              resultTextModal.innerText = `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\nВідкриті відповіді відправлені на перевірку`;
               motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
               resultModal.classList.remove("hidden");
             } else {
