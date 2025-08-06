@@ -665,6 +665,7 @@ def manager_step(step):
 
                 db.session.add(TestResult(
                     manager_id=current_user.id,
+                    onboarding_instance_id=instance.id,  # ✅ Привязка к онбордингу
                     step=step,
                     question=q_text,
                     correct_answer=", ".join(correct_answers),
@@ -679,6 +680,7 @@ def manager_step(step):
 
                 db.session.add(TestResult(
                     manager_id=current_user.id,
+                    onboarding_instance_id=instance.id,  # ✅ Привязка к онбордингу
                     step=step,
                     question=q_text,
                     correct_answer=None,
@@ -720,6 +722,7 @@ def manager_step(step):
 
                 db.session.add(TestResult(
                     manager_id=current_user.id,
+                    onboarding_instance_id=instance.id,  # ✅ Привязка к онбордингу
                     step=step,
                     question=q_text,
                     correct_answer=None,
@@ -747,15 +750,16 @@ def manager_step(step):
         block=block
     )
 
-@bp.route('/manager_results/<int:manager_id>')
+@bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
 @login_required
-def manager_results(manager_id):
+def manager_results(manager_id, onboarding_id):
     if current_user.role not in ['mentor', 'teamlead', 'developer']:
         return redirect(url_for('main.login'))
 
     manager = User.query.get_or_404(manager_id)
+    instance = OnboardingInstance.query.get_or_404(onboarding_id)
 
-    if manager.role != 'manager':
+    if manager.role != 'manager' or instance.manager_id != manager.id:
         abort(403)
 
     # 🔐 Проверка доступа
@@ -769,16 +773,19 @@ def manager_results(manager_id):
             if not mentor or mentor.added_by_id != current_user.id:
                 abort(403)
 
-    # 🔍 Получаем ВСЕ ответы (включая открытые)
-    results = TestResult.query.filter_by(manager_id=manager.id).order_by(TestResult.step.asc()).all()
+    # 🔍 Загружаем только те результаты, что относятся к этому онбордингу
+    results = TestResult.query.filter_by(
+        manager_id=manager.id,
+        onboarding_instance_id=onboarding_id
+    ).order_by(TestResult.step.asc()).all()
 
-    # 🟢 Разделяем тестовые и открытые (чтобы удобно в шаблоне)
     choice_results = [r for r in results if r.is_correct is not None]
     open_results = [r for r in results if r.is_correct is None]
 
     return render_template(
         'manager_results.html',
         manager=manager,
+        instance=instance,
         choice_results=choice_results,
         open_results=open_results
     )

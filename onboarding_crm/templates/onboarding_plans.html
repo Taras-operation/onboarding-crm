@@ -164,9 +164,14 @@
         <td>{{ plan.completed or 0 }}/{{ plan.total or 0 }}</td>
         <td>{{ plan.mentor or '—' }}</td>
         <td>
+          <!-- Редагувати -->
           <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/user/edit/{{ plan.id }}'">✏️</button>
-          <button class="icon-btn" title="Копіювати" onclick="location.href='/onboarding/user/copy/{{ plan.manager_id }}'">📄</button>
+          
+          <!-- Копіювати (по ID онбординга) -->
+          <button class="icon-btn" title="Копіювати" onclick="location.href='/onboarding/user/copy/{{ plan.id }}'">📄</button>
+          
           {% if current_user.role in ['teamlead', 'developer'] %}
+          <!-- Кнопка видалення можна додати за потреби -->
           {% endif %}
         </td>
       </tr>
