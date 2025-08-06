@@ -634,7 +634,7 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
-    def process_questions(questions, answers_dict, step):
+    def process_questions(questions, answers_dict, step, block_index=None):
         correct_count = 0
         total_test_questions = 0
         open_questions_count = 0
@@ -642,7 +642,10 @@ def manager_step(step):
         for i, q in enumerate(questions):
             q_text = (q.get('question') or '').strip() or "—"
             q_type = q.get('type', 'choice')
-            field_name = f"q0_{i}"  # 🔥 теперь по индексу
+            field_name = f"q0_{i}"  # 🔥 по индексу
+
+            # 📌 Отладка входных данных
+            print(f"[DEBUG] Processing question idx={i} field_name={field_name} q_text={q_text}")
 
             if q_type == 'choice':
                 user_input = answers_dict.getlist(field_name) if q.get('multiple') else answers_dict.get(field_name)
@@ -650,6 +653,9 @@ def manager_step(step):
 
                 selected = ", ".join(user_input) if isinstance(user_input, list) else (user_input or "")
                 is_correct = (set(user_input) == set(correct_answers)) if isinstance(user_input, list) else (selected in correct_answers)
+
+                # 📌 Отладка выбора ответа
+                print(f"[DEBUG] Choice answer selected={selected}, correct_answers={correct_answers}, is_correct={is_correct}")
 
                 db.session.add(TestResult(
                     manager_id=current_user.id,
@@ -667,6 +673,10 @@ def manager_step(step):
 
             elif q_type == 'open':
                 user_input = answers_dict.get(field_name)
+
+                # 📌 Отладка открытых ответов
+                print(f"[DEBUG] Open answer selected={user_input}")
+
                 db.session.add(TestResult(
                     manager_id=current_user.id,
                     onboarding_instance_id=instance.id,
@@ -685,15 +695,15 @@ def manager_step(step):
         correct, total_choice, open_q_count = 0, 0, 0
 
         if 'test' in block and 'questions' in block['test']:
-            c, t, o = process_questions(block['test']['questions'], form_data, step)
+            c, t, o = process_questions(block['test']['questions'], form_data, step, block_index=step)
             correct += c
             total_choice += t
             open_q_count += o
 
         if 'subblocks' in block:
-            for sb in block['subblocks']:
+            for sb_index, sb in enumerate(block['subblocks']):
                 if 'test' in sb and 'questions' in sb['test']:
-                    c, t, o = process_questions(sb['test']['questions'], form_data, step)
+                    c, t, o = process_questions(sb['test']['questions'], form_data, step, block_index=f"{step}_sb{sb_index}")
                     correct += c
                     total_choice += t
                     open_q_count += o
@@ -703,6 +713,10 @@ def manager_step(step):
                 q_text = (oq.get('question') or '').strip() or "—"
                 field_name = f"open_q_{i}"
                 user_input = form_data.get(field_name)
+
+                # 📌 Отладка отдельных open вопросов
+                print(f"[DEBUG] Block open question idx={i} field_name={field_name} q_text={q_text}, answer={user_input}")
+
                 db.session.add(TestResult(
                     manager_id=current_user.id,
                     onboarding_instance_id=instance.id,
@@ -713,6 +727,9 @@ def manager_step(step):
                     is_correct=None
                 ))
                 open_q_count += 1
+
+        # 📌 Отладка суммарных данных по шагу
+        print(f"[DEBUG] Step {step} summary: correct={correct}, total_choice={total_choice}, open_q_count={open_q_count}")
 
         instance.onboarding_step = step + 1
         current_user.onboarding_step = step + 1
