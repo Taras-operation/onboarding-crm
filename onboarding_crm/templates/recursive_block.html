@@ -39,10 +39,10 @@
     <div class="test-section hidden mt-6">
       <form method="POST" id="testFormBlock_{{ index }}" class="space-y-6">
 
-        {# 🔹 Вопросы с выбором ответа #}
+        {# 🔹 Вопросы с выбором ответа и open внутри теста #}
         {% if block.test and block.test.questions %}
           {% for q in block.test.questions %}
-            {% set qid = 'q0_' + (q.question | regex_replace('\\W+', '_') | lower) %}
+            {% set qid = 'q0_' ~ loop.index0 %}
             <div class="border p-4 rounded bg-white shadow">
               <h4 class="font-semibold mb-2">{{ loop.index }}. {{ q.question }}</h4>
 

@@ -609,29 +609,24 @@ def manager_dashboard():
 @login_required
 def manager_step(step):
     from flask import jsonify
-    import re
 
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    # Загружаем онбординг
     instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first()
     if not instance:
         return redirect(url_for('main.manager_dashboard'))
 
-    # Парсим структуру
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(parsed, str):
             parsed = json.loads(parsed)
-
         blocks = parsed.get('blocks', []) if isinstance(parsed, dict) else parsed
     except Exception as e:
         print(f"[manager_step] ❌ JSON parse error: {e}")
         blocks = []
 
-    # Достаём stage-блоки
     stage_blocks = [b for b in blocks if b.get("type") == "stage"]
     total_steps = len(stage_blocks)
     if step >= total_steps:
@@ -639,71 +634,62 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
-    # 🔍 Универсальная обработка вопросов
     def process_questions(questions, answers_dict, step):
         correct_count = 0
         total_test_questions = 0
         open_questions_count = 0
 
-        for q in questions:
-            q_text = q.get('question', '')
+        for i, q in enumerate(questions):
+            q_text = (q.get('question') or '').strip() or "—"
             q_type = q.get('type', 'choice')
-            normalized = re.sub(r'\W+', '_', q_text.strip().lower())
-            field_name = f"q0_{normalized}"
+            field_name = f"q0_{i}"  # 🔥 теперь по индексу
 
             if q_type == 'choice':
-                # Вопрос с выбором
                 user_input = answers_dict.getlist(field_name) if q.get('multiple') else answers_dict.get(field_name)
                 correct_answers = [a['value'] for a in q.get('answers', []) if a.get('correct')]
 
                 selected = ", ".join(user_input) if isinstance(user_input, list) else (user_input or "")
                 is_correct = (set(user_input) == set(correct_answers)) if isinstance(user_input, list) else (selected in correct_answers)
 
-                if is_correct:
-                    correct_count += 1
-                total_test_questions += 1
-
                 db.session.add(TestResult(
                     manager_id=current_user.id,
-                    onboarding_instance_id=instance.id,  # ✅ Привязка к онбордингу
+                    onboarding_instance_id=instance.id,
                     step=step,
                     question=q_text,
-                    correct_answer=", ".join(correct_answers),
-                    selected_answer=selected,
+                    correct_answer=", ".join(correct_answers) if correct_answers else None,
+                    selected_answer=selected or None,
                     is_correct=is_correct
                 ))
 
-            elif q_type == 'open':
-                # Открытый вопрос внутри теста
-                user_input = answers_dict.get(field_name)
-                open_questions_count += 1
+                total_test_questions += 1
+                if is_correct:
+                    correct_count += 1
 
+            elif q_type == 'open':
+                user_input = answers_dict.get(field_name)
                 db.session.add(TestResult(
                     manager_id=current_user.id,
-                    onboarding_instance_id=instance.id,  # ✅ Привязка к онбордингу
+                    onboarding_instance_id=instance.id,
                     step=step,
                     question=q_text,
                     correct_answer=None,
-                    selected_answer=user_input,
+                    selected_answer=user_input or None,
                     is_correct=None
                 ))
+                open_questions_count += 1
 
         return correct_count, total_test_questions, open_questions_count
 
-    # POST — обработка формы
     if request.method == 'POST':
         form_data = request.form
-
         correct, total_choice, open_q_count = 0, 0, 0
 
-        # Вопросы блока (тест)
         if 'test' in block and 'questions' in block['test']:
             c, t, o = process_questions(block['test']['questions'], form_data, step)
             correct += c
             total_choice += t
             open_q_count += o
 
-        # Вопросы сабблоков
         if 'subblocks' in block:
             for sb in block['subblocks']:
                 if 'test' in sb and 'questions' in sb['test']:
@@ -712,25 +698,22 @@ def manager_step(step):
                     total_choice += t
                     open_q_count += o
 
-        # 🔍 Обработка отдельных open_questions
         if 'open_questions' in block:
             for i, oq in enumerate(block['open_questions']):
-                q_text = oq.get('question', '')
+                q_text = (oq.get('question') or '').strip() or "—"
                 field_name = f"open_q_{i}"
                 user_input = form_data.get(field_name)
-                open_q_count += 1
-
                 db.session.add(TestResult(
                     manager_id=current_user.id,
-                    onboarding_instance_id=instance.id,  # ✅ Привязка к онбордингу
+                    onboarding_instance_id=instance.id,
                     step=step,
                     question=q_text,
                     correct_answer=None,
-                    selected_answer=user_input,
+                    selected_answer=user_input or None,
                     is_correct=None
                 ))
+                open_q_count += 1
 
-        # Обновляем прогресс
         instance.onboarding_step = step + 1
         current_user.onboarding_step = step + 1
         db.session.commit()
@@ -742,7 +725,6 @@ def manager_step(step):
             'open_questions': open_q_count
         })
 
-    # GET — рендер страницы
     return render_template(
         'manager_step.html',
         step=step,
