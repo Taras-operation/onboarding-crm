@@ -556,15 +556,13 @@ def delete_user_onboarding(id):
     if current_user.role == 'teamlead' and user.role != 'manager':
         return {'message': 'Тімлід може видаляти лише менеджерів'}, 403
 
-    # 🧹 Видаляємо всі пов'язані онбординги
-    instances = OnboardingInstance.query.filter_by(manager_id=user.id).all()
-    for instance in instances:
-        db.session.delete(instance)
-
-    # ❌ Сам користувач
-    db.session.delete(user)
-    db.session.commit()
-    return '', 204
+    try:
+        db.session.delete(user)  # 🧼 Каскад сам видалить всі пов’язані записи
+        db.session.commit()
+        return '', 204
+    except Exception as e:
+        db.session.rollback()
+        return {'message': f'Помилка при видаленні: {str(e)}'}, 500
 
 @bp.route('/manager_dashboard')
 @login_required

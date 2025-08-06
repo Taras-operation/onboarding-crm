@@ -7,6 +7,8 @@ import json
 # 🔹 Модель користувача (менеджер, ментор, ТЛ)
 # ─────────────────────────────────────────────
 class User(db.Model, UserMixin):
+    __tablename__ = 'user'
+    
     id = db.Column(db.Integer, primary_key=True)
     tg_nick = db.Column(db.String(150))
     department = db.Column(db.String(150))
@@ -15,7 +17,7 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(256))
     role = db.Column(db.String(50))
 
-    added_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    added_by_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     added_by = db.relationship('User', remote_side=[id])
 
     onboarding_status = db.Column(db.String(100), default='Не розпочато')
@@ -26,6 +28,28 @@ class User(db.Model, UserMixin):
     onboarding_end = db.Column(db.DateTime)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # 🔹 Каскадное удаление всех связанных онбордингов и тестов
+    manager_onboardings = db.relationship(
+        'OnboardingInstance',
+        foreign_keys='OnboardingInstance.manager_id',
+        cascade='all, delete-orphan',
+        passive_deletes=True
+    )
+
+    mentor_onboardings = db.relationship(
+        'OnboardingInstance',
+        foreign_keys='OnboardingInstance.mentor_id',
+        cascade='all, delete-orphan',
+        passive_deletes=True
+    )
+
+    test_results = db.relationship(
+        'TestResult',
+        backref='manager',
+        cascade='all, delete-orphan',
+        passive_deletes=True
+    )
 
     @property
     def total_steps(self):
@@ -47,21 +71,25 @@ class User(db.Model, UserMixin):
 # 🔹 Шаблон онбордингу
 # ─────────────────────────────────────────────
 class OnboardingTemplate(db.Model):
+    __tablename__ = 'onboarding_template'
+    
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     structure = db.Column(db.JSON)
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     steps = db.relationship('OnboardingStep', backref='template', cascade='all, delete-orphan', lazy=True)
 
 
 # ─────────────────────────────────────────────
-# 🔹 Етап шаблону (може бути текстовий або тестовий)
+# 🔹 Етап шаблону
 # ─────────────────────────────────────────────
 class OnboardingStep(db.Model):
+    __tablename__ = 'onboarding_step'
+    
     id = db.Column(db.Integer, primary_key=True)
-    template_id = db.Column(db.Integer, db.ForeignKey('onboarding_template.id'), nullable=False)
+    template_id = db.Column(db.Integer, db.ForeignKey('onboarding_template.id', ondelete='CASCADE'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     order = db.Column(db.Integer)
@@ -71,31 +99,39 @@ class OnboardingStep(db.Model):
 
 
 # ─────────────────────────────────────────────
-# 🔹 Тест до етапу (опціонально)
+# 🔹 Тест до етапу
 # ─────────────────────────────────────────────
 class OnboardingTest(db.Model):
+    __tablename__ = 'onboarding_test'
+    
     id = db.Column(db.Integer, primary_key=True)
-    step_id = db.Column(db.Integer, db.ForeignKey('onboarding_step.id'), nullable=False)
+    step_id = db.Column(db.Integer, db.ForeignKey('onboarding_step.id', ondelete='CASCADE'), nullable=False)
     question = db.Column(db.String(255), nullable=False)
     options = db.Column(db.JSON)
     correct_answer = db.Column(db.String(255))
 
 
 # ─────────────────────────────────────────────
-# 🔹 Індивідуальний онбординг для менеджера
+# 🔹 Індивідуальний онбординг
 # ─────────────────────────────────────────────
 class OnboardingInstance(db.Model):
+    __tablename__ = 'onboarding_instance'
+    
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
-    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    mentor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    manager_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    mentor_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     structure = db.Column(db.JSON, nullable=False)
     onboarding_step = db.Column(db.Integer, default=0)
     onboarding_step_total = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    manager = db.relationship('User', foreign_keys=[manager_id], backref='manager_onboardings')
-    mentor = db.relationship('User', foreign_keys=[mentor_id], backref='mentor_onboardings')
+    test_results = db.relationship(
+        'TestResult',
+        backref='onboarding_instance',
+        cascade='all, delete-orphan',
+        passive_deletes=True
+    )
 
 
 # ─────────────────────────────────────────────
@@ -105,16 +141,13 @@ class TestResult(db.Model):
     __tablename__ = 'test_result'
 
     id = db.Column(db.Integer, primary_key=True)
-    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-
-    question = db.Column(db.String(512), nullable=False)            # Текст вопроса
-    correct_answer = db.Column(db.String(512), nullable=True)       # Для открытых вопросов можно оставить пустым
-    selected_answer = db.Column(db.String(512), nullable=True)      # Ответ менеджера (или ссылка)
+    manager_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    onboarding_instance_id = db.Column(db.Integer, db.ForeignKey('onboarding_instance.id', ondelete='CASCADE'))
     
-    # ✅ Теперь можно хранить NULL (None), чтобы различать:
-    #   True / False — проверенные тестовые вопросы
-    #   None         — открытые вопросы, ожидающие проверки
+    question = db.Column(db.String(512), nullable=False)
+    correct_answer = db.Column(db.String(512), nullable=True)
+    selected_answer = db.Column(db.String(512), nullable=True)
+    
     is_correct = db.Column(db.Boolean, nullable=True)               
-    
-    step = db.Column(db.Integer, nullable=True)                     # Номер шага онбординга
+    step = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
