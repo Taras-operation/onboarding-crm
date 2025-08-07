@@ -53,22 +53,24 @@
     {% endif %}
 
     <!-- Відкриті питання -->
-    <h2 class="text-xl font-semibold mb-2 mt-8">Відкриті питання</h2>
-    {% if open_results %}
-      <div class="space-y-6 border border-gray-300 rounded p-4 bg-gray-50">
-        {% for r in open_results %}
-          <div class="mb-4 p-4 bg-white rounded shadow">
-            <div class="font-semibold mb-2">Крок {{ r.step }}: {{ r.question }}</div>
-            <div class="whitespace-pre-wrap text-gray-800 border-t pt-2">
-  {{ r.selected_answer | urlize(target="_blank") | safe }}
-</div>
-            <div class="mt-2 text-sm text-gray-500 italic">Очікує перевірки</div>
+<h2 class="text-xl font-semibold mb-2 mt-8">Відкриті питання</h2>
+{% if open_results %}
+  <div class="space-y-6 border border-gray-300 rounded p-4 bg-gray-50">
+    {% for r in open_results %}
+      <div class="mb-4 p-4 bg-white rounded shadow">
+        <div class="font-semibold mb-2">Крок {{ r.step }}: {{ r.question }}</div>
+        <div class="whitespace-pre-wrap text-gray-800 border-t pt-2">
+          <div class="prose prose-sm">
+            {{ r.selected_answer | urlize(target="_blank", rel="noopener noreferrer") | safe }}
           </div>
-        {% endfor %}
+        </div>
+        <div class="mt-2 text-sm text-gray-500 italic">Очікує перевірки</div>
       </div>
-    {% else %}
-      <p>Немає відкритих відповідей.</p>
-    {% endif %}
+    {% endfor %}
+  </div>
+{% else %}
+  <p>Немає відкритих відповідей.</p>
+{% endif %}
 
     <!-- Кнопка Назад -->
     <a href="{{ url_for('main.managers_list') }}" 
