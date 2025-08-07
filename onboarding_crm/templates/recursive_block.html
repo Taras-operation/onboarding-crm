@@ -10,7 +10,7 @@
     {% for sub in block.subblocks %}
       <div class="border border-gray-300 p-4 rounded info-section">
         <h3 class="font-medium text-gray-700 mb-1">{{ sub.title }}</h3>
-        <div class="text-sm text-gray-700 mb-3 leading-relaxed whitespace-pre-line">
+        <div class="text-sm text-gray-700 mb-3 leading-relaxed whitespace-pre-line break-words">
           {{ sub.description | autolink | safe }}
         </div>
 
