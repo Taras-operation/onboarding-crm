@@ -57,7 +57,9 @@
                         {% endif %}
 
                         {% if current_user.role in ['teamlead', 'developer'] %}
-                        <button class="btn btn-outline-danger btn-sm" onclick="deleteManager({{ manager.id }})">🗑️</button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteManager({{ manager.id }})">
+                            🗑️
+                        </button>
                         {% endif %}
                     </div>
                 </td>
