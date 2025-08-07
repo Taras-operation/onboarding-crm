@@ -2,71 +2,6 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <title>Результати тестів {{ manager.login }}</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-</head>
-<body class="bg-gray-100 p-6">
-  <div class="max-w-4xl mx-auto bg-white p-6 rounded shadow">
-    <h1 class="text-2xl font-bold mb-4">Результати тестів для {{ manager.tg_nick or manager.login }}</h1>
-
-    <!-- Тестові питання -->
-    <h2 class="text-xl font-semibold mb-2 mt-6">Тестові питання</h2>
-    {% if choice_results %}
-      <table class="w-full table-auto border border-gray-300">
-        <thead class="bg-gray-100 text-left">
-          <tr>
-            <th class="border p-2">Крок</th>
-            <th class="border p-2">Питання</th>
-            <th class="border p-2">Відповідь</th>
-            <th class="border p-2">Правильна відповідь</th>
-            <th class="border p-2 text-center">✅</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in choice_results %}
-          <tr class="border-b">
-            <td class="border p-2">{{ r.step }}</td>
-            <td class="border p-2">{{ r.question }}</td>
-            <td class="border p-2">{{ r.selected_answer }}</td>
-            <td class="border p-2">{{ r.correct_answer }}</td>
-            <td class="border p-2 text-center">
-              {% if r.is_correct %}
-                ✅
-              {% else %}
-                ❌
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <p>Немає тестових результатів.</p>
-    {% endif %}
-
-    <!-- Відкриті питання -->
-    <h2 class="text-xl font-semibold mb-2 mt-8">Відкриті питання</h2>
-    {% if open_results %}
-      <div class="space-y-6 border border-gray-300 rounded p-4 bg-gray-50">
-        {% for r in open_results %}
-          <div class="mb-4 p-4 bg-white rounded shadow">
-            <div class="font-semibold mb-2">Крок {{ r.step }}: {{ r.question }}</div>
-            <div class="whitespace-pre-wrap text-gray-800 border-t pt-2">{{ r.selected_answer }}</div>
-            <div class="mt-2 text-sm text-gray-500 italic">Очікує перевірки</div>
-          </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p>Немає відкритих відповідей.</p>
-    {% endif %}
-
-    <a href="{{ url_for('main.managers_list') }}" class="mt-6 inline-block text-blue-600 hover:underline">← Назад</a>
-  </div>
-</body>
-</html<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8">
   <title>Результати тестів {{ manager.username }}</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
@@ -124,7 +59,9 @@
         {% for r in open_results %}
           <div class="mb-4 p-4 bg-white rounded shadow">
             <div class="font-semibold mb-2">Крок {{ r.step }}: {{ r.question }}</div>
-            <div class="whitespace-pre-wrap text-gray-800 border-t pt-2">{{ r.selected_answer }}</div>
+            <div class="whitespace-pre-wrap text-gray-800 border-t pt-2">
+  {{ r.selected_answer | urlize(target="_blank") | safe }}
+</div>
             <div class="mt-2 text-sm text-gray-500 italic">Очікує перевірки</div>
           </div>
         {% endfor %}

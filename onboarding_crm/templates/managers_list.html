@@ -48,18 +48,18 @@
                 <td>{{ manager.created_at.strftime('%d.%m.%Y %H:%M') if manager.created_at else '—' }}</td>
                 <td>{{ manager.added_by.tg_nick if manager.added_by else '—' }}</td>
                 <td>
-                    {% if instance %}
-                    <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
-                       class="btn btn-outline-secondary btn-sm mb-1">
-                        📊 Результати
-                    </a>
-                    {% else %}
-                    <span class="text-muted small d-block mb-1">Немає онбордингу</span>
-                    {% endif %}
+                    <div class="d-flex justify-content-center align-items-center gap-2">
+                        {% if instance %}
+                        <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
+                           class="btn btn-outline-secondary btn-sm">
+                            📊 Результати
+                        </a>
+                        {% endif %}
 
-                    {% if current_user.role in ['teamlead', 'developer'] %}
-                    <button class="btn btn-outline-danger btn-sm" onclick="deleteManager({{ manager.id }})">🗑️</button>
-                    {% endif %}
+                        {% if current_user.role in ['teamlead', 'developer'] %}
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteManager({{ manager.id }})">🗑️</button>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% endfor %}
