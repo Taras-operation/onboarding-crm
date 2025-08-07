@@ -75,7 +75,7 @@
               <h4 class="font-semibold mb-2">
                 {{ (loop.index + (block.test.questions | length if block.test else 0)) }}. {{ oq.question }}
               </h4>
-              <textarea name="open_q_{{ loop.index }}" 
+              <textarea name="open_q_{{ loop.index0 }}" 
                         class="w-full border rounded p-2" 
                         placeholder="Введіть вашу відповідь"
                         required></textarea>
