@@ -617,6 +617,7 @@ def manager_step(step):
     if not instance:
         return redirect(url_for('main.manager_dashboard'))
 
+    # --- Разбор структуры онбординга ---
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -634,6 +635,13 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
+    # --- Прогресс теста по шагам ---
+    progress = instance.test_progress or {}
+    step_progress = progress.get(str(step), {})
+    test_started = bool(step_progress.get('started', False))
+    test_completed = bool(step_progress.get('completed', False))
+
+    # --- Функция обработки вопросов ---
     def process_questions(questions, answers_dict, step, block_index=None):
         correct_count = 0
         total_test_questions = 0
@@ -642,10 +650,7 @@ def manager_step(step):
         for i, q in enumerate(questions):
             q_text = (q.get('question') or '').strip() or "—"
             q_type = q.get('type', 'choice')
-            field_name = f"q0_{i}"  # 🔥 по индексу
-
-            # 📌 Отладка входных данных
-            print(f"[DEBUG] Processing question idx={i} field_name={field_name} q_text={q_text}")
+            field_name = f"q0_{i}"
 
             if q_type == 'choice':
                 user_input = answers_dict.getlist(field_name) if q.get('multiple') else answers_dict.get(field_name)
@@ -653,9 +658,6 @@ def manager_step(step):
 
                 selected = ", ".join(user_input) if isinstance(user_input, list) else (user_input or "")
                 is_correct = (set(user_input) == set(correct_answers)) if isinstance(user_input, list) else (selected in correct_answers)
-
-                # 📌 Отладка выбора ответа
-                print(f"[DEBUG] Choice answer selected={selected}, correct_answers={correct_answers}, is_correct={is_correct}")
 
                 db.session.add(TestResult(
                     manager_id=current_user.id,
@@ -674,9 +676,6 @@ def manager_step(step):
             elif q_type == 'open':
                 user_input = answers_dict.get(field_name)
 
-                # 📌 Отладка открытых ответов
-                print(f"[DEBUG] Open answer selected={user_input}")
-
                 db.session.add(TestResult(
                     manager_id=current_user.id,
                     onboarding_instance_id=instance.id,
@@ -690,6 +689,7 @@ def manager_step(step):
 
         return correct_count, total_test_questions, open_questions_count
 
+    # --- Обработка отправки формы ---
     if request.method == 'POST':
         form_data = request.form
         correct, total_choice, open_q_count = 0, 0, 0
@@ -714,9 +714,6 @@ def manager_step(step):
                 field_name = f"open_q_{i}"
                 user_input = form_data.get(field_name)
 
-                # 📌 Отладка отдельных open вопросов
-                print(f"[DEBUG] Block open question idx={i} field_name={field_name} q_text={q_text}, answer={user_input}")
-
                 db.session.add(TestResult(
                     manager_id=current_user.id,
                     onboarding_instance_id=instance.id,
@@ -728,11 +725,14 @@ def manager_step(step):
                 ))
                 open_q_count += 1
 
-        # 📌 Отладка суммарных данных по шагу
-        print(f"[DEBUG] Step {step} summary: correct={correct}, total_choice={total_choice}, open_q_count={open_q_count}")
-
+        # --- Обновляем шаг ---
         instance.onboarding_step = step + 1
         current_user.onboarding_step = step + 1
+
+        # --- Помечаем тест завершенным ---
+        progress[str(step)] = {'started': True, 'completed': True}
+        instance.test_progress = progress
+
         db.session.commit()
 
         return jsonify({
@@ -746,7 +746,9 @@ def manager_step(step):
         'manager_step.html',
         step=step,
         total_steps=total_steps,
-        block=block
+        block=block,
+        test_started=test_started,
+        test_completed=test_completed
     )
 
 @bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
@@ -805,3 +807,30 @@ def autosave_template(template_id):
     except Exception as e:
         print("❌ Error saving autosave:", e)
         return jsonify({'error': str(e)}), 500   
+    
+# --- API: старт теста ---
+@bp.route('/api/test/start/<int:step>', methods=['POST'])
+@login_required
+def api_test_start(step):
+    instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
+    progress = instance.test_progress or {}
+    prev = progress.get(str(step), {})
+    progress[str(step)] = {'started': True, 'completed': prev.get('completed', False)}
+    instance.test_progress = progress
+    db.session.commit()
+    return {'status': 'ok'}
+
+
+# --- API: завершение теста ---
+@bp.route('/api/test/complete/<int:step>', methods=['POST'])
+@login_required
+def api_test_complete(step):
+    instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
+    progress = instance.test_progress or {}
+    prev = progress.get(str(step), {})
+    prev['started'] = True
+    prev['completed'] = True
+    progress[str(step)] = prev
+    instance.test_progress = progress
+    db.session.commit()
+    return {'status': 'ok'}

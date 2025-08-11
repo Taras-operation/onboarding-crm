@@ -10,7 +10,7 @@
     <h1 class="text-2xl font-bold mb-6">Онбординг — {{ block.title }}</h1>
 
     {% from 'recursive_block.html' import render_block %}
-    {{ render_block(block) }}
+    {{ render_block(block, index=step, test_started=test_started, test_completed=test_completed) }}
 
   </div>
 </body>
