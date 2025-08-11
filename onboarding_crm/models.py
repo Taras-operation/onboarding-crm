@@ -2,6 +2,7 @@ from onboarding_crm.extensions import db
 from flask_login import UserMixin
 from datetime import datetime
 import json
+from sqlalchemy.dialects.postgresql import JSONB  # ✅ для test_progress
 
 # ─────────────────────────────────────────────
 # 🔹 Модель користувача (менеджер, ментор, ТЛ)
@@ -122,6 +123,11 @@ class OnboardingInstance(db.Model):
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     mentor_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     structure = db.Column(db.JSON, nullable=False)
+
+    # ✅ Новое поле: прогресс тестов по шагам
+    # Пример: {"0": {"started": true, "completed": true}, "1": {...}}
+    test_progress = db.Column(JSONB, nullable=True, default=dict)
+
     onboarding_step = db.Column(db.Integer, default=0)
     onboarding_step_total = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -148,6 +154,7 @@ class TestResult(db.Model):
     correct_answer = db.Column(db.String(512), nullable=True)
     selected_answer = db.Column(db.String(512), nullable=True)
     
-    is_correct = db.Column(db.Boolean, nullable=True)               
+    # ✅ None = відкриті питання (очікують перевірки)
+    is_correct = db.Column(db.Boolean, nullable=True)
     step = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
