@@ -25,7 +25,7 @@
   </div>
   {% endif %}
 
-  {% if not test_completed %}
+  {# ✅ Кнопка всегда рендерится; скрывается только при активном тесте #}
   <div class="mt-6" {% if test_started and not test_completed %}style="display:none"{% endif %}>
     <button id="proceedToTest_{{ index }}"
             type="button"
@@ -34,7 +34,6 @@
       Перейти до тесту
     </button>
   </div>
-  {% endif %}
 
   {% if (block.test and block.test.questions) or block.open_questions %}
     <div class="test-section {% if not test_started or test_completed %}hidden{% endif %} mt-6">
