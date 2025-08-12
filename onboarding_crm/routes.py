@@ -613,11 +613,12 @@ def manager_step(step):
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
+    # 1) Текущая инстанция онбординга менеджера
     instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first()
     if not instance:
         return redirect(url_for('main.manager_dashboard'))
 
-    # --- Разбор структуры онбординга ---
+    # 2) Разбор структуры онбординга
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -635,22 +636,22 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
-    # --- Прогресс теста по шагам ---
+    # 3) Прогресс по шагу (античит)
     progress = instance.test_progress or {}
     step_progress = progress.get(str(step), {})
-    test_started = bool(step_progress.get('started', False))
-    test_completed = bool(step_progress.get('completed', False))
+    raw_started = bool(step_progress.get('started', False))
+    raw_completed = bool(step_progress.get('completed', False))
 
-    # ✅ если шаг завершён — тест не должен отображаться (показываем инфо-блоки и кнопку)
-    effective_started = False if test_completed else test_started
+    # ✅ если шаг завершён — считаем, что тест НЕ активен (показываем инфо-блоки и кнопку)
+    effective_started = raw_started and (not raw_completed)
 
-    # --- Функция обработки вопросов ---
+    # 4) Утилита сохранения ответов
     def process_questions(questions, answers_dict, step, block_index=None):
         correct_count = 0
         total_test_questions = 0
         open_questions_count = 0
 
-        for i, q in enumerate(questions):
+        for i, q in enumerate(questions or []):
             q_text = (q.get('question') or '').strip() or "—"
             q_type = q.get('type', 'choice')
             field_name = f"q0_{i}"
@@ -676,9 +677,8 @@ def manager_step(step):
                 if is_correct:
                     correct_count += 1
 
-            elif q_type == 'open':
+            else:  # 'open'
                 user_input = answers_dict.get(field_name)
-
                 db.session.add(TestResult(
                     manager_id=current_user.id,
                     onboarding_instance_id=instance.id,
@@ -692,47 +692,43 @@ def manager_step(step):
 
         return correct_count, total_test_questions, open_questions_count
 
-    # --- Обработка отправки формы ---
+    # 5) Обработка POST (сабмит теста)
     if request.method == 'POST':
         form_data = request.form
         correct, total_choice, open_q_count = 0, 0, 0
 
-        if 'test' in block and 'questions' in block['test']:
+        # Вопросы текущего блока
+        if block.get('test') and block['test'].get('questions'):
             c, t, o = process_questions(block['test']['questions'], form_data, step, block_index=step)
-            correct += c
-            total_choice += t
-            open_q_count += o
+            correct += c; total_choice += t; open_q_count += o
 
-        if 'subblocks' in block:
-            for sb_index, sb in enumerate(block['subblocks']):
-                if 'test' in sb and 'questions' in sb['test']:
-                    c, t, o = process_questions(sb['test']['questions'], form_data, step, block_index=f"{step}_sb{sb_index}")
-                    correct += c
-                    total_choice += t
-                    open_q_count += o
+        # Вопросы из сабблоков (если есть)
+        for sb_index, sb in enumerate(block.get('subblocks') or []):
+            if sb.get('test') and sb['test'].get('questions'):
+                c, t, o = process_questions(sb['test']['questions'], form_data, step, block_index=f"{step}_sb{sb_index}")
+                correct += c; total_choice += t; open_q_count += o
 
-        if 'open_questions' in block:
-            for i, oq in enumerate(block['open_questions']):
-                q_text = (oq.get('question') or '').strip() or "—"
-                field_name = f"open_q_{i}"
-                user_input = form_data.get(field_name)
+        # Отдельные open_questions
+        for i, oq in enumerate(block.get('open_questions') or []):
+            q_text = (oq.get('question') or '').strip() or "—"
+            field_name = f"open_q_{i}"
+            user_input = form_data.get(field_name)
+            db.session.add(TestResult(
+                manager_id=current_user.id,
+                onboarding_instance_id=instance.id,
+                step=step,
+                question=q_text,
+                correct_answer=None,
+                selected_answer=user_input or None,
+                is_correct=None
+            ))
+            open_q_count += 1
 
-                db.session.add(TestResult(
-                    manager_id=current_user.id,
-                    onboarding_instance_id=instance.id,
-                    step=step,
-                    question=q_text,
-                    correct_answer=None,
-                    selected_answer=user_input or None,
-                    is_correct=None
-                ))
-                open_q_count += 1
-
-        # --- Обновляем шаг ---
+        # Прогресс онбординга вперёд
         instance.onboarding_step = step + 1
         current_user.onboarding_step = step + 1
 
-        # --- Помечаем тест завершенным ---
+        # 🔒 Зафиксировать завершение шага (античит)
         progress[str(step)] = {'started': True, 'completed': True}
         instance.test_progress = progress
 
@@ -745,14 +741,15 @@ def manager_step(step):
             'open_questions': open_q_count
         })
 
-    # --- Рендер ---
+    # 6) Рендер
     return render_template(
         'manager_step.html',
         step=step,
         total_steps=total_steps,
         block=block,
-        test_started=effective_started,   # ← теперь переменная существует
-        test_completed=test_completed
+        # важно: отдаём в шаблон уже "очищенный" флаг
+        test_started=effective_started,
+        test_completed=raw_completed
     )
 
 @bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
