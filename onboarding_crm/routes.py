@@ -641,9 +641,8 @@ def manager_step(step):
     test_started = bool(step_progress.get('started', False))
     test_completed = bool(step_progress.get('completed', False))
 
-    # ✅ Ключевая правка: если шаг завершён — считаем, что тест НЕ активен для рендера
-    if test_completed:
-        test_started = False
+    # ✅ если шаг завершён — тест не должен отображаться (показываем инфо-блоки и кнопку)
+    effective_started = False if test_completed else test_started
 
     # --- Функция обработки вопросов ---
     def process_questions(questions, answers_dict, step, block_index=None):
@@ -657,9 +656,7 @@ def manager_step(step):
             field_name = f"q0_{i}"
 
             if q_type == 'choice':
-                user_input = (answers_dict.getlist(field_name)
-                              if q.get('multiple') else
-                              answers_dict.get(field_name))
+                user_input = answers_dict.getlist(field_name) if q.get('multiple') else answers_dict.get(field_name)
                 correct_answers = [a['value'] for a in q.get('answers', []) if a.get('correct')]
 
                 selected = ", ".join(user_input) if isinstance(user_input, list) else (user_input or "")
@@ -754,7 +751,7 @@ def manager_step(step):
         step=step,
         total_steps=total_steps,
         block=block,
-        test_started=effective_started,   # важное изменение
+        test_started=effective_started,   # ← теперь переменная существует
         test_completed=test_completed
     )
 
