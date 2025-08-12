@@ -642,7 +642,8 @@ def manager_step(step):
     test_completed = bool(step_progress.get('completed', False))
 
     # ✅ Ключевая правка: если шаг завершён — считаем, что тест НЕ активен для рендера
-    effective_started = test_started and not test_completed
+    if test_completed:
+        test_started = False
 
     # --- Функция обработки вопросов ---
     def process_questions(questions, answers_dict, step, block_index=None):
@@ -833,10 +834,16 @@ def api_test_start(step):
 def api_test_complete(step):
     instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
     progress = instance.test_progress or {}
+
     prev = progress.get(str(step), {})
     prev['started'] = True
     prev['completed'] = True
     progress[str(step)] = prev
     instance.test_progress = progress
+
     db.session.commit()
+
+    # 🛠️ Лог для проверки
+    print(f"[COMPLETE] Step={step}, Progress after update={progress}")
+
     return {'status': 'ok'}
