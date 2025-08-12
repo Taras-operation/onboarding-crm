@@ -812,8 +812,12 @@ def autosave_template(template_id):
 def api_test_start(step):
     instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
     progress = instance.test_progress or {}
-    prev = progress.get(str(step), {})
-    progress[str(step)] = {'started': True, 'completed': prev.get('completed', False)}
+
+    prev = progress.get(str(step)) or {}
+    prev['started'] = True
+    # ВАЖНО: НЕ перезаписываем 'completed' вовсе.
+    progress[str(step)] = prev
+
     instance.test_progress = progress
     db.session.commit()
     return {'status': 'ok'}
