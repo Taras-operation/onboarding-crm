@@ -604,7 +604,7 @@ def manager_step(step):
     if not instance:
         return redirect(url_for('main.manager_dashboard'))
 
-    # --- Разбор структуры ---
+    # --- Разбор структуры (мягко, с двойным JSON) ---
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -622,10 +622,9 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
-    # --- Прогресс по шагам ---
+    # --- Прогресс по шагам (мягко) ---
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
-        # на всякий случай, если БД вернула строку
         try:
             progress = json.loads(progress)
         except Exception:
@@ -636,12 +635,20 @@ def manager_step(step):
     raw_started   = bool(step_progress.get('started', False))
     raw_completed = bool(step_progress.get('completed', False))
 
-    # Если из URL пришло явное “начать”, то считаем начатым (если ещё НЕ завершён)
-    force_start = request.args.get('start') == '1'
-    effective_started = (not raw_completed) and (raw_started or force_start)
+    # --- ПОДСТРАХОВКА: если уже ушли дальше, а этот не completed — закрываем его
+    if (instance.onboarding_step or 0) > step and not raw_completed:
+        prev = progress.get(step_key, {})
+        prev['started'] = True
+        prev['completed'] = True
+        progress[step_key] = prev
+        instance.test_progress = progress
+        db.session.commit()
+        raw_started = True
+        raw_completed = True
 
-    print(f"[manager_step GET] step={step} raw={{'started':{raw_started},'completed':{raw_completed}}} "
-          f"force_start={force_start} => effective_started={effective_started}")
+    # Никаких авто-стартов по querystring. UI сам решает, что показывать.
+    ui_started = raw_started and not raw_completed
+    print(f"[manager_step GET] step={step} started={raw_started} completed={raw_completed} ui_started={ui_started}")
 
     # --- Обработка POST (сабмит ответов теста) ---
     def process_questions(questions, answers_dict):
@@ -712,19 +719,21 @@ def manager_step(step):
             ))
             open_q_count += 1
 
-        # Обновляем шаг и помечаем завершение
-        instance.onboarding_step = step + 1
-        current_user.onboarding_step = step + 1
+        # --- Фиксируем завершение шага и двигаем курсор онбординга
         progress[step_key] = {'started': True, 'completed': True}
         instance.test_progress = progress
+        instance.onboarding_step = step + 1
+        current_user.onboarding_step = step + 1
         db.session.commit()
 
         print(f"[manager_step POST] COMPLETE step={step} progress[{step_key}]={progress[step_key]}")
 
-        return jsonify({'status': 'ok',
-                        'correct': correct,
-                        'total_choice': total_choice,
-                        'open_questions': open_q_count})
+        return jsonify({
+            'status': 'ok',
+            'correct': correct,
+            'total_choice': total_choice,
+            'open_questions': open_q_count
+        })
 
     # --- Рендер ---
     return render_template(
@@ -732,7 +741,8 @@ def manager_step(step):
         step=step,
         total_steps=total_steps,
         block=block,
-        test_started=effective_started,
+        # отдаём СЫРЫЕ флаги — фронт сам решит, что показывать
+        test_started=raw_started,
         test_completed=raw_completed
     )
 
