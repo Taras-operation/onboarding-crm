@@ -315,27 +315,26 @@ def add_onboarding_template():
         selected_manager_id = request.form.get('selected_manager')
         name = request.form.get('name')
 
-        # Если сохраняем как шаблон
+        payload = {'blocks': structure}  # ← ЕДИНЫЙ формат
+
         if selected_manager_id == 'template':
             new_template = OnboardingTemplate(
                 name=name,
-                structure=json.dumps({'blocks': structure}),
+                structure=payload,              # ← БЕЗ json.dumps
                 created_by=current_user.id
             )
             db.session.add(new_template)
             db.session.commit()
         else:
-            # Если создаём онбординг для менеджера
             new_instance = OnboardingInstance(
                 name=name,
-                structure=json.dumps({'blocks': structure}),
+                structure=payload,              # ← БЕЗ json.dumps
                 manager_id=int(selected_manager_id),
                 mentor_id=current_user.id
             )
             db.session.add(new_instance)
             db.session.commit()
 
-            # Обновляем данные менеджера
             manager = User.query.get(int(selected_manager_id))
             manager.onboarding_name = name
             manager.onboarding_status = 'in_progress'
@@ -347,7 +346,7 @@ def add_onboarding_template():
 
         return redirect(url_for('main.onboarding_plans'))
 
-    # 📌 GET — подготовка данных для формы
+    # 📌 GET — подготовка данных для формы (оставь как есть, только чтение делаем мягким)
     if current_user.role == 'mentor':
         managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
     elif current_user.role == 'teamlead':
@@ -360,21 +359,19 @@ def add_onboarding_template():
     name = ""
     template = None
 
-    # Если есть template_id — открываем шаблон
     if template_id:
         template = OnboardingTemplate.query.get_or_404(int(template_id))
         try:
-            parsed = json.loads(template.structure)
+            parsed = template.structure if not isinstance(template.structure, str) else json.loads(template.structure)
             structure = parsed.get('blocks', []) if isinstance(parsed, dict) else parsed
         except Exception as e:
             print("❌ JSON load error при GET:", e)
             structure = []
 
-        # 📌 COPY — создаём новый шаблон как копию
         if request.args.get('copy') == '1':
             new_template = OnboardingTemplate(
                 name=f"{template.name} (копія)",
-                structure=json.dumps({'blocks': structure}),
+                structure={'blocks': structure},   # ← объект
                 created_by=current_user.id
             )
             db.session.add(new_template)
@@ -382,7 +379,6 @@ def add_onboarding_template():
 
             return redirect(url_for('main.add_onboarding_template', template_id=new_template.id))
 
-        # Если просто редактируем
         name = template.name
 
     return render_template(
@@ -412,29 +408,21 @@ def edit_onboarding(manager_id):
     if request.method == 'POST':
         new_structure = request.form.get('structure')
         try:
-            parsed = json.loads(new_structure)
-            instance.structure = json.dumps({'blocks': parsed}, ensure_ascii=False)
+            parsed = json.loads(new_structure) if isinstance(new_structure, str) else new_structure
+            instance.structure = {'blocks': parsed}     # ← объект, без dumps
             db.session.commit()
             flash("Онбординг оновлено", "success")
             return redirect(url_for('main.onboarding_plans'))
         except Exception as e:
             flash(f"❌ Помилка при збереженні: {e}", "danger")
 
-    # 🧠 GET-запит: готуємо структуру
+    # GET — мягкий парсинг (оставь как у тебя)
     try:
         raw = instance.structure
-        if isinstance(raw, str):
-            parsed = json.loads(raw)
-        else:
-            parsed = raw
-
-        if isinstance(parsed, str):  # подвійний JSON
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+        if isinstance(parsed, str):
             parsed = json.loads(parsed)
-
-        if isinstance(parsed, dict) and 'blocks' in parsed:
-            structure = parsed['blocks']
-        else:
-            structure = parsed
+        structure = parsed['blocks'] if isinstance(parsed, dict) and 'blocks' in parsed else parsed
     except Exception as e:
         print(f"[edit_onboarding] ❌ JSON parse error: {e}")
         structure = []
@@ -447,7 +435,7 @@ def edit_onboarding(manager_id):
         selected_manager=manager_id,
         onboarding_step=onboarding_step,
         is_edit=True,
-        managers=[]  # ⚠️ не потрібен список менторів
+        managers=[]
     )
 
 @bp.route('/onboarding/user/copy/<int:id>')
@@ -473,7 +461,7 @@ def copy_user_onboarding(id):
     )
     db.session.add(new_user)
     db.session.commit()
-    return redirect(url_for('main.edit_user_onboarding', id=new_user.id))
+    return redirect(url_for('main.edit_onboarding', manager_id=new_user.id))
 
 @bp.route('/onboarding/save', methods=['POST'])
 @login_required
@@ -485,32 +473,31 @@ def save_onboarding():
     if not blocks:
         return {'message': 'Порожній онбординг'}, 400
 
+    payload = {'blocks': blocks}  # ← единый формат
+
     if manager_id:
-        # Зберігаємо як онбординг для менеджера
         user = User.query.get(manager_id)
         if not user or user.role != 'manager':
             return {'message': 'Невірний менеджер'}, 400
 
-        # 🟢 Створюємо або оновлюємо OnboardingInstance
         instance = OnboardingInstance.query.filter_by(manager_id=manager_id).first()
         if not instance:
-            instance = OnboardingInstance(manager_id=manager_id, structure=blocks)
+            instance = OnboardingInstance(manager_id=manager_id, structure=payload)
             db.session.add(instance)
         else:
-            instance.structure = blocks
+            instance.structure = payload
         db.session.commit()
 
         user.onboarding_name = f"Онбординг від {current_user.username}"
         user.onboarding_status = 'Не розпочато'
         user.onboarding_step = 0
-        user.onboarding_step_total = len([b for b in blocks if b['type'] == 'text'])
+        user.onboarding_step_total = sum(1 for b in blocks if b.get('type') == 'stage')  # ← было 'text'
         user.onboarding_start = datetime.utcnow()
         user.onboarding_end = None
         db.session.commit()
         return {'message': 'Онбординг збережено'}, 200
 
     else:
-        # Зберігаємо як шаблон
         template = OnboardingTemplate(
             name=f"Шаблон від {current_user.username}",
             created_at=datetime.utcnow()
@@ -788,23 +775,6 @@ def manager_results(manager_id, onboarding_id):
         choice_results=choice_results,
         open_results=open_results
     )
-
-@bp.route('/autosave_template/<int:template_id>', methods=['POST'])
-@login_required
-def autosave_template(template_id):
-    template = OnboardingTemplate.query.get_or_404(template_id)
-    data = request.get_json()
-
-    if not data or 'structure' not in data:
-        return jsonify({'error': 'Invalid data'}), 400
-
-    try:
-        template.structure = json.dumps({'blocks': data['structure']})
-        db.session.commit()
-        return jsonify({'status': 'ok'})
-    except Exception as e:
-        print("❌ Error saving autosave:", e)
-        return jsonify({'error': str(e)}), 500   
     
 # --- API: старт теста ---
 @bp.route('/api/test/start/<int:step>', methods=['POST'])
