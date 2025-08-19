@@ -1,13 +1,18 @@
 {% macro render_block(block, index=0, test_started=False, test_completed=False) %}
-<div id="block-{{ index }}" class="mb-6 p-4 bg-white rounded shadow border border-gray-200">
+<div id="block-{{ index }}"
+     class="mb-6 p-4 bg-white rounded shadow border border-gray-200"
+     data-started="{{ 1 if test_started else 0 }}"
+     data-completed="{{ 1 if test_completed else 0 }}">
+
   <h2 class="text-xl font-semibold text-gray-800 mb-2">{{ block.title }}</h2>
   <div class="text-gray-700 mb-4 leading-relaxed">
     {{ block.description | autolink | safe }}
   </div>
 
-  {# === INFO SECTION: только если НЕ идёт активный тест === #}
-  {% if block.subblocks and not (test_started and not test_completed) %}
-    <div class="space-y-6 info-section">
+  {# === INFO SECTION: всегда в DOM === #}
+  <div class="space-y-6 info-section
+              {% if test_started and not test_completed %}hidden{% endif %}">
+    {% if block.subblocks %}
       {% for sub in block.subblocks %}
         <div class="border border-gray-300 p-4 rounded">
           <h3 class="font-medium text-gray-700 mb-1">{{ sub.title }}</h3>
@@ -25,12 +30,12 @@
           {% endif %}
         </div>
       {% endfor %}
-    </div>
-  {% endif %}
+    {% endif %}
+  </div>
 
-  {# === КНОПКА ПЕРЕХОДА: только если тест ещё не начат и не завершён === #}
-  {% if not test_completed and not test_started %}
-    <div class="mt-6">
+  {# === ПРОЦЕСС-КНОПКА: показываем только если тест не завершён === #}
+  {% if not test_completed %}
+    <div class="mt-6 {% if test_started %}hidden{% endif %}">
       <button id="proceedToTest_{{ index }}"
               type="button"
               class="bg-blue-500 text-white px-4 py-2 rounded opacity-50 cursor-not-allowed"
@@ -40,50 +45,50 @@
     </div>
   {% endif %}
 
-  {# === TEST SECTION: только при активном тесте (started && !completed) === #}
-  {% if (block.test and block.test.questions) or block.open_questions %}
-    {% if test_started and not test_completed %}
-      <div class="test-section mt-6">
-        <form method="POST" id="testFormBlock_{{ index }}" class="space-y-6">
-          {% if block.test and block.test.questions %}
-            {% for q in block.test.questions %}
-              {% set qid = 'q0_' ~ loop.index0 %}
-              <div class="border p-4 rounded bg-white shadow">
-                <h4 class="font-semibold mb-2">{{ loop.index }}. {{ q.question }}</h4>
-                {% if q.type == 'open' %}
-                  <textarea name="{{ qid }}" class="w-full border rounded p-2" placeholder="Введіть вашу відповідь або вставте посилання" required></textarea>
-                {% else %}
-                  {% for a in q.answers %}
-                    <label class="block ml-4">
-                      <input type="{{ 'checkbox' if q.get('multiple') else 'radio' }}" name="{{ qid }}" value="{{ a.value }}" class="mr-2">
-                      {{ a.value }}
-                    </label>
-                  {% endfor %}
-                {% endif %}
-              </div>
-            {% endfor %}
-          {% endif %}
+  {# === TEST SECTION: ВСЕГДА в DOM, просто прячем/показываем === #}
+  <div class="test-section mt-6 {% if not (test_started and not test_completed) %}hidden{% endif %}">
+    {% if (block.test and block.test.questions) or block.open_questions %}
+      <form method="POST" id="testFormBlock_{{ index }}" class="space-y-6">
+        {% if block.test and block.test.questions %}
+          {% for q in block.test.questions %}
+            {% set qid = 'q0_' ~ loop.index0 %}
+            <div class="border p-4 rounded bg-white shadow">
+              <h4 class="font-semibold mb-2">{{ loop.index }}. {{ q.question }}</h4>
+              {% if q.type == 'open' %}
+                <textarea name="{{ qid }}" class="w-full border rounded p-2" placeholder="Введіть вашу відповідь або вставте посилання" required></textarea>
+              {% else %}
+                {% for a in q.answers %}
+                  <label class="block ml-4">
+                    <input type="{{ 'checkbox' if q.get('multiple') else 'radio' }}" name="{{ qid }}" value="{{ a.value }}" class="mr-2">
+                    {{ a.value }}
+                  </label>
+                {% endfor %}
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% endif %}
 
-          {% if block.open_questions %}
-            {% for oq in block.open_questions %}
-              <div class="border p-4 rounded bg-white shadow">
-                <h4 class="font-semibold mb-2">
-                  {{ (loop.index + (block.test.questions | length if block.test else 0)) }}. {{ oq.question }}
-                </h4>
-                <textarea name="open_q_{{ loop.index0 }}" class="w-full border rounded p-2" placeholder="Введіть вашу відповідь" required></textarea>
-              </div>
-            {% endfor %}
-          {% endif %}
+        {% if block.open_questions %}
+          {% for oq in block.open_questions %}
+            <div class="border p-4 rounded bg-white shadow">
+              <h4 class="font-semibold mb-2">
+                {{ (loop.index + (block.test.questions | length if block.test else 0)) }}. {{ oq.question }}
+              </h4>
+              <textarea name="open_q_{{ loop.index0 }}" class="w-full border rounded p-2" placeholder="Введіть вашу відповідь" required></textarea>
+            </div>
+          {% endfor %}
+        {% endif %}
 
-          <div id="submitWrap_{{ index }}" class="mt-6">
-            <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-              Завершити тест
-            </button>
-          </div>
-        </form>
-      </div>
+        <div id="submitWrap_{{ index }}" class="mt-6">
+          <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            Завершити тест
+          </button>
+        </div>
+      </form>
+    {% else %}
+      <div class="text-sm text-gray-600">Для цього блоку немає тестових питань.</div>
     {% endif %}
-  {% endif %}
+  </div>
 
   {# === MODAL === #}
   <div id="resultModal_{{ index }}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
@@ -101,17 +106,37 @@
   <script>
   setTimeout(function () {
     const root = document.getElementById("block-{{ index }}");
+    const infoSection = root.querySelector(".info-section");
+    const testSection = root.querySelector(".test-section");
     const checkboxes = root.querySelectorAll(".checkbox-confirm");
     const proceedBtn = root.querySelector("#proceedToTest_{{ index }}");
-    const infoSections = root.querySelectorAll(".info-section");
-    const testSection = root.querySelector(".test-section");
     const form = root.querySelector("#testFormBlock_{{ index }}");
     const resultModal = root.querySelector("#resultModal_{{ index }}");
     const resultTextModal = root.querySelector("#resultTextModal_{{ index }}");
     const motivationText = root.querySelector("#motivationText_{{ index }}");
     const motivations = ["Ти молодець! 🔥","Ще один крок до вершини!","Впевнений рух уперед!","Твоя впертість надихає!","Ти справжній профі!","Так тримати! 💪"];
 
-    // ——— Разблокируем кнопку, когда ВСЕ чекбоксы прочитанного отмечены
+    const started = root.dataset.started === '1';
+    const completed = root.dataset.completed === '1';
+
+    // Если шаг завершён — показываем инфо, прячем тест/кнопку
+    if (completed) {
+      if (infoSection) infoSection.classList.remove("hidden");
+      if (testSection) testSection.classList.add("hidden");
+      if (proceedBtn) {
+        proceedBtn.disabled = true;
+        proceedBtn.classList.add("opacity-50","cursor-not-allowed","hidden");
+      }
+    }
+    // Если тест в процессе — прячем инфо, показываем тест
+    else if (started) {
+      if (infoSection) infoSection.classList.add("hidden");
+      if (testSection) testSection.classList.remove("hidden");
+      if (proceedBtn) proceedBtn.classList.add("hidden");
+    }
+
+    // Кнопка доступна только когда есть чекбоксы и все отмечены;
+    // если чекбоксов нет — кнопку отрубим (чтобы не было “блоков без инфо”).
     function updateButtonState() {
       if (!proceedBtn) return;
       if (checkboxes.length === 0) {
@@ -127,21 +152,19 @@
     checkboxes.forEach(cb => cb.addEventListener("change", updateButtonState));
     updateButtonState();
 
-    // ——— START: фиксируем старт на сервере и мгновенно переключаем UI на тест
+    // START → фиксируем в БД и мгновенно переключаем UI без перезагрузки
     if (proceedBtn) {
       proceedBtn.addEventListener("click", async () => {
-        if (proceedBtn.disabled) return;
         try {
           await fetch(`/api/test/start/{{ index }}`, { method: 'POST' });
-          // локально переключаем отображение без перезагрузки
-          infoSections.forEach(el => el.classList.add("hidden"));
-          if (testSection) testSection.classList.remove("hidden");
-          proceedBtn.classList.add("hidden");
-        } catch(e) { /* no-op */ }
+        } catch (_) {}
+        if (infoSection) infoSection.classList.add("hidden");
+        if (testSection) testSection.classList.remove("hidden");
+        proceedBtn.classList.add("hidden");
       });
     }
 
-    // ——— SUBMIT → COMPLETE: сохраняем ответы, отмечаем completed, показываем модалку
+    // SUBMIT → COMPLETE
     if (form) {
       form.addEventListener("submit", async function (e) {
         e.preventDefault();
@@ -153,9 +176,7 @@
 
           if (data.status === "ok") {
             form.classList.add("hidden");
-            resultTextModal.innerText =
-              `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\n` +
-              `Відкриті відповіді відправлені на перевірку`;
+            resultTextModal.innerText = `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\nВідкриті відповіді відправлені на перевірку`;
             motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
             resultModal.classList.remove("hidden");
           } else {
