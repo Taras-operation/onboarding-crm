@@ -10,8 +10,7 @@
   </div>
 
   {# === INFO SECTION: всегда в DOM === #}
-  <div class="space-y-6 info-section
-              {% if test_started and not test_completed %}hidden{% endif %}">
+  <div class="space-y-6 info-section {% if test_started and not test_completed %}hidden{% endif %}">
     {% if block.subblocks %}
       {% for sub in block.subblocks %}
         <div class="border border-gray-300 p-4 rounded">
@@ -116,32 +115,60 @@
     const motivationText = root.querySelector("#motivationText_{{ index }}");
     const motivations = ["Ти молодець! 🔥","Ще один крок до вершини!","Впевнений рух уперед!","Твоя впертість надихає!","Ти справжній профі!","Так тримати! 💪"];
 
-    const started = root.dataset.started === '1';
-    const completed = root.dataset.completed === '1';
+    // Состояние с сервера
+    let started = root.dataset.started === '1';
+    let completed = root.dataset.completed === '1';
 
-    // Если шаг завершён — показываем инфо, прячем тест/кнопку
+    // Fallback состояния на случай потери сети/перезагрузки
+    const ssKeyStarted = `ob_step_{{ index }}_started`;
+    const ssKeyCompleted = `ob_step_{{ index }}_completed`;
+    if (sessionStorage.getItem(ssKeyCompleted) === '1') {
+      completed = true;
+      started = false;
+    } else if (!completed && sessionStorage.getItem(ssKeyStarted) === '1') {
+      started = true;
+    }
+
+    function showInfoHideTest() {
+      infoSection && infoSection.classList.remove("hidden");
+      testSection && testSection.classList.add("hidden");
+      if (proceedBtn) {
+        proceedBtn.classList.remove("hidden");
+        proceedBtn.disabled = false;
+        proceedBtn.classList.remove("opacity-50","cursor-not-allowed");
+      }
+    }
+    function hideInfoShowTest() {
+      infoSection && infoSection.classList.add("hidden");
+      testSection && testSection.classList.remove("hidden");
+      if (proceedBtn) proceedBtn.classList.add("hidden");
+    }
+
+    // Применяем состояние на старте
     if (completed) {
-      if (infoSection) infoSection.classList.remove("hidden");
-      if (testSection) testSection.classList.add("hidden");
+      showInfoHideTest();
       if (proceedBtn) {
         proceedBtn.disabled = true;
         proceedBtn.classList.add("opacity-50","cursor-not-allowed","hidden");
       }
-    }
-    // Если тест в процессе — прячем инфо, показываем тест
-    else if (started) {
-      if (infoSection) infoSection.classList.add("hidden");
-      if (testSection) testSection.classList.remove("hidden");
-      if (proceedBtn) proceedBtn.classList.add("hidden");
+    } else if (started) {
+      hideInfoShowTest();
+    } else {
+      showInfoHideTest();
     }
 
-    // Кнопка доступна только когда есть чекбоксы и все отмечены;
-    // если чекбоксов нет — кнопку отрубим (чтобы не было “блоков без инфо”).
+    // Включаем кнопку: если чекбоксы есть — только когда все отмечены;
+    // если чекбоксов нет — кнопку разрешаем сразу.
     function updateButtonState() {
       if (!proceedBtn) return;
-      if (checkboxes.length === 0) {
+      if (completed) { // уже завершено — кнопка не нужна
         proceedBtn.disabled = true;
-        proceedBtn.classList.add("opacity-50","cursor-not-allowed");
+        proceedBtn.classList.add("opacity-50","cursor-not-allowed","hidden");
+        return;
+      }
+      if (checkboxes.length === 0) {
+        proceedBtn.disabled = false;
+        proceedBtn.classList.remove("opacity-50","cursor-not-allowed");
         return;
       }
       const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -152,38 +179,62 @@
     checkboxes.forEach(cb => cb.addEventListener("change", updateButtonState));
     updateButtonState();
 
-    // START → фиксируем в БД и мгновенно переключаем UI без перезагрузки
+    // START → фиксируем в БД и мгновенно переключаем UI + пишем fallback в sessionStorage
     if (proceedBtn) {
+      let starting = false;
       proceedBtn.addEventListener("click", async () => {
+        if (starting || proceedBtn.disabled) return;
+        starting = true;
         try {
           await fetch(`/api/test/start/{{ index }}`, { method: 'POST' });
-        } catch (_) {}
-        if (infoSection) infoSection.classList.add("hidden");
-        if (testSection) testSection.classList.remove("hidden");
-        proceedBtn.classList.add("hidden");
+        } catch (_) { /* молчим: есть локальный fallback */ }
+        sessionStorage.setItem(ssKeyStarted, '1');
+        started = true;
+        hideInfoShowTest();
+        starting = false;
       });
     }
 
     // SUBMIT → COMPLETE
     if (form) {
+      let submitting = false;
       form.addEventListener("submit", async function (e) {
         e.preventDefault();
+        if (submitting) return;
+        submitting = true;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn && (submitBtn.disabled = true);
+
         const formData = new FormData(form);
         try {
           const res = await fetch("", { method: "POST", body: formData });
-          const data = await res.json();
+          let data = {};
+          try { data = await res.json(); } catch(_) {}
+
           try { await fetch(`/api/test/complete/{{ index }}`, { method: "POST" }); } catch (_) {}
 
-          if (data.status === "ok") {
+          // локально пометим завершение
+          sessionStorage.setItem(ssKeyCompleted, '1');
+          sessionStorage.removeItem(ssKeyStarted);
+          completed = true; started = false;
+
+          if (data && data.status === "ok") {
             form.classList.add("hidden");
             resultTextModal.innerText = `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\nВідкриті відповіді відправлені на перевірку`;
             motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
             resultModal.classList.remove("hidden");
           } else {
-            alert("Помилка при надсиланні тесту");
+            // даже если ответ не как ожидали — всё равно покажем модалку
+            form.classList.add("hidden");
+            resultTextModal.innerText = `✅ Відповіді відправлені.`;
+            motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
+            resultModal.classList.remove("hidden");
           }
         } catch (err) {
           alert("Помилка при відправці запиту.");
+          submitBtn && (submitBtn.disabled = false);
+          submitting = false;
+          return;
         }
       });
     }
