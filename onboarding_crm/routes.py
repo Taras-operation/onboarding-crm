@@ -601,7 +601,7 @@ def manager_dashboard():
 @bp.route('/manager_step/<int:step>', methods=['GET', 'POST'])
 @login_required
 def manager_step(step):
-    from flask import jsonify
+    from flask import jsonify, make_response
 
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
@@ -656,8 +656,11 @@ def manager_step(step):
         raw_started = True
         raw_completed = True
 
-    # --- ПОДСТРАХОВКА 2: явный сигнал из URL (?start=1) — пометить step как "started"
-    # Не трогаем completed. Это важно для «анти-чита» и для восстановления UI после F5.
+    # --- Анти-чит: если тест начат по БД, но в URL нет start=1 — принудительно редиректим c ?start=1
+    if raw_started and not raw_completed and request.args.get('start') != '1':
+        return redirect(url_for('main.manager_step', step=step) + '?start=1')
+
+    # --- ПОДСТРАХОВКА 2: явный сигнал из URL (?start=1) — пометить step как "started" (completed не трогаем)
     force_start = request.args.get('start') == '1'
     if force_start and (not raw_completed) and (not raw_started):
         prev = progress.get(step_key, {})
@@ -760,15 +763,19 @@ def manager_step(step):
             'open_questions': open_q_count
         })
 
-    # --- Рендер ---
-    return render_template(
+    # --- Рендер с анти-кэш заголовками ---
+    resp = make_response(render_template(
         'manager_step.html',
         step=step,
         total_steps=total_steps,
         block=block,
         test_started=raw_started,
         test_completed=raw_completed
-    )
+    ))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 @bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
 @login_required
@@ -814,17 +821,17 @@ def manager_results(manager_id, onboarding_id):
 @bp.route('/api/test/start/<int:step>', methods=['POST'])
 @login_required
 def api_test_start(step):
-    instance = (OnboardingInstance.query
-                .filter_by(manager_id=current_user.id)
-                .order_by(OnboardingInstance.id.desc())
-                .first_or_404())
+    instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
         try: progress = json.loads(progress)
         except Exception: progress = {}
-    prev = progress.get(str(step)) or {}
+
+    key = str(step)
+    prev = progress.get(key, {})
     prev['started'] = True
-    progress[str(step)] = prev
+    progress[key] = prev
+
     instance.test_progress = progress
     db.session.commit()
     print(f"[START] instance_id={instance.id} step={step} progress={progress}")
