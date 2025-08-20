@@ -110,7 +110,7 @@ def managers_list():
     elif current_user.role == 'teamlead':
         mentors = User.query.filter_by(role='mentor', added_by_id=current_user.id, department=current_user.department).all()
         mentor_ids = [mentor.id for mentor in mentors]
-        mentor_ids.append(current_user.id)  # додати себе теж
+        mentor_ids.append(current_user.id)
 
         managers = User.query.filter(
             User.role == 'manager',
@@ -125,9 +125,12 @@ def managers_list():
             department=current_user.department
         ).all()
 
-    # Підрахунок етапів
+    # Підрахунок етапів (берём последний инстанс по id)
     for manager in managers:
-        instance = OnboardingInstance.query.filter_by(manager_id=manager.id).first()
+        instance = (OnboardingInstance.query
+                    .filter_by(manager_id=manager.id)
+                    .order_by(OnboardingInstance.id.desc())
+                    .first())
         if instance and instance.structure:
             try:
                 structure = instance.structure
@@ -202,12 +205,9 @@ def add_manager():
 @bp.route('/onboarding/plans')
 @login_required
 def onboarding_plans():
-    import json
-
     if current_user.role not in ['mentor', 'teamlead', 'developer']:
         return redirect(url_for('main.login'))
 
-    # 🔹 Шаблони онбордингу (можно оставить без фильтра, они общие)
     templates = OnboardingTemplate.query.all()
     for t in templates:
         try:
@@ -218,7 +218,6 @@ def onboarding_plans():
             print(f"[plans] Шаблон {t.id}: помилка JSON: {e}")
             t.step_count = 0
 
-    # 🔹 Фільтруємо менеджерів по ролі та відділу
     if current_user.role == 'mentor':
         managers = User.query.filter_by(
             role='manager',
@@ -232,7 +231,6 @@ def onboarding_plans():
             department=current_user.department
         ).all()
         mentor_ids = [mentor.id for mentor in mentors] + [current_user.id]
-
         managers = User.query.filter(
             User.role == 'manager',
             User.added_by_id.in_(mentor_ids),
@@ -243,10 +241,12 @@ def onboarding_plans():
     else:
         managers = []
 
-    # 🔹 Плани онбордингу
     user_plans_data = []
     for m in managers:
-        instance = OnboardingInstance.query.filter_by(manager_id=m.id).first()
+        instance = (OnboardingInstance.query
+                    .filter_by(manager_id=m.id)
+                    .order_by(OnboardingInstance.id.desc())
+                    .first())
         total_steps = 0
         if instance and instance.structure:
             try:
@@ -397,7 +397,10 @@ def edit_onboarding(manager_id):
     if current_user.role not in ['mentor', 'teamlead']:
         return redirect(url_for('main.login'))
 
-    instance = OnboardingInstance.query.filter_by(manager_id=manager_id).first()
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=manager_id)
+                .order_by(OnboardingInstance.id.desc())
+                .first())
     if not instance:
         flash("Онбординг не знайдено", "danger")
         return redirect(url_for('main.onboarding_plans'))
@@ -409,14 +412,13 @@ def edit_onboarding(manager_id):
         new_structure = request.form.get('structure')
         try:
             parsed = json.loads(new_structure) if isinstance(new_structure, str) else new_structure
-            instance.structure = {'blocks': parsed}     # ← объект, без dumps
+            instance.structure = {'blocks': parsed}
             db.session.commit()
             flash("Онбординг оновлено", "success")
             return redirect(url_for('main.onboarding_plans'))
         except Exception as e:
             flash(f"❌ Помилка при збереженні: {e}", "danger")
 
-    # GET — мягкий парсинг (оставь как у тебя)
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -473,14 +475,17 @@ def save_onboarding():
     if not blocks:
         return {'message': 'Порожній онбординг'}, 400
 
-    payload = {'blocks': blocks}  # ← единый формат
+    payload = {'blocks': blocks}
 
     if manager_id:
         user = User.query.get(manager_id)
         if not user or user.role != 'manager':
             return {'message': 'Невірний менеджер'}, 400
 
-        instance = OnboardingInstance.query.filter_by(manager_id=manager_id).first()
+        instance = (OnboardingInstance.query
+                    .filter_by(manager_id=manager_id)
+                    .order_by(OnboardingInstance.id.desc())
+                    .first())
         if not instance:
             instance = OnboardingInstance(manager_id=manager_id, structure=payload)
             db.session.add(instance)
@@ -491,7 +496,7 @@ def save_onboarding():
         user.onboarding_name = f"Онбординг від {current_user.username}"
         user.onboarding_status = 'Не розпочато'
         user.onboarding_step = 0
-        user.onboarding_step_total = sum(1 for b in blocks if b.get('type') == 'stage')  # ← было 'text'
+        user.onboarding_step_total = sum(1 for b in blocks if b.get('type') == 'stage')
         user.onboarding_start = datetime.utcnow()
         user.onboarding_end = None
         db.session.commit()
@@ -557,15 +562,18 @@ def manager_dashboard():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first()
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=current_user.id)
+                .order_by(OnboardingInstance.id.desc())
+                .first())
     if not instance:
         return "Онбординг ще не призначено", 404
+    print(f"[manager_dashboard] use onboarding_instance id={instance.id}")
 
-    # ✅ Парсим структуру (поддержка dict/list)
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
-        if isinstance(parsed, str):  # двойной json
+        if isinstance(parsed, str):
             parsed = json.loads(parsed)
 
         if isinstance(parsed, dict) and 'blocks' in parsed:
@@ -578,10 +586,8 @@ def manager_dashboard():
         print(f"[manager_dashboard] ❌ JSON error: {e}")
         blocks = []
 
-    # ✅ Берём только stage-блоки
     stage_blocks = [b for b in blocks if b.get("type") == "stage"]
 
-    # 🛠 Коррекция шага, если вышел за пределы
     current_step = instance.onboarding_step or 0
     if current_step >= len(stage_blocks):
         current_step = len(stage_blocks) - 1 if stage_blocks else 0
@@ -600,11 +606,14 @@ def manager_step(step):
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first()
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=current_user.id)
+                .order_by(OnboardingInstance.id.desc())
+                .first())
     if not instance:
         return redirect(url_for('main.manager_dashboard'))
+    print(f"[manager_step] use onboarding_instance id={instance.id}")
 
-    # --- Разбор структуры (мягко, с двойным JSON) ---
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -622,7 +631,6 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
-    # --- Прогресс по шагам (мягко) ---
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
         try:
@@ -635,7 +643,6 @@ def manager_step(step):
     raw_started   = bool(step_progress.get('started', False))
     raw_completed = bool(step_progress.get('completed', False))
 
-    # --- ПОДСТРАХОВКА: если уже ушли дальше, а этот не completed — закрываем его
     if (instance.onboarding_step or 0) > step and not raw_completed:
         prev = progress.get(step_key, {})
         prev['started'] = True
@@ -646,11 +653,9 @@ def manager_step(step):
         raw_started = True
         raw_completed = True
 
-    # --- Анти-чит: НЕ автозапускаем тест по querystring, UI сам решает, что показывать
     ui_started = raw_started and not raw_completed
     print(f"[manager_step GET] step={step} started={raw_started} completed={raw_completed} ui_started={ui_started}")
 
-    # --- Обработка POST (сабмит ответов теста) ---
     def process_questions(questions, answers_dict):
         correct_count = 0
         total_test_questions = 0
@@ -693,7 +698,6 @@ def manager_step(step):
         return correct_count, total_test_questions, open_questions_count
 
     if request.method == 'POST':
-        # если шаг уже завершён — возвращаем «ок» без двойной записи
         if raw_completed:
             return jsonify({'status': 'ok', 'correct': 0, 'total_choice': 0, 'open_questions': 0})
 
@@ -724,7 +728,6 @@ def manager_step(step):
             ))
             open_q_count += 1
 
-        # --- Фиксируем завершение шага и двигаем курсор онбординга
         progress[step_key] = {'started': True, 'completed': True}
         instance.test_progress = progress
         instance.onboarding_step = max(instance.onboarding_step or 0, step + 1)
@@ -740,13 +743,12 @@ def manager_step(step):
             'open_questions': open_q_count
         })
 
-    # --- Рендер ---
     return render_template(
         'manager_step.html',
         step=step,
         total_steps=total_steps,
         block=block,
-        test_started=raw_started,      # отдаём СЫРЫЕ флаги — фронт сам решает, что показывать
+        test_started=raw_started,
         test_completed=raw_completed
     )
 
@@ -794,7 +796,10 @@ def manager_results(manager_id, onboarding_id):
 @bp.route('/api/test/start/<int:step>', methods=['POST'])
 @login_required
 def api_test_start(step):
-    instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=current_user.id)
+                .order_by(OnboardingInstance.id.desc())
+                .first_or_404())
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
         try: progress = json.loads(progress)
@@ -804,7 +809,7 @@ def api_test_start(step):
     progress[str(step)] = prev
     instance.test_progress = progress
     db.session.commit()
-    print(f"[START] step={step} progress={progress}")  # ← лог
+    print(f"[START] instance_id={instance.id} step={step} progress={progress}")
     return {'status': 'ok'}
 
 
@@ -812,18 +817,21 @@ def api_test_start(step):
 @bp.route('/api/test/complete/<int:step>', methods=['POST'])
 @login_required
 def api_test_complete(step):
-    instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=current_user.id)
+                .order_by(OnboardingInstance.id.desc())
+                .first_or_404())
     progress = instance.test_progress or {}
+    if not isinstance(progress, dict):
+        try: progress = json.loads(progress)
+        except Exception: progress = {}
 
     prev = progress.get(str(step), {})
     prev['started'] = True
     prev['completed'] = True
     progress[str(step)] = prev
     instance.test_progress = progress
-
     db.session.commit()
 
-    # 🛠️ Лог для проверки
-    print(f"[COMPLETE] Step={step}, Progress after update={progress}")
-
+    print(f"[COMPLETE] instance_id={instance.id} step={step} progress={progress}")
     return {'status': 'ok'}
