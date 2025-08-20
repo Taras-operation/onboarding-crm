@@ -646,7 +646,7 @@ def manager_step(step):
         raw_started = True
         raw_completed = True
 
-    # Никаких авто-стартов по querystring. UI сам решает, что показывать.
+    # --- Анти-чит: НЕ автозапускаем тест по querystring, UI сам решает, что показывать
     ui_started = raw_started and not raw_completed
     print(f"[manager_step GET] step={step} started={raw_started} completed={raw_completed} ui_started={ui_started}")
 
@@ -661,7 +661,8 @@ def manager_step(step):
             field_name = f"q0_{i}"
 
             if q_type == 'choice':
-                user_input = answers_dict.getlist(field_name) if q.get('multiple') else answers_dict.get(field_name)
+                user_input = (answers_dict.getlist(field_name)
+                              if q.get('multiple') else answers_dict.get(field_name))
                 correct_answers = [a['value'] for a in q.get('answers', []) if a.get('correct')]
                 selected = ", ".join(user_input) if isinstance(user_input, list) else (user_input or "")
                 is_correct = (set(user_input) == set(correct_answers)) if isinstance(user_input, list) else (selected in correct_answers)
@@ -692,6 +693,10 @@ def manager_step(step):
         return correct_count, total_test_questions, open_questions_count
 
     if request.method == 'POST':
+        # если шаг уже завершён — возвращаем «ок» без двойной записи
+        if raw_completed:
+            return jsonify({'status': 'ok', 'correct': 0, 'total_choice': 0, 'open_questions': 0})
+
         form = request.form
         correct = total_choice = open_q_count = 0
 
@@ -722,8 +727,8 @@ def manager_step(step):
         # --- Фиксируем завершение шага и двигаем курсор онбординга
         progress[step_key] = {'started': True, 'completed': True}
         instance.test_progress = progress
-        instance.onboarding_step = step + 1
-        current_user.onboarding_step = step + 1
+        instance.onboarding_step = max(instance.onboarding_step or 0, step + 1)
+        current_user.onboarding_step = instance.onboarding_step
         db.session.commit()
 
         print(f"[manager_step POST] COMPLETE step={step} progress[{step_key}]={progress[step_key]}")
@@ -741,8 +746,7 @@ def manager_step(step):
         step=step,
         total_steps=total_steps,
         block=block,
-        # отдаём СЫРЫЕ флаги — фронт сам решит, что показывать
-        test_started=raw_started,
+        test_started=raw_started,      # отдаём СЫРЫЕ флаги — фронт сам решает, что показывать
         test_completed=raw_completed
     )
 
