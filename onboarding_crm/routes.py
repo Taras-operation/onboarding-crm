@@ -614,6 +614,7 @@ def manager_step(step):
         return redirect(url_for('main.manager_dashboard'))
     print(f"[manager_step] use onboarding_instance id={instance.id}")
 
+    # --- Разбор структуры (мягко, с двойным JSON) ---
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -631,6 +632,7 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
+    # --- Прогресс по шагам (мягко) ---
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
         try:
@@ -643,6 +645,7 @@ def manager_step(step):
     raw_started   = bool(step_progress.get('started', False))
     raw_completed = bool(step_progress.get('completed', False))
 
+    # --- ПОДСТРАХОВКА 1: если уже ушли дальше, а этот не completed — закрываем его
     if (instance.onboarding_step or 0) > step and not raw_completed:
         prev = progress.get(step_key, {})
         prev['started'] = True
@@ -653,9 +656,21 @@ def manager_step(step):
         raw_started = True
         raw_completed = True
 
+    # --- ПОДСТРАХОВКА 2: явный сигнал из URL (?start=1) — пометить step как "started"
+    # Не трогаем completed. Это важно для «анти-чита» и для восстановления UI после F5.
+    force_start = request.args.get('start') == '1'
+    if force_start and (not raw_completed) and (not raw_started):
+        prev = progress.get(step_key, {})
+        prev['started'] = True
+        progress[step_key] = prev
+        instance.test_progress = progress
+        db.session.commit()
+        raw_started = True
+
     ui_started = raw_started and not raw_completed
     print(f"[manager_step GET] step={step} started={raw_started} completed={raw_completed} ui_started={ui_started}")
 
+    # --- Обработка POST (сабмит ответов теста) ---
     def process_questions(questions, answers_dict):
         correct_count = 0
         total_test_questions = 0
@@ -698,6 +713,7 @@ def manager_step(step):
         return correct_count, total_test_questions, open_questions_count
 
     if request.method == 'POST':
+        # если шаг уже завершён — не дублируем запись
         if raw_completed:
             return jsonify({'status': 'ok', 'correct': 0, 'total_choice': 0, 'open_questions': 0})
 
@@ -728,6 +744,7 @@ def manager_step(step):
             ))
             open_q_count += 1
 
+        # --- Завершаем шаг и двигаем курсор вперёд
         progress[step_key] = {'started': True, 'completed': True}
         instance.test_progress = progress
         instance.onboarding_step = max(instance.onboarding_step or 0, step + 1)
@@ -743,6 +760,7 @@ def manager_step(step):
             'open_questions': open_q_count
         })
 
+    # --- Рендер ---
     return render_template(
         'manager_step.html',
         step=step,
