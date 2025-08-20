@@ -119,24 +119,23 @@
     const started = root.dataset.started === '1';
     const completed = root.dataset.completed === '1';
 
-    // Если шаг завершён — показываем инфо, прячем тест/кнопку
+    // Завершённый шаг — инфо видно, тест/кнопка скрыты
     if (completed) {
-      if (infoSection) infoSection.classList.remove("hidden");
-      if (testSection) testSection.classList.add("hidden");
+      infoSection?.classList.remove("hidden");
+      testSection?.classList.add("hidden");
       if (proceedBtn) {
         proceedBtn.disabled = true;
         proceedBtn.classList.add("opacity-50","cursor-not-allowed","hidden");
       }
     }
-    // Если тест в процессе — прячем инфо, показываем тест
+    // Идёт тест — инфо скрыто, тест виден
     else if (started) {
-      if (infoSection) infoSection.classList.add("hidden");
-      if (testSection) testSection.classList.remove("hidden");
-      if (proceedBtn) proceedBtn.classList.add("hidden");
+      infoSection?.classList.add("hidden");
+      testSection?.classList.remove("hidden");
+      proceedBtn?.classList.add("hidden");
     }
 
-    // Кнопка доступна только когда есть чекбоксы и все отмечены;
-    // если чекбоксов нет — кнопку держим disabled, но видимой.
+    // Кнопка активируется только когда все чекбоксы отмечены
     function updateButtonState() {
       if (!proceedBtn) return;
       if (checkboxes.length === 0) {
@@ -152,14 +151,19 @@
     checkboxes.forEach(cb => cb.addEventListener("change", updateButtonState));
     updateButtonState();
 
-    // START → запись в БД и мгновенное переключение UI
+    // START → запись в БД и фиксация ?start=1 в URL, чтобы сервер при рефреше сделал force_start
     if (proceedBtn) {
       proceedBtn.addEventListener("click", async () => {
         try {
           await fetch(`/api/test/start/{{ index }}`, { method: 'POST' });
         } catch (_) {}
-        if (infoSection) infoSection.classList.add("hidden");
-        if (testSection) testSection.classList.remove("hidden");
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('start', '1');
+          history.replaceState(null, '', url.toString());
+        } catch (_) {}
+        infoSection?.classList.add("hidden");
+        testSection?.classList.remove("hidden");
         proceedBtn.classList.add("hidden");
       });
     }
@@ -173,10 +177,11 @@
           const res = await fetch("", { method: "POST", body: formData });
           const data = await res.json();
           try { await fetch(`/api/test/complete/{{ index }}`, { method: "POST" }); } catch (_) {}
-
           if (data.status === "ok") {
             form.classList.add("hidden");
-            resultTextModal.innerText = `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\nВідкриті відповіді відправлені на перевірку`;
+            resultTextModal.innerText =
+              `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\n` +
+              `Відкриті відповіді відправлені на перевірку`;
             motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
             resultModal.classList.remove("hidden");
           } else {

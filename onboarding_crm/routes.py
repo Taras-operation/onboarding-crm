@@ -792,14 +792,15 @@ def manager_results(manager_id, onboarding_id):
 def api_test_start(step):
     instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
     progress = instance.test_progress or {}
-
+    if not isinstance(progress, dict):
+        try: progress = json.loads(progress)
+        except Exception: progress = {}
     prev = progress.get(str(step)) or {}
     prev['started'] = True
-    # ВАЖНО: НЕ перезаписываем 'completed' вовсе.
     progress[str(step)] = prev
-
     instance.test_progress = progress
     db.session.commit()
+    print(f"[START] step={step} progress={progress}")  # ← лог
     return {'status': 'ok'}
 
 
