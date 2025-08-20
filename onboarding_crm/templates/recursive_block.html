@@ -10,8 +10,7 @@
   </div>
 
   {# === INFO SECTION: всегда в DOM === #}
-  <div class="space-y-6 info-section
-              {% if test_started and not test_completed %}hidden{% endif %}">
+  <div class="space-y-6 info-section {% if test_started and not test_completed %}hidden{% endif %}">
     {% if block.subblocks %}
       {% for sub in block.subblocks %}
         <div class="border border-gray-300 p-4 rounded">
@@ -33,7 +32,7 @@
     {% endif %}
   </div>
 
-  {# === КНОПКА «Перейти до тесту»: всегда рисуем, пока шаг не завершён === #}
+  {# === КНОПКА «Перейти до тесту»: рисуем, пока шаг не завершён === #}
   {% if not test_completed %}
     <div class="mt-6">
       <button id="proceedToTest_{{ index }}"
@@ -45,7 +44,7 @@
     </div>
   {% endif %}
 
-  {# === TEST SECTION: всегда в DOM, управляем классом hidden === #}
+  {# === TEST SECTION: всегда в DOM; показываем/прячем классом === #}
   <div class="test-section mt-6 {% if not (test_started and not test_completed) %}hidden{% endif %}">
     {% if (block.test and block.test.questions) or block.open_questions %}
       <form method="POST" id="testFormBlock_{{ index }}" class="space-y-6">
@@ -116,24 +115,28 @@
     const motivationText = root.querySelector("#motivationText_{{ index }}");
     const motivations = ["Ти молодець! 🔥","Ще один крок до вершини!","Впевнений рух уперед!","Твоя впертість надихає!","Ти справжній профі!","Так тримати! 💪"];
 
-    const started = root.dataset.started === '1';
-    const completed = root.dataset.completed === '1';
+    let started = root.dataset.started === '1';
+    let completed = root.dataset.completed === '1';
 
-    // Завершённый шаг — инфо видно, тест/кнопка скрыты
-    if (completed) {
+    function showInfo() {
       infoSection?.classList.remove("hidden");
       testSection?.classList.add("hidden");
       if (proceedBtn) {
+        proceedBtn.classList.remove("hidden");
         proceedBtn.disabled = true;
-        proceedBtn.classList.add("opacity-50","cursor-not-allowed","hidden");
+        proceedBtn.classList.add("opacity-50","cursor-not-allowed");
       }
     }
-    // Идёт тест — инфо скрыто, тест виден
-    else if (started) {
+    function showTest() {
       infoSection?.classList.add("hidden");
       testSection?.classList.remove("hidden");
       proceedBtn?.classList.add("hidden");
     }
+
+    // Инициализация UI по флагам
+    if (completed) showInfo();
+    else if (started) showTest();
+    else showInfo();
 
     // Кнопка активируется только когда все чекбоксы отмечены
     function updateButtonState() {
@@ -151,20 +154,17 @@
     checkboxes.forEach(cb => cb.addEventListener("change", updateButtonState));
     updateButtonState();
 
-    // START → запись в БД и фиксация ?start=1 в URL, чтобы сервер при рефреше сделал force_start
+    // START → запись в БД и фиксация ?start=1 в URL (для однозначного состояния после F5/Назад)
     if (proceedBtn) {
       proceedBtn.addEventListener("click", async () => {
-        try {
-          await fetch(`/api/test/start/{{ index }}`, { method: 'POST' });
-        } catch (_) {}
+        try { await fetch(`/api/test/start/{{ index }}`, { method: 'POST' }); } catch (_) {}
         try {
           const url = new URL(window.location.href);
           url.searchParams.set('start', '1');
           history.replaceState(null, '', url.toString());
         } catch (_) {}
-        infoSection?.classList.add("hidden");
-        testSection?.classList.remove("hidden");
-        proceedBtn.classList.add("hidden");
+        started = true; // локально помечаем как начат
+        showTest();
       });
     }
 
@@ -177,11 +177,10 @@
           const res = await fetch("", { method: "POST", body: formData });
           const data = await res.json();
           try { await fetch(`/api/test/complete/{{ index }}`, { method: "POST" }); } catch (_) {}
+
           if (data.status === "ok") {
             form.classList.add("hidden");
-            resultTextModal.innerText =
-              `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\n` +
-              `Відкриті відповіді відправлені на перевірку`;
+            resultTextModal.innerText = `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\nВідкриті відповіді відправлені на перевірку`;
             motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
             resultModal.classList.remove("hidden");
           } else {
@@ -192,6 +191,18 @@
         }
       });
     }
+
+    // --- Поведение при BACK/перезагрузке (bfcache) ---
+    window.addEventListener("pageshow", function () {
+      if (started && !completed) showTest();
+    });
+    window.addEventListener("popstate", function () {
+      if (started && !completed) {
+        location.href = "{{ url_for('main.manager_dashboard') }}";
+      }
+    });
+    // триггер для Safari, чтобы не тащил старое JS‑состояние
+    window.addEventListener("unload", function(){});
   }, 0);
   </script>
 </div>
