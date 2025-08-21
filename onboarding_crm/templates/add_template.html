@@ -4,6 +4,24 @@
   <meta charset="UTF-8">
   <title>Редактор шаблону онбордингу</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    /* Ручка перетягування */
+    .drag-handle { cursor: grab; user-select: none; }
+    .drag-handle:active { cursor: grabbing; }
+    /* Привид елемента під час dnd */
+    .sortable-ghost { opacity: 0.6; }
+    /* Вигляд заблокованих (пройдених) блоків */
+    .locked { position: relative; }
+    .locked::after {
+      content: "Завершено — редагування заблоковано";
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(243, 244, 246, 0.85); /* gray-100 */
+      color: #1f2937; /* gray-800 */
+      font-weight: 600; border-radius: 0.5rem;
+    }
+    .locked * { pointer-events: none !important; }
+    .locked .drag-handle { opacity: 0.3; }
+  </style>
 </head>
 <body class="bg-gray-100 p-6">
 
@@ -22,9 +40,10 @@
       </select>
       {% endif %}
 
+      <!-- Контейнер етапів (підтримує drag-and-drop) -->
       <div id="blocks-container" class="space-y-4"></div>
 
-      <button type="button" onclick="addStage(); autosaveTemplate();" 
+      <button type="button" onclick="addStage(); if (typeof autosaveTemplate === 'function') autosaveTemplate();" 
               class="bg-blue-500 text-white px-4 py-2 rounded mt-4">
         + Додати етап
       </button>
@@ -38,11 +57,46 @@
   </div>
 
   <script>
+    // Дані з бекенду
     window.templateData = {{ structure | tojson | safe }};
     window.onboarding_step = {{ onboarding_step | default(0) }};
     window.templateId = {{ template.id if template and template.id else 'null' }};
   </script>
+
+  <!-- SortableJS для drag-and-drop -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+  <!-- Основна логіка редактора -->
   <script src="{{ url_for('static', filename='js/editor_blocks.js') }}"></script>
 
+  <script>
+    (function initDnd() {
+      const list = document.getElementById('blocks-container');
+      if (!list) return;
+
+      // Ініціалізуємо dnd сортування по контейнеру блоків
+      Sortable.create(list, {
+        animation: 150,
+        handle: '.drag-handle',
+        ghostClass: 'sortable-ghost',
+        filter: '.locked',              // Забороняємо drag для пройдених етапів
+        preventOnFilter: false,
+        onEnd: function() {
+          // Після зміни порядку зберігаємо структуру
+          try {
+            if (typeof autosaveTemplate === 'function') {
+              autosaveTemplate();
+            }
+            // Якщо в editor_blocks.js є серіалізатор — оновимо hidden поле
+            if (typeof window.serializeBlocks === 'function') {
+              const serialized = window.serializeBlocks();
+              const hidden = document.getElementById('structure');
+              if (hidden) hidden.value = JSON.stringify(serialized);
+            }
+          } catch (e) { /* no-op */ }
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
