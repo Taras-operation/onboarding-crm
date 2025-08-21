@@ -397,6 +397,7 @@ def edit_onboarding(manager_id):
     if current_user.role not in ['mentor', 'teamlead']:
         return redirect(url_for('main.login'))
 
+    # Берём самый свежий інстанс онбординга для менеджера
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=manager_id)
                 .order_by(OnboardingInstance.id.desc())
@@ -406,38 +407,96 @@ def edit_onboarding(manager_id):
         return redirect(url_for('main.onboarding_plans'))
 
     user = User.query.get(manager_id)
-    onboarding_step = user.onboarding_step or 0
+    onboarding_step = user.onboarding_step or 0  # курсор следующего к прохождению кроку
 
-    if request.method == 'POST':
-        new_structure = request.form.get('structure')
-        try:
-            parsed = json.loads(new_structure) if isinstance(new_structure, str) else new_structure
-            instance.structure = {'blocks': parsed}
-            db.session.commit()
-            flash("Онбординг оновлено", "success")
-            return redirect(url_for('main.onboarding_plans'))
-        except Exception as e:
-            flash(f"❌ Помилка при збереженні: {e}", "danger")
-
+    # --- Текущая структура (аккуратный парсинг)
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(parsed, str):
             parsed = json.loads(parsed)
-        structure = parsed['blocks'] if isinstance(parsed, dict) and 'blocks' in parsed else parsed
+        current_blocks = parsed['blocks'] if isinstance(parsed, dict) and 'blocks' in parsed else parsed
     except Exception as e:
         print(f"[edit_onboarding] ❌ JSON parse error: {e}")
-        structure = []
+        current_blocks = []
 
+    # --- Индексы stage-блоков (для надёжного сравнения по индексам)
+    current_stage_indices = [i for i, b in enumerate(current_blocks) if b.get("type") == "stage"]
+
+    # --- Прогресс по шагам (нормализуем к dict)
+    progress = instance.test_progress or {}
+    if not isinstance(progress, dict):
+        try:
+            progress = json.loads(progress)
+        except Exception:
+            progress = {}
+
+    # --- Формируем множество залоченных индексов:
+    #     1) все, где completed == True,
+    #     2) все индексы строго меньше onboarding_step (логически завершённые)
+    locked_indices = set()
+    for i in current_stage_indices:
+        p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
+        if bool(p.get('completed', False)):
+            locked_indices.add(i)
+        if i < onboarding_step:
+            locked_indices.add(i)
+
+    def _normalize_for_compare(obj):
+        try:
+            return json.dumps(obj, ensure_ascii=False, sort_keys=True)
+        except Exception:
+            return str(obj)
+
+    if request.method == 'POST':
+        new_structure_raw = request.form.get('structure')
+        try:
+            new_blocks = json.loads(new_structure_raw) if isinstance(new_structure_raw, str) else new_structure_raw
+            # поддерживаем оба формата: либо массив блоков, либо {"blocks":[...]}
+            if isinstance(new_blocks, dict) and 'blocks' in new_blocks:
+                new_blocks = new_blocks['blocks']
+        except Exception as e:
+            flash(f"❌ Помилка парсингу нової структури: {e}", "danger")
+            return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
+
+        # --- СЕРВЕРНАЯ ВАЛИДАЦИЯ: запрещаем менять / удалять / сдвигать залоченные шаги
+        for idx in sorted(list(locked_indices)):
+            # 1) Новый массив должен содержать элемент на этом индексе
+            if idx >= len(new_blocks):
+                flash("Неможливо видалити або зсунути вже пройдені кроки.", "danger")
+                return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
+
+            # 2) Тип блока на этом индексе должен быть stage и оставаться stage
+            old_is_stage = (current_blocks[idx].get("type") == "stage")
+            new_is_stage = (new_blocks[idx].get("type") == "stage")
+            if not old_is_stage or not new_is_stage:
+                flash("Неможливо змінювати тип або позицію вже пройденого кроку.", "danger")
+                return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
+
+            # 3) Содержимое пройденного шага не должно измениться
+            before = _normalize_for_compare(current_blocks[idx])
+            after  = _normalize_for_compare(new_blocks[idx])
+            if before != after:
+                flash("Зміни в уже пройдених кроках заборонені. Відкотіть правки в цих кроках.", "danger")
+                return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
+
+        # Если валидация прошла — сохраняем новую структуру целиком
+        instance.structure = {'blocks': new_blocks}
+        db.session.commit()
+        flash("Онбординг оновлено", "success")
+        return redirect(url_for('main.onboarding_plans'))
+
+    # --- GET: отдаём текущую структуру и список залоченных индексов (чтобы UI мог підсвітити)
     return render_template(
         'add_template.html',
-        structure=structure,
-        structure_json=json.dumps(structure, ensure_ascii=False),
+        structure=current_blocks,
+        structure_json=json.dumps(current_blocks, ensure_ascii=False),
         name=user.onboarding_name or "",
         selected_manager=manager_id,
         onboarding_step=onboarding_step,
         is_edit=True,
-        managers=[]
+        managers=[],
+        locked_indices=sorted(list(locked_indices)),
     )
 
 @bp.route('/onboarding/user/copy/<int:id>')
