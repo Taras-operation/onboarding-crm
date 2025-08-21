@@ -642,6 +642,7 @@ def manager_step(step):
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
+    # Берём самый свежий инстанс
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
@@ -692,9 +693,19 @@ def manager_step(step):
         raw_started = True
         raw_completed = True
 
+    # --- Fallback по cookie: если браузер пометил шаг как начатый, а в БД ещё нет
+    cookie_started = request.cookies.get(f"step_started_{step}") == "1"
+    if cookie_started and (not raw_started) and (not raw_completed):
+        prev = progress.get(step_key, {})
+        prev['started'] = True
+        progress[step_key] = prev
+        instance.test_progress = progress
+        db.session.commit()
+        raw_started = True
+
     # --- Анти-чит: тест начат в БД, но в URL нет start=1 → редиректим на тот же шаг с start=1
     if raw_started and not raw_completed and request.args.get('start') != '1':
-        return redirect(url_for('main.manager_step', step=step, start=1))
+        return redirect(url_for('main.manager_step', step=step, start=1), code=302)
 
     # --- ПОДСТРАХОВКА 2: явный сигнал из URL (?start=1) — пометить step как "started" (completed не трогаем)
     force_start = request.args.get('start') == '1'
@@ -799,18 +810,28 @@ def manager_step(step):
             'open_questions': open_q_count
         })
 
-    # --- Рендер с анти-кэш заголовками ---
-    resp = make_response(render_template(
+    # --- Рендер с анти-кэш заголовками и синхронизацией cookie ---
+    html = render_template(
         'manager_step.html',
         step=step,
         total_steps=total_steps,
         block=block,
         test_started=raw_started,
         test_completed=raw_completed
-    ))
+    )
+    resp = make_response(html)
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     resp.headers['Pragma'] = 'no-cache'
     resp.headers['Expires'] = '0'
+
+    # Состояние cookie ↔ состояние БД:
+    #  - если started и не completed → cookie=1
+    #  - иначе → удаляем cookie
+    if raw_started and not raw_completed:
+        resp.set_cookie(f"step_started_{step}", "1", path=f"/manager_step/{step}", samesite="Lax")
+    else:
+        resp.delete_cookie(f"step_started_{step}", path=f"/manager_step/{step}")
+
     return resp
 
 @bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
@@ -880,7 +901,12 @@ def api_test_start(step):
     db.session.commit()
 
     print(f"[START] instance_id={instance.id} step={step} progress={progress}")
-    return {'status': 'ok'}
+
+    # Возвращаем JSON и одновременно ставим cookie, чтобы «анти-чит» переживал Back/Fwd
+    resp = jsonify({'status': 'ok'})
+    # cookie действует на страницу шага; живёт до конца сессии
+    resp.set_cookie(f"step_started_{step}", "1", path=f"/manager_step/{step}", samesite="Lax")
+    return resp
 
 
 # --- API: завершение теста ---
@@ -902,7 +928,7 @@ def api_test_complete(step):
     key = str(step)
     prev = progress.get(key, {})
     prev['completed'] = True
-    prev['started'] = prev.get('started', True)  # если не было start → считаем, что был
+    prev['started']  = prev.get('started', True)  # если не было start → считаем, что был
     progress[key] = prev
 
     instance.test_progress = progress
@@ -913,4 +939,8 @@ def api_test_complete(step):
 
     db.session.commit()
     print(f"[COMPLETE] instance_id={instance.id} step={step} progress={progress}")
-    return {'status': 'ok'}
+
+    # Чистим cookie «старт шага», чтобы при возврате не открывался тест
+    resp = jsonify({'status': 'ok'})
+    resp.delete_cookie(f"step_started_{step}", path=f"/manager_step/{step}")
+    return resp
