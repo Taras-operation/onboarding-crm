@@ -133,6 +133,21 @@
       proceedBtn?.classList.add("hidden");
     }
 
+    // --- ГАРАНТИЯ ?start=1 для начатых, но не завершённых шагов ---
+    // Это ключ к «античиту» при возврате Назад: URL всегда содержит start=1,
+    // сервер помечает step как started, а UI рисует тест.
+    (function enforceStartParam(){
+      if (started && !completed) {
+        try {
+          const url = new URL(window.location.href);
+          if (url.searchParams.get('start') !== '1') {
+            url.searchParams.set('start', '1');
+            history.replaceState(null, '', url.toString());
+          }
+        } catch (_) {}
+      }
+    })();
+
     // Инициализация UI по флагам
     if (completed) showInfo();
     else if (started) showTest();
@@ -154,7 +169,7 @@
     checkboxes.forEach(cb => cb.addEventListener("change", updateButtonState));
     updateButtonState();
 
-    // START → запись в БД и фиксация ?start=1 в URL (для однозначного состояния после F5/Назад)
+    // START → запись в БД и фиксация ?start=1 (для F5/Назад)
     if (proceedBtn) {
       proceedBtn.addEventListener("click", async () => {
         try { await fetch(`/api/test/start/{{ index }}`, { method: 'POST' }); } catch (_) {}
@@ -163,7 +178,7 @@
           url.searchParams.set('start', '1');
           history.replaceState(null, '', url.toString());
         } catch (_) {}
-        started = true; // локально помечаем как начат
+        started = true;
         showTest();
       });
     }
@@ -180,7 +195,9 @@
 
           if (data.status === "ok") {
             form.classList.add("hidden");
-            resultTextModal.innerText = `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\nВідкриті відповіді відправлені на перевірку`;
+            resultTextModal.innerText =
+              `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\n` +
+              `Відкриті відповіді відправлені на перевірку`;
             motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
             resultModal.classList.remove("hidden");
           } else {
@@ -192,16 +209,21 @@
       });
     }
 
-    // --- Поведение при BACK/перезагрузке (bfcache) ---
+    // Поведение при bfcache/Назад: если started && !completed — всегда показываем тест
     window.addEventListener("pageshow", function () {
       if (started && !completed) showTest();
     });
     window.addEventListener("popstate", function () {
       if (started && !completed) {
-        location.href = "{{ url_for('main.manager_dashboard') }}";
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('start', '1');
+          history.replaceState(null, '', url.toString());
+        } catch (_) {}
+        showTest();
       }
     });
-    // триггер для Safari, чтобы не тащил старое JS‑состояние
+    // двойной хук на случай Safari
     window.addEventListener("unload", function(){});
   }, 0);
   </script>

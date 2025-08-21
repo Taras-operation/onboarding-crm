@@ -562,14 +562,17 @@ def manager_dashboard():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
+    # Берём самый свежий инстанс онбординга
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
                 .first())
     if not instance:
         return "Онбординг ще не призначено", 404
+
     print(f"[manager_dashboard] use onboarding_instance id={instance.id}")
 
+    # --- Разбор структуры (мягко, с двойным JSON) ---
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -577,25 +580,58 @@ def manager_dashboard():
             parsed = json.loads(parsed)
 
         if isinstance(parsed, dict) and 'blocks' in parsed:
-            blocks = parsed['blocks']
+            blocks_all = parsed['blocks']
         elif isinstance(parsed, list):
-            blocks = parsed
+            blocks_all = parsed
         else:
-            blocks = []
+            blocks_all = []
     except Exception as e:
         print(f"[manager_dashboard] ❌ JSON error: {e}")
-        blocks = []
+        blocks_all = []
 
-    stage_blocks = [b for b in blocks if b.get("type") == "stage"]
+    # Берём только stage-блоки
+    stage_blocks = [b for b in blocks_all if b.get("type") == "stage"]
 
+    # Текущий курсор онбординга
     current_step = instance.onboarding_step or 0
     if current_step >= len(stage_blocks):
         current_step = len(stage_blocks) - 1 if stage_blocks else 0
 
+    # --- Прогресс по шагам (нормализуем к dict)
+    progress = instance.test_progress or {}
+    if not isinstance(progress, dict):
+        try:
+            progress = json.loads(progress)
+        except Exception:
+            progress = {}
+
+    # --- Строим метаданные по шагам и сразу готовые URL
+    steps_meta = []
+    for i, b in enumerate(stage_blocks):
+        p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
+        started = bool(p.get('started', False))
+        completed = bool(p.get('completed', False))
+
+        # Если шаг начат и не завершён — добавляем ?start=1,
+        # чтобы при возврате сразу открылись тесты (как на шаге 0)
+        step_url = url_for('main.manager_step', step=i, start=1) if (started and not completed) \
+                   else url_for('main.manager_step', step=i)
+
+        steps_meta.append({
+            "index": i,
+            "title": b.get("title") or f"Крок {i+1}",
+            "description": b.get("description") or "",
+            "started": started,
+            "completed": completed,
+            "url": step_url,
+        })
+
     return render_template(
         'manager_dashboard.html',
+        # передаём и «сырой» список блоков, и подготовленные шаги
         blocks=stage_blocks,
-        current_step=current_step
+        steps_meta=steps_meta,
+        current_step=current_step,
     )
 
 @bp.route('/manager_step/<int:step>', methods=['GET', 'POST'])
