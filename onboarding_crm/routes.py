@@ -692,9 +692,9 @@ def manager_step(step):
         raw_started = True
         raw_completed = True
 
-    # --- Анти-чит: если тест начат по БД, но в URL нет start=1 — принудительно редиректим c ?start=1
+    # --- Анти-чит: тест начат в БД, но в URL нет start=1 → редиректим на тот же шаг с start=1
     if raw_started and not raw_completed and request.args.get('start') != '1':
-        return redirect(url_for('main.manager_step', step=step) + '?start=1')
+        return redirect(url_for('main.manager_step', step=step, start=1))
 
     # --- ПОДСТРАХОВКА 2: явный сигнал из URL (?start=1) — пометить step как "started" (completed не трогаем)
     force_start = request.args.get('start') == '1'
@@ -790,7 +790,7 @@ def manager_step(step):
         current_user.onboarding_step = instance.onboarding_step
         db.session.commit()
 
-        print(f"[manager_step POST] COMPLETE step={step} progress[{step_key}]={progress[step_key]}")
+        print(f"[manager_step POST] instance_id={instance.id} COMPLETE step={step} progress[{step_key}]={progress[step_key]}")
 
         return jsonify({
             'status': 'ok',
@@ -857,19 +857,28 @@ def manager_results(manager_id, onboarding_id):
 @bp.route('/api/test/start/<int:step>', methods=['POST'])
 @login_required
 def api_test_start(step):
-    instance = OnboardingInstance.query.filter_by(manager_id=current_user.id).first_or_404()
+    # Берём самый свежий инстанс, как и в остальных местах
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=current_user.id)
+                .order_by(OnboardingInstance.id.desc())
+                .first_or_404())
+
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
-        try: progress = json.loads(progress)
-        except Exception: progress = {}
+        try:
+            progress = json.loads(progress)
+        except Exception:
+            progress = {}
 
     key = str(step)
     prev = progress.get(key, {})
+    # только помечаем started, completed не трогаем
     prev['started'] = True
     progress[key] = prev
 
     instance.test_progress = progress
     db.session.commit()
+
     print(f"[START] instance_id={instance.id} step={step} progress={progress}")
     return {'status': 'ok'}
 
@@ -882,17 +891,26 @@ def api_test_complete(step):
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
                 .first_or_404())
+
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
-        try: progress = json.loads(progress)
-        except Exception: progress = {}
+        try:
+            progress = json.loads(progress)
+        except Exception:
+            progress = {}
 
-    prev = progress.get(str(step), {})
-    prev['started'] = True
+    key = str(step)
+    prev = progress.get(key, {})
     prev['completed'] = True
-    progress[str(step)] = prev
-    instance.test_progress = progress
-    db.session.commit()
+    prev['started'] = prev.get('started', True)  # если не было start → считаем, что был
+    progress[key] = prev
 
+    instance.test_progress = progress
+
+    # если этот шаг был текущим, продвигаем дальше
+    if instance.onboarding_step is None or instance.onboarding_step <= step:
+        instance.onboarding_step = step + 1
+
+    db.session.commit()
     print(f"[COMPLETE] instance_id={instance.id} step={step} progress={progress}")
     return {'status': 'ok'}
