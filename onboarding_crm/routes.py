@@ -10,6 +10,44 @@ import random
 import re
 
 bp = Blueprint('main', __name__)
+
+# --- Helper: allowed managers for current user (department-aware)
+def _allowed_managers_for_current_user():
+    """
+    Returns a SQLAlchemy query for managers the current user is allowed to see/select.
+    - mentor   -> managers with same department and added_by_id = current_user.id
+    - teamlead -> managers with same department and added_by_id in [teamlead.id] + mentors created by teamlead in same department
+    - developer -> all managers (fallback for tooling/admin)
+    - others  -> empty query
+    """
+    if not current_user.is_authenticated:
+        return User.query.filter(False)
+
+    if current_user.role == 'mentor':
+        return User.query.filter_by(
+            role='manager',
+            added_by_id=current_user.id,
+            department=current_user.department
+        )
+
+    if current_user.role == 'teamlead':
+        mentors = User.query.filter_by(
+            role='mentor',
+            added_by_id=current_user.id,
+            department=current_user.department
+        ).all()
+        mentor_ids = [m.id for m in mentors] + [current_user.id]
+        return User.query.filter(
+            User.role == 'manager',
+            User.added_by_id.in_(mentor_ids),
+            User.department == current_user.department
+        )
+
+    if current_user.role == 'developer':
+        return User.query.filter_by(role='manager')
+
+    return User.query.filter(False)
+
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -277,27 +315,7 @@ def onboarding_editor():
     if current_user.role not in ['mentor', 'teamlead']:
         return redirect(url_for('main.login'))
 
-    if current_user.role == 'mentor':
-        managers = User.query.filter_by(
-            role='manager',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-    elif current_user.role == 'teamlead':
-        mentors = User.query.filter_by(
-            role='mentor',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-        mentor_ids = [mentor.id for mentor in mentors] + [current_user.id]
-        managers = User.query.filter(
-            User.role == 'manager',
-            User.added_by_id.in_(mentor_ids),
-            User.department == current_user.department
-        ).all()
-    else:
-        managers = []
-
+    managers = _allowed_managers_for_current_user().all()
     return render_template('add_template.html', managers=managers)
 
 @bp.route('/onboarding/template/add', methods=['GET', 'POST'])
@@ -323,6 +341,16 @@ def add_onboarding_template():
         selected_manager_id = request.form.get('selected_manager')
         name = request.form.get('name')
         payload = {'blocks': structure}  # ← ЕДИНЫЙ формат
+
+        # Validate chosen manager is allowed for current user (department-aware)
+        if selected_manager_id and selected_manager_id != 'template':
+            try:
+                _target_mid = int(selected_manager_id)
+            except Exception:
+                _target_mid = None
+            if _target_mid is None or _target_mid not in [u.id for u in _allowed_managers_for_current_user().all()]:
+                flash("Ви не можете призначити онбординг цьому менеджеру (обмеження по відділу/ролі).", "danger")
+                return redirect(url_for('main.onboarding_plans'))
 
         # Если редактируем существующий шаблон (по query ?template_id=...)
         existing_template_id = request.args.get('template_id')
@@ -387,12 +415,7 @@ def add_onboarding_template():
         return redirect(url_for('main.onboarding_plans'))
 
     # 📌 GET — подготовка данных для формы
-    if current_user.role == 'mentor':
-        managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
-    elif current_user.role == 'teamlead':
-        managers = User.query.filter_by(role='manager').all()
-    else:
-        managers = []
+    managers = _allowed_managers_for_current_user().all()
 
     template_id = request.args.get('template_id')
     structure = []
@@ -569,6 +592,15 @@ def save_onboarding():
     data = request.get_json()
     manager_id = data.get('manager_id')
     blocks = data.get('blocks', [])
+
+    # Department-aware permission check for mentor/teamlead
+    if manager_id and current_user.role in ['mentor', 'teamlead']:
+        try:
+            _mid = int(manager_id)
+        except Exception:
+            _mid = None
+        if _mid is None or _mid not in [u.id for u in _allowed_managers_for_current_user().all()]:
+            return {'message': 'Немає прав призначати онбординг цьому менеджеру'}, 403
 
     if not blocks:
         return {'message': 'Порожній онбординг'}, 400
