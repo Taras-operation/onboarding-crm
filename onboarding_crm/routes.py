@@ -303,7 +303,15 @@ def onboarding_editor():
 @bp.route('/onboarding/template/add', methods=['GET', 'POST'])
 @login_required
 def add_onboarding_template():
-    # 📌 POST — сохранение нового шаблона или онбординга
+    """
+    Создание/редактирование шаблона ИЛИ назначение/редактирование онбординга менеджеру.
+    Правки:
+    - Если находимся по URL с ?template_id=... и выбран "Зберегти як шаблон",
+      то делаем UPDATE существующего шаблона вместо создания копии.
+    - Если выбран конкретный менеджер: апдейтим его последний OnboardingInstance
+      (если он есть), а не создаём новый. Прогресс пользователя не сбрасываем.
+    """
+    # 📌 POST — сохранение нового или обновление существующего
     if request.method == 'POST':
         raw_structure = request.form.get('structure')
         try:
@@ -314,28 +322,60 @@ def add_onboarding_template():
 
         selected_manager_id = request.form.get('selected_manager')
         name = request.form.get('name')
-
         payload = {'blocks': structure}  # ← ЕДИНЫЙ формат
 
+        # Если редактируем существующий шаблон (по query ?template_id=...)
+        existing_template_id = request.args.get('template_id')
+
         if selected_manager_id == 'template':
+            # UPDATE существующего шаблона, если пришли с template_id
+            if existing_template_id:
+                tpl = OnboardingTemplate.query.get(int(existing_template_id))
+                if tpl:
+                    tpl.name = name
+                    tpl.structure = payload
+                    db.session.commit()
+                    return redirect(url_for('main.onboarding_plans'))
+            # Иначе создаём новый шаблон
             new_template = OnboardingTemplate(
                 name=name,
-                structure=payload,              # ← БЕЗ json.dumps
+                structure=payload,
                 created_by=current_user.id
             )
             db.session.add(new_template)
             db.session.commit()
+            return redirect(url_for('main.onboarding_plans'))
+
+        # ---- Ветка: выбран конкретный менеджер ----
+        try:
+            manager_id_int = int(selected_manager_id)
+        except Exception:
+            flash("Невірний менеджер", "danger")
+            return redirect(url_for('main.onboarding_plans'))
+
+        # Последний инстанс для менеджера
+        instance = (OnboardingInstance.query
+                    .filter_by(manager_id=manager_id_int)
+                    .order_by(OnboardingInstance.id.desc())
+                    .first())
+
+        # Если инстанс существует — ОБНОВЛЯЕМ его (не создаём копию)
+        if instance:
+            instance.name = name
+            instance.structure = payload
+            db.session.commit()
         else:
+            # Иначе создаём новый и инициализируем поля пользователя
             new_instance = OnboardingInstance(
                 name=name,
-                structure=payload,              # ← БЕЗ json.dumps
-                manager_id=int(selected_manager_id),
+                structure=payload,
+                manager_id=manager_id_int,
                 mentor_id=current_user.id
             )
             db.session.add(new_instance)
             db.session.commit()
 
-            manager = User.query.get(int(selected_manager_id))
+            manager = User.query.get(manager_id_int)
             manager.onboarding_name = name
             manager.onboarding_status = 'in_progress'
             manager.onboarding_step = 0
@@ -346,7 +386,7 @@ def add_onboarding_template():
 
         return redirect(url_for('main.onboarding_plans'))
 
-    # 📌 GET — подготовка данных для формы (оставь как есть, только чтение делаем мягким)
+    # 📌 GET — подготовка данных для формы
     if current_user.role == 'mentor':
         managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
     elif current_user.role == 'teamlead':
@@ -371,12 +411,11 @@ def add_onboarding_template():
         if request.args.get('copy') == '1':
             new_template = OnboardingTemplate(
                 name=f"{template.name} (копія)",
-                structure={'blocks': structure},   # ← объект
+                structure={'blocks': structure},
                 created_by=current_user.id
             )
             db.session.add(new_template)
             db.session.commit()
-
             return redirect(url_for('main.add_onboarding_template', template_id=new_template.id))
 
         name = template.name
