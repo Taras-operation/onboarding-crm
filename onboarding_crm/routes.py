@@ -76,58 +76,55 @@ def logout():
     logout_user()
     return redirect(url_for('main.login'))
 
-@bp.route('/dashboard/developer', methods=['GET', 'POST'])
+@bp.route('/dashboard/mentor')
 @login_required
-def developer_dashboard():
-    if current_user.role != 'developer':
+def mentor_dashboard():
+    if current_user.role not in ['mentor', 'teamlead']:
         return redirect(url_for('main.login'))
 
-    if request.method == 'POST':
-        tg_nick = request.form.get('tg_nick')
-        role = request.form.get('role')
-        department = request.form.get('department')
-        position = request.form.get('position') or ('Teamlead' if role == 'teamlead' else '')
-        username = request.form.get('username')
-        password = generate_password_hash(request.form.get('password'))
+    # 1. Отримуємо список менеджерів
+    if current_user.role == 'mentor':
+        managers = User.query.filter_by(
+            role='manager',
+            added_by_id=current_user.id
+        ).all()
+    elif current_user.role == 'teamlead':
+        mentors = User.query.filter_by(
+            role='mentor',
+            added_by_id=current_user.id
+        ).all()
+        mentor_ids = [m.id for m in mentors] + [current_user.id]
+        managers = User.query.filter(
+            User.role == 'manager',
+            User.added_by_id.in_(mentor_ids)
+        ).all()
+    else:
+        managers = []
 
-        added_by_id = None
-        # 🔹 Если создаём ментора, он должен быть привязан к ТЛ или разработчику
-        if role == 'mentor':
-            teamlead_id = request.form.get('teamlead_id')
-            if teamlead_id:
-                added_by_id = int(teamlead_id)
-            else:
-                added_by_id = current_user.id  # разработчик как создатель
+    manager_ids = [m.id for m in managers]
 
-        # 🔍 Проверка уникальности username
-        base_username = username
-        counter = 1
-        while User.query.filter_by(username=username).first():
-            username = f"{base_username}_{counter}"
-            counter += 1
+    # 2. Активні онбординги — просто всі, де є структура
+    active_onboardings = OnboardingInstance.query.filter(
+        OnboardingInstance.manager_id.in_(manager_ids)
+    ).count()
 
-        new_user = User(
-            tg_nick=tg_nick,
-            role=role,
-            department=department,
-            position=position,
-            username=username,
-            password=password,
-            added_by_id=added_by_id,
-            onboarding_status='Не розпочато',
-            onboarding_step=0,
-            onboarding_step_total=0,
-            created_at=datetime.utcnow()
-        )
-        db.session.add(new_user)
-        db.session.commit()
+    # 3. Середній прогрес
+    progresses = [
+        m.onboarding_step or 0
+        for m in managers if m.onboarding_step is not None
+    ]
+    if progresses:
+        average_progress = round(sum(progresses) / len(progresses), 1)
+    else:
+        average_progress = 0
 
-        flash(f"Користувач {username} ({role}) успішно створений!", "success")
-        return redirect(url_for('main.developer_dashboard'))
-
-    teamleads = User.query.filter_by(role='teamlead').all()
-    users = User.query.all()
-    return render_template('developer_dashboard.html', users=users, teamleads=teamleads)
+    return render_template(
+        'mentor_dashboard.html',
+        managers=managers,
+        active_onboardings=active_onboardings,
+        average_progress=average_progress
+    )
+       
 
 @bp.route('/dashboard/mentor')
 @login_required

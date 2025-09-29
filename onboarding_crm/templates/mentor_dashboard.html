@@ -47,7 +47,7 @@
       📅 Плани онбордингу
     </a>
 
-    <a href="{{ url_for('main.managers_list') }}" class="btn btn-info text-white mb-2">
+    <a href="{{ url_for('main.manager_results', manager_id=current_user.id) }}" class="btn btn-info text-white mb-2">
       📊 Результати тестів
     </a>
 
@@ -59,7 +59,10 @@
   <!-- Основна частина -->
   <div class="main-content">
     <h2 class="mb-4">👋 Привіт, {{ current_user.username }}!</h2>
-    <p class="text-muted mb-4">Ваша роль: <strong>{{ current_user.role }}</strong> / Відділ: <strong>{{ current_user.department }}</strong></p>
+    <p class="text-muted mb-4">
+      Ваша роль: <strong>{{ current_user.role }}</strong> /
+      Відділ: <strong>{{ current_user.department }}</strong>
+    </p>
 
     <!-- Статистика -->
     <div class="row">
@@ -67,7 +70,7 @@
         <div class="card border-primary mb-3">
           <div class="card-body">
             <h5 class="card-title">Менеджерів</h5>
-            <p class="card-text fs-3">{{ manager_count }}</p>
+            <p class="card-text fs-3">{{ managers|length }}</p>
           </div>
         </div>
       </div>
@@ -85,7 +88,7 @@
         <div class="card border-info mb-3">
           <div class="card-body">
             <h5 class="card-title">Середній прогрес</h5>
-            <p class="card-text fs-3">{{ avg_progress }}%</p>
+            <p class="card-text fs-3">{{ average_progress }}%</p>
           </div>
         </div>
       </div>
