@@ -125,7 +125,6 @@ def mentor_dashboard():
         average_progress=average_progress
     )
     
-
 @bp.route('/managers/list')
 @login_required
 def managers_list():
@@ -675,6 +674,34 @@ def delete_user_onboarding(id):
     except Exception as e:
         db.session.rollback()
         return {'message': f'Помилка при видаленні: {str(e)}'}, 500
+    
+@bp.route('/onboarding/instance/delete/<int:onboarding_id>', methods=['DELETE'])
+@login_required
+def delete_onboarding_instance(onboarding_id):
+    instance = OnboardingInstance.query.get_or_404(onboarding_id)
+
+    # 🔒 Перевірка прав доступу
+    if current_user.role == 'mentor':
+        if instance.mentor_id != current_user.id:
+            return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
+
+    elif current_user.role == 'teamlead':
+        mentor = User.query.get(instance.mentor_id)
+        if not mentor or mentor.added_by_id != current_user.id:
+            return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
+
+    try:
+        # Видалення пов’язаних результатів
+        TestResult.query.filter_by(onboarding_instance_id=onboarding_id).delete()
+
+        # Видалення самого онбордингу
+        db.session.delete(instance)
+        db.session.commit()
+        return '', 204  # Успіх — без вмісту
+
+    except Exception as e:
+        db.session.rollback()
+        return {'message': f'Помилка при видаленні онбордингу: {str(e)}'}, 500
 
 @bp.route('/manager_dashboard')
 @login_required

@@ -96,7 +96,7 @@
 </head>
 <body>
   <div class="container">
-    <a href="{{ url_for('main.mentor_dashboard') }}" class="back-btn">← Назад до дашборду</a>
+    <a href="{{ url_for('main.mentor_dashboard') }}" class="btn btn-secondary mb-3">⬅️ Назад</a>
     <h1>Плани Онбордингу</h1>
     <div class="grid">
 
@@ -129,7 +129,7 @@
               <td>
                 <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/template/add?template_id={{ template.id }}'">✏️</button>
                 <button class="icon-btn" title="Копіювати" onclick="location.href='/onboarding/template/add?template_id={{ template.id }}&copy=1'">📄</button>
-                <button class="icon-btn" title="Видалити" onclick="confirmDelete('{{ template.id }}', '{{ template.name }}')">🗑️</button>
+                <button class="icon-btn text-danger" title="Видалити" onclick="confirmDeleteTemplate('{{ template.id }}', '{{ template.name }}')">🗑️</button>
               </td>
             </tr>
             {% endfor %}
@@ -137,54 +137,71 @@
         </table>
       </div>
 
-      <!-- Менеджери -->
-<div class="panel">
-  <div class="panel-header">
-    <h2>Онбординги Менеджерів</h2>
-    <div class="actions">
-      <button class="btn btn-primary" onclick="location.href='/onboarding/template/add'">+ Додати план</button>
-      <input type="text" placeholder="Пошук...">
+      <!-- 👥 Менеджери -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Онбординги Менеджерів</h2>
+          <div class="actions">
+            <button class="btn btn-primary" onclick="location.href='/onboarding/template/add'">+ Додати план</button>
+            <input type="text" placeholder="Пошук...">
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>№</th>
+              <th>Назва</th>
+              <th>Етапи</th>
+              <th>Ментор</th>
+              <th>Дії</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for plan in user_plans %}
+            <tr id="manager-row-{{ plan.id }}">
+              <td>{{ loop.index }}</td>
+              <td>{{ plan.name }}</td>
+              <td>{{ plan.completed or 0 }}/{{ plan.total or 0 }}</td>
+              <td>{{ plan.mentor or '—' }}</td>
+              <td>
+                <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/user/edit/{{ plan.id }}'">✏️</button>
+                <button class="icon-btn text-danger" title="Видалити" onclick="confirmDeleteInstance({{ plan.id }})">🗑️</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
-  <table>
-    <thead>
-      <tr>
-        <th>№</th>
-        <th>Назва</th>
-        <th>Етапи</th>
-        <th>Ментор</th>
-        <th>Дії</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for plan in user_plans %}
-      <tr id="manager-row-{{ plan.manager_id }}">
-        <td>{{ loop.index }}</td>
-        <td>{{ plan.name }}</td>
-        <td>{{ plan.completed or 0 }}/{{ plan.total or 0 }}</td>
-        <td>{{ plan.mentor or '—' }}</td>
-        <td>
-          <!-- Редагувати -->
-          <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/user/edit/{{ plan.id }}'">✏️</button>
-          
-          <!-- Копіювати (по ID онбординга) -->
-          <button class="icon-btn" title="Копіювати" onclick="location.href='/onboarding/user/copy/{{ plan.id }}'">📄</button>
-          
-          {% if current_user.role in ['teamlead', 'developer'] %}
-          <!-- Кнопка видалення можна додати за потреби -->
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
 
   <script>
-    function confirmDelete(id, name) {
-      if (confirm(`Дійсно видалити шаблон "${name}"?`)) {
-        fetch(`/onboarding/template/delete/${id}`, { method: 'DELETE' })
-          .then(() => location.reload());
+    function confirmDeleteInstance(onboardingId) {
+      if (confirm("Ви впевнені, що хочете видалити цей онбординг?")) {
+        fetch(`/onboarding/instance/delete/${onboardingId}`, {
+          method: 'DELETE'
+        })
+        .then(response => {
+          if (response.status === 204) {
+            const row = document.getElementById(`manager-row-${onboardingId}`);
+            if (row) row.remove();
+          } else {
+            response.json().then(data => {
+              alert(data.message || 'Помилка при видаленні');
+            });
+          }
+        })
+        .catch(error => {
+          alert('Помилка з’єднання: ' + error);
+        });
+      }
+    }
+
+    // (опціонально) для шаблонів
+    function confirmDeleteTemplate(templateId, templateName) {
+      if (confirm(`Видалити шаблон "${templateName}"?`)) {
+        // реалізація, якщо потрібно
+        alert('Реалізуй окремо якщо потрібно');
       }
     }
   </script>
