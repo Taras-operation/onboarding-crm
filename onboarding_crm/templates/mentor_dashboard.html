@@ -8,39 +8,61 @@
     body {
       background-color: #f8f9fc;
     }
-    .btn-group-vertical a {
+    .sidebar {
+      min-width: 250px;
+      max-width: 250px;
+      background-color: #ffffff;
+      height: 100vh;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      padding: 2rem 1rem;
+      position: fixed;
+      top: 0;
+      left: 0;
+    }
+    .main-content {
+      margin-left: 250px;
+      padding: 2rem;
+    }
+    .sidebar .btn {
       text-align: left;
+      width: 100%;
     }
   </style>
 </head>
 <body>
-  <div class="container mt-5">
-    <h2 class="mb-4">Кабінет Ментора</h2>
-    <div class="d-flex justify-content-start align-items-start">
-      <!-- Вертикальні кнопки зліва -->
-      <div class="btn-group-vertical me-4" style="min-width: 240px;">
-        <a href="{{ url_for('main.managers_list') }}" class="btn btn-primary mb-2">
-          📋 Список менеджерів
-        </a>
-        <a href="{{ url_for('main.add_manager') }}" class="btn btn-success mb-2">
-          ➕ Додати менеджера
-        </a>
-        <a href="{{ url_for('main.onboarding_plans') }}" class="btn btn-warning text-white mb-2">
-          📅 Плани онбордингу
-        </a>
-        <a href="{{ url_for('main.managers_list') }}" class="btn btn-info text-white mb-2">
-          📊 Результати тестів
-        </a>
-        <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger mt-2">
-          Вийти
-        </a>
-      </div>
 
-      <!-- Можна додати контент праворуч тут -->
-      <div class="flex-grow-1">
-        <!-- Контент дашборду -->
+  <!-- Сайдбар -->
+  <div class="sidebar d-flex flex-column">
+    <h4 class="mb-4 text-center">Кабінет Ментора</h4>
+    <a href="{{ url_for('main.managers_list') }}" class="btn btn-primary mb-2">
+      📋 Список менеджерів
+    </a>
+    <a href="{{ url_for('main.add_manager') }}" class="btn btn-success mb-2">
+      ➕ Додати менеджера
+    </a>
+    <a href="{{ url_for('main.onboarding_plans') }}" class="btn btn-warning text-white mb-2">
+      📅 Плани онбордингу
+    </a>
+    <a href="{{ url_for('main.manager_results') }}" class="btn btn-info text-white mb-2">
+      📊 Результати тестів
+    </a>
+    <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger mt-4">
+      🚪 Вийти
+    </a>
+  </div>
+
+  <!-- Основна частина -->
+  <div class="main-content">
+    <h1 class="mb-4">👋 Вітаю, {{ current_user.username }}!</h1>
+
+    <div class="card">
+      <div class="card-body">
+        <p class="card-text">
+          Тут буде контент дашборду: графіки, таблиці, звіти тощо.
+        </p>
       </div>
     </div>
   </div>
+
 </body>
 </html>
