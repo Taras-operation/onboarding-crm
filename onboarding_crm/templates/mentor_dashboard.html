@@ -58,14 +58,41 @@
 
   <!-- Основна частина -->
   <div class="main-content">
-    <h2 class="mb-4">Кабінет Ментора</h2>
+    <h2 class="mb-4">👋 Привіт, {{ current_user.username }}!</h2>
+    <p class="text-muted mb-4">Ваша роль: <strong>{{ current_user.role }}</strong> / Відділ: <strong>{{ current_user.department }}</strong></p>
 
-    <div class="card">
-      <div class="card-body">
-        <p class="card-text">
-          Тут буде контент дашборду: графіки, таблиці, звіти тощо.
-        </p>
+    <!-- Статистика -->
+    <div class="row">
+      <div class="col-md-4">
+        <div class="card border-primary mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Менеджерів</h5>
+            <p class="card-text fs-3">{{ managers|length }}</p>
+          </div>
+        </div>
       </div>
+
+      <div class="col-md-4">
+        <div class="card border-success mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Активних онбордингів</h5>
+            <p class="card-text fs-3">{{ active_onboardings }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card border-info mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Середній прогрес</h5>
+            <p class="card-text fs-3">{{ average_progress }}%</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-light mt-4">
+      🧩 Всі деталі ви можете переглядати через “Список менеджерів” або “Плани онбордингу”.
     </div>
   </div>
 

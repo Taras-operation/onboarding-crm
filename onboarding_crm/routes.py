@@ -134,7 +134,26 @@ def developer_dashboard():
 def mentor_dashboard():
     if current_user.role not in ['mentor', 'teamlead']:
         return redirect(url_for('main.login'))
-    return render_template('mentor_dashboard.html')
+    managers = _allowed_managers_for_current_user().all()
+
+active_onboardings = 0
+total_percentages = []
+
+for m in managers:
+    if m.onboarding_step_total and m.onboarding_step_total > 0:
+        perc = round((m.onboarding_step or 0) / m.onboarding_step_total * 100)
+        total_percentages.append(perc)
+        if 0 < m.onboarding_step < m.onboarding_step_total:
+            active_onboardings += 1
+
+average_progress = round(sum(total_percentages) / len(total_percentages)) if total_percentages else 0
+
+return render_template(
+    'mentor_dashboard.html',
+    managers=managers,
+    active_onboardings=active_onboardings,
+    average_progress=average_progress
+)
 
 @bp.route('/managers/list')
 @login_required
