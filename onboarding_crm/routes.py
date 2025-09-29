@@ -124,43 +124,6 @@ def mentor_dashboard():
         active_onboardings=active_onboardings,
         average_progress=average_progress
     )
-       
-
-@bp.route('/dashboard/mentor')
-@login_required
-def mentor_dashboard():
-    if current_user.role not in ['mentor', 'teamlead']:
-        return redirect(url_for('main.login'))
-
-    # Отримати список менеджерів для цього ментора або ТЛ
-    if current_user.role == 'mentor':
-        managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
-    elif current_user.role == 'teamlead':
-        mentors = User.query.filter_by(role='mentor', added_by_id=current_user.id).all()
-        mentor_ids = [m.id for m in mentors] + [current_user.id]
-        managers = User.query.filter(User.role == 'manager', User.added_by_id.in_(mentor_ids)).all()
-    else:
-        managers = []
-
-    # Кількість активних онбордингів
-    active_onboardings = OnboardingInstance.query.filter(
-        OnboardingInstance.manager_id.in_([m.id for m in managers]),
-        OnboardingInstance.status == 'active'
-    ).count()
-
-    # Середній прогрес
-    if managers:
-        total_progress = sum([m.onboarding_step or 0 for m in managers])
-        avg_progress = round(total_progress / len(managers), 1)
-    else:
-        avg_progress = 0
-
-    return render_template(
-        'mentor_dashboard.html',
-        manager_count=len(managers),
-        active_onboardings=active_onboardings,
-        avg_progress=avg_progress
-    )
     
 
 @bp.route('/managers/list')
