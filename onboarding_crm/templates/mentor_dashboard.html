@@ -47,18 +47,18 @@
       📅 Плани онбордингу
     </a>
 
-    <a href="{{ url_for('main.manager_results_redirect') }}" class="btn btn-info text-white mb-2">
+    <a href="{{ url_for('main.managers_list') }}" class="btn btn-info text-white mb-2">
       📊 Результати тестів
     </a>
 
-    <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger mt-4">
+    <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger mt-2">
       🚪 Вийти
     </a>
   </div>
 
   <!-- Основна частина -->
   <div class="main-content">
-    <h1 class="mb-4">👋 Вітаю, {{ current_user.username }}!</h1>
+    <h2 class="mb-4">Кабінет Ментора</h2>
 
     <div class="card">
       <div class="card-body">
