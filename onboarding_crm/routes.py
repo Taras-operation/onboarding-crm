@@ -285,7 +285,8 @@ def onboarding_plans():
                 print(f"[plans] ❌ manager {m.id} structure error: {e}")
 
         user_plans_data.append({
-            'id': m.id,
+            'manager_id': m.id,
+            'onboarding_id': instance.id if instance else None,
             'name': f"Онбординг для @{m.tg_nick or m.username}",
             'completed': m.onboarding_step or 0,
             'total': total_steps,

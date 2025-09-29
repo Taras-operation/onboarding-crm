@@ -164,8 +164,8 @@
               <td>{{ plan.completed or 0 }}/{{ plan.total or 0 }}</td>
               <td>{{ plan.mentor or '—' }}</td>
               <td>
-                <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/user/edit/{{ plan.id }}'">✏️</button>
-                <button class="icon-btn text-danger" title="Видалити" onclick="confirmDeleteInstance({{ plan.id }})">🗑️</button>
+                <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/user/edit/{{ plan.manager_id }}'">✏️</button>
+                <button class="icon-btn text-danger" title="Видалити" onclick="confirmDeleteInstance({{ plan.onboarding_id }})">🗑️</button>
               </td>
             </tr>
             {% endfor %}
