@@ -34,18 +34,23 @@
   <!-- Сайдбар -->
   <div class="sidebar d-flex flex-column">
     <h4 class="mb-4 text-center">Кабінет Ментора</h4>
+
     <a href="{{ url_for('main.managers_list') }}" class="btn btn-primary mb-2">
       📋 Список менеджерів
     </a>
+
     <a href="{{ url_for('main.add_manager') }}" class="btn btn-success mb-2">
       ➕ Додати менеджера
     </a>
+
     <a href="{{ url_for('main.onboarding_plans') }}" class="btn btn-warning text-white mb-2">
       📅 Плани онбордингу
     </a>
-    <a href="{{ url_for('main.manager_results') }}" class="btn btn-info text-white mb-2">
+
+    <a href="{{ url_for('main.manager_results_redirect') }}" class="btn btn-info text-white mb-2">
       📊 Результати тестів
     </a>
+
     <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger mt-4">
       🚪 Вийти
     </a>
