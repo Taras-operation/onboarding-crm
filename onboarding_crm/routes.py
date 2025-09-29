@@ -135,30 +135,34 @@ def mentor_dashboard():
     if current_user.role not in ['mentor', 'teamlead']:
         return redirect(url_for('main.login'))
 
-    # Отримати кількість менеджерів
+    # Отримати список менеджерів для цього ментора або ТЛ
     if current_user.role == 'mentor':
-        manager_count = User.query.filter_by(
-            role='manager',
-            added_by_id=current_user.id
-        ).count()
+        managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
     elif current_user.role == 'teamlead':
-        # Знаходимо менторів цього ТЛ
-        mentors = User.query.filter_by(
-            role='mentor',
-            added_by_id=current_user.id
-        ).all()
+        mentors = User.query.filter_by(role='mentor', added_by_id=current_user.id).all()
         mentor_ids = [m.id for m in mentors] + [current_user.id]
-        manager_count = User.query.filter(
-            User.role == 'manager',
-            User.added_by_id.in_(mentor_ids)
-        ).count()
+        managers = User.query.filter(User.role == 'manager', User.added_by_id.in_(mentor_ids)).all()
     else:
-        manager_count = 0
+        managers = []
 
-    # Можна додати інші метрики, якщо потрібно
+    # Кількість активних онбордингів
+    active_onboardings = OnboardingInstance.query.filter(
+        OnboardingInstance.manager_id.in_([m.id for m in managers]),
+        OnboardingInstance.status == 'active'
+    ).count()
+
+    # Середній прогрес
+    if managers:
+        total_progress = sum([m.onboarding_step or 0 for m in managers])
+        avg_progress = round(total_progress / len(managers), 1)
+    else:
+        avg_progress = 0
+
     return render_template(
         'mentor_dashboard.html',
-        manager_count=manager_count
+        manager_count=len(managers),
+        active_onboardings=active_onboardings,
+        avg_progress=avg_progress
     )
     
 
