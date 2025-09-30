@@ -684,9 +684,11 @@ def delete_onboarding_instance(onboarding_id):
     print(f"[DELETE] Текущий юзер: {current_user.id}, роль: {current_user.role}")
     print(f"[DELETE] Удаляем онбординг #{onboarding_id}, manager_id: {instance.manager_id}, mentor_id: {instance.mentor_id}")
 
+    manager = User.query.get(instance.manager_id)
+
     # 🔐 Проверка доступа
     if current_user.role == 'mentor':
-        if instance.manager.added_by_id != current_user.id:
+        if manager.added_by_id != current_user.id:
             return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
 
     elif current_user.role == 'teamlead':
@@ -698,14 +700,13 @@ def delete_onboarding_instance(onboarding_id):
         ).all()
         mentor_ids = [m.id for m in mentors] + [current_user.id]
 
-        if instance.manager.added_by_id not in mentor_ids:
+        if manager.added_by_id not in mentor_ids:
             return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
 
     elif current_user.role != 'developer':
         return {'message': 'Роль не має прав на видалення онбордингу'}, 403
 
     try:
-        # Удаляем тест-результаты
         TestResult.query.filter_by(onboarding_instance_id=onboarding_id).delete()
         db.session.delete(instance)
         db.session.commit()
