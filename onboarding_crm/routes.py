@@ -681,27 +681,39 @@ def delete_user_onboarding(id):
 def delete_onboarding_instance(onboarding_id):
     instance = OnboardingInstance.query.get_or_404(onboarding_id)
 
-    # 🔒 Перевірка прав доступу
+    print(f"[DELETE] Текущий юзер: {current_user.id}, роль: {current_user.role}")
+    print(f"[DELETE] Удаляем онбординг #{onboarding_id}, manager_id: {instance.manager_id}, mentor_id: {instance.mentor_id}")
+
+    # 🔐 Проверка доступа
     if current_user.role == 'mentor':
-        if instance.mentor_id != current_user.id:
+        if instance.manager.added_by_id != current_user.id:
             return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
 
     elif current_user.role == 'teamlead':
-        mentor = User.query.get(instance.mentor_id)
-        if not mentor or mentor.added_by_id != current_user.id:
+        # Найти всех менторов текущего ТЛ
+        mentors = User.query.filter_by(
+            role='mentor',
+            added_by_id=current_user.id,
+            department=current_user.department
+        ).all()
+        mentor_ids = [m.id for m in mentors] + [current_user.id]
+
+        if instance.manager.added_by_id not in mentor_ids:
             return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
 
-    try:
-        # Видалення пов’язаних результатів
-        TestResult.query.filter_by(onboarding_instance_id=onboarding_id).delete()
+    elif current_user.role != 'developer':
+        return {'message': 'Роль не має прав на видалення онбордингу'}, 403
 
-        # Видалення самого онбордингу
+    try:
+        # Удаляем тест-результаты
+        TestResult.query.filter_by(onboarding_instance_id=onboarding_id).delete()
         db.session.delete(instance)
         db.session.commit()
-        return '', 204  # Успіх — без вмісту
+        return '', 204
 
     except Exception as e:
         db.session.rollback()
+        print(f"[DELETE] ❌ Ошибка: {e}")
         return {'message': f'Помилка при видаленні онбордингу: {str(e)}'}, 500
 
 @bp.route('/manager_dashboard')
