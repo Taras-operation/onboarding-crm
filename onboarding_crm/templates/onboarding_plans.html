@@ -176,34 +176,30 @@
   </div>
 
   <script>
-    function confirmDeleteInstance(onboardingId) {
-      if (confirm("Ви впевнені, що хочете видалити цей онбординг?")) {
-        fetch(`/onboarding/instance/delete/${onboardingId}`, {
-          method: 'DELETE'
-        })
-        .then(response => {
-          if (response.status === 204) {
-            const row = document.getElementById(`manager-row-${onboardingId}`);
-            if (row) row.remove();
+  function confirmDeleteInstance(onboardingId) {
+    if (confirm("Ви впевнені, що хочете видалити цей онбординг?")) {
+      fetch(`/onboarding/instance/delete/${onboardingId}`, {
+        method: 'DELETE'
+      })
+      .then(response => {
+        if (response.status === 204) {
+          const row = document.getElementById(`manager-row-${onboardingId}`);
+          if (row) {
+            row.remove(); // 🧹 М’яке видалення з DOM
           } else {
-            response.json().then(data => {
-              alert(data.message || 'Помилка при видаленні');
-            });
+            location.reload(); // 🔁 Якщо чомусь не знайшов — оновлюємо
           }
-        })
-        .catch(error => {
-          alert('Помилка з’єднання: ' + error);
-        });
-      }
+        } else {
+          response.json().then(data => {
+            alert(data.message || 'Помилка при видаленні');
+          });
+        }
+      })
+      .catch(error => {
+        alert('Помилка з’єднання: ' + error);
+      });
     }
-
-    // (опціонально) для шаблонів
-    function confirmDeleteTemplate(templateId, templateName) {
-      if (confirm(`Видалити шаблон "${templateName}"?`)) {
-        // реалізація, якщо потрібно
-        alert('Реалізуй окремо якщо потрібно');
-      }
-    }
-  </script>
+  }
+</script>
 </body>
 </html>
