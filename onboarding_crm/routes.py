@@ -76,6 +76,59 @@ def logout():
     logout_user()
     return redirect(url_for('main.login'))
 
+@bp.route('/dashboard/developer', methods=['GET', 'POST'])
+@login_required
+def developer_dashboard():
+    if current_user.role != 'developer':
+        return redirect(url_for('main.login'))
+
+    # --- Додавання нового користувача ---
+    if request.method == 'POST':
+        tg_nick = request.form.get('tg_nick')
+        role = request.form.get('role')
+        department = request.form.get('department')
+        position = request.form.get('position')
+        username = request.form.get('username')
+        password = generate_password_hash(request.form.get('password'))
+        added_by_id = None
+
+        # Прив'язка до ТЛ, якщо ментор
+        if role == 'mentor':
+            added_by_id = request.form.get('teamlead_id')
+        elif role == 'manager':
+            added_by_id = current_user.id  # developer або потім через dropdown
+
+        # 🔁 Унікальний логін, якщо такий вже існує
+        base_username = username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f"{base_username}_{counter}"
+            counter += 1
+
+        new_user = User(
+            tg_nick=tg_nick,
+            role=role,
+            department=department,
+            position=position,
+            username=username,
+            password=password,
+            added_by_id=int(added_by_id) if added_by_id else None
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        flash("Користувача додано", "success")
+        return redirect(url_for('main.developer_dashboard'))
+
+    # --- Дані для GET ---
+    users = User.query.order_by(User.id.desc()).all()
+    teamleads = User.query.filter_by(role='teamlead').all()
+
+    return render_template(
+        'developer_dashboard.html',
+        users=users,
+        teamleads=teamleads
+    )
+
 @bp.route('/dashboard/mentor')
 @login_required
 def mentor_dashboard():
