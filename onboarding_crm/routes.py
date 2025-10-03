@@ -254,12 +254,12 @@ def manager_statistics():
                 .order_by(OnboardingInstance.id.desc())
                 .first())
 
-    # Якщо інстанс відсутній, просто рендеримо порожню статистику з повідомленням
+    # Якщо інстанс відсутній
     if not instance:
         flash("Поки що ви не пройшли жодного тесту. Статистика з’явиться після проходження хоча б одного етапу.", "info")
         return render_template('manager_statistics.html', stats=[], instance=None)
 
-    # Пробуємо розпарсити структуру
+    # Парсимо structure
     try:
         structure = json.loads(instance.structure) if instance.structure else []
     except Exception as e:
@@ -270,11 +270,19 @@ def manager_statistics():
         flash("Невірний формат онбордингу.", "danger")
         return render_template('manager_statistics.html', stats=[], instance=None)
 
-    # Витягуємо результати
+    # Витягуємо всі результати тестів
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     results_by_step = {r.step: r for r in results}
 
-    # Якщо результатів немає — також виводимо повідомлення
+    # ✅ Парсимо selected_answers з JSON в dict
+    for r in results:
+        if isinstance(r.selected_answers, str):
+            try:
+                r.selected_answers = json.loads(r.selected_answers)
+            except Exception:
+                r.selected_answers = {}
+
+    # Якщо жодного тесту не пройдено
     if not results:
         flash("Поки що ви не пройшли жодного тесту. Статистика з’явиться після проходження хоча б одного етапу.", "info")
         return render_template('manager_statistics.html', stats=[], instance=instance)
@@ -292,7 +300,7 @@ def manager_statistics():
             'index': i,
             'title': block.get('title', f'Блок {i+1}'),
             'total_questions': len(test_data.get('questions', [])),
-            'correct_answers': result.correct_answers if result else None,
+            'correct_answers': result.correct_answers if result else 0,
             'open_questions': [],
             'checked': result.open_checked if result else False,
             'feedback': result.feedback or '',
@@ -303,7 +311,7 @@ def manager_statistics():
             if q.get('type') == 'open':
                 stat['open_questions'].append({
                     'question': q.get('question'),
-                    'answer': result.selected_answers.get(str(q['id'])) if result and result.selected_answers else ''
+                    'answer': result.selected_answers.get(str(q['id']), '') if result else ''
                 })
 
         stats.append(stat)
