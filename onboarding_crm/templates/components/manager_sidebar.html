@@ -10,7 +10,7 @@
     </li>
     <li>
       <a href="{{ url_for('main.manager_statistics') }}"
-         class="block px-4 py-2 rounded hover:bg-blue-100 {% if request.path == url_for('main.manager_statistics') %}bg-blue-200 font-semibold{% endif %}">
+         class="block px-4 py-2 rounded hover:bg-blue-100 {% if request.endpoint == 'main.manager_statistics' %}bg-blue-200 font-semibold{% endif %}">
         📊 Статистика
       </a>
     </li>

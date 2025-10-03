@@ -306,7 +306,6 @@ def manager_statistics():
 
     return render_template('manager_statistics.html', stats=stats, instance=instance)
 
-
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
 def add_manager():
