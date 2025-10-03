@@ -248,68 +248,74 @@ def manager_statistics():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    # Отримуємо останній онбординг
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
                 .first())
 
     if not instance:
-        flash("Поки що ви не пройшли жодного тесту.", "info")
-        return render_template('manager_statistics.html', stats=[], instance=None)
+        print("[DEBUG] ❌ No OnboardingInstance found")
+        return render_template('manager_statistics.html', stats=None, final_status=None)
 
-    # Парсимо структуру
     try:
-        structure = json.loads(instance.structure) if isinstance(instance.structure, str) else instance.structure
+        structure = json.loads(instance.structure)
     except Exception as e:
-        flash("Помилка читання структури онбордингу.", "danger")
-        return render_template('manager_statistics.html', stats=[], instance=None)
+        print(f"[ERROR] ❌ JSON parse error in instance.structure: {e}")
+        return render_template('manager_statistics.html', stats=None, final_status=None)
 
-    if not isinstance(structure, list):
-        flash("Невірний формат структури онбордингу.", "danger")
-        return render_template('manager_statistics.html', stats=[], instance=None)
-
-    # Всі результати цього інстансу
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
-    results_by_step = {}
-    for r in results:
-        results_by_step.setdefault(r.step, []).append(r)
+    print(f"[DEBUG] ✅ Found {len(results)} TestResult entries")
 
+    # Групуємо результати по етапам
+    results_by_step = {res.step_index: res for res in results}
     stats = []
-    for step_index, block in enumerate(structure):
+
+    for idx, block in enumerate(structure):
         if block.get('type') != 'stage':
             continue
 
-        test = block.get('test', {})
-        questions = test.get('questions', [])
+        step_result = results_by_step.get(idx)
+        if not step_result:
+            print(f"[DEBUG] ℹ️ No result for block index {idx}")
+            continue
 
-        # Всі результати по цьому step
-        step_results = results_by_step.get(step_index, [])
-        correct_count = sum(1 for r in step_results if r.is_correct is True)
+        block_stats = {
+            "title": block.get('title', f"Етап {idx+1}"),
+            "correct_answers": step_result.correct_answers or 0,
+            "total_questions": step_result.total_questions or 0,
+            "open_questions": []
+        }
 
-        open_questions = []
-        for q in questions:
-            if q.get('type') == 'open':
-                # Шукаємо відповідь у results
-                matched_result = next((r for r in step_results if r.question == q.get('question')), None)
-                open_questions.append({
-                    'question': q.get('question'),
-                    'answer': matched_result.selected_answer if matched_result else '',
-                    'status': 'Зараховано ✅' if matched_result and matched_result.is_correct else
-                              'Не зараховано ❌' if matched_result and matched_result.is_correct is False else
-                              'Очікує перевірки ⏳',
-                    'feedback': matched_result.correct_answer if matched_result and matched_result.correct_answer else ''
-                })
+        if step_result.open_questions:
+            try:
+                open_qs = json.loads(step_result.open_questions)
+                for oq in open_qs:
+                    block_stats["open_questions"].append({
+                        "question": oq.get("question"),
+                        "answer": oq.get("answer"),
+                        "reviewed": oq.get("reviewed", False),
+                        "accepted": oq.get("accepted"),
+                        "feedback": oq.get("feedback")
+                    })
+            except Exception as e:
+                print(f"[ERROR] 🔥 Failed to parse open questions JSON: {e}")
 
-        stats.append({
-            'index': step_index,
-            'title': block.get('title', f'Етап {step_index+1}'),
-            'total_questions': len(questions),
-            'correct_answers': correct_count,
-            'open_questions': open_questions
-        })
+        stats.append(block_stats)
 
-    return render_template('manager_statistics.html', stats=stats, instance=instance)
+    # Фінальний статус
+    if not stats:
+        final_status = None
+    elif any(oq for step in stats for oq in step["open_questions"] if oq.get("reviewed") is False):
+        final_status = 'waiting'
+    elif any(oq for step in stats for oq in step["open_questions"] if oq.get("accepted") is False):
+        final_status = 'extra_block_added'
+    else:
+        final_status = 'passed'
+
+    print(f"[DEBUG] Final status: {final_status}")
+    print(f"[DEBUG] Rendered {len(stats)} blocks")
+
+    return render_template('manager_statistics.html', stats=stats, final_status=final_status)
 
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
