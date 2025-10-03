@@ -262,7 +262,7 @@ def manager_statistics():
 
     # Витягуємо результати з БД
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
-    results_by_step = {r.step_index: r for r in results}
+    results_by_step = {r.step: r for r in results}
 
     # Формуємо статистику по кожному блоку
     stats = []
