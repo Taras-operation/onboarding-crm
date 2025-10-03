@@ -132,7 +132,7 @@ def developer_dashboard():
 @bp.route('/dashboard/mentor')
 @login_required
 def mentor_dashboard():
-    if current_user.role not in ['mentor', 'teamlead']:
+    if current_user.role not in ['mentor', 'teamlead', 'head']:
         return redirect(url_for('main.login'))
 
     # 1. Отримуємо список менеджерів
@@ -141,16 +141,26 @@ def mentor_dashboard():
             role='manager',
             added_by_id=current_user.id
         ).all()
+
     elif current_user.role == 'teamlead':
         mentors = User.query.filter_by(
             role='mentor',
-            added_by_id=current_user.id
+            added_by_id=current_user.id,
+            department=current_user.department
         ).all()
         mentor_ids = [m.id for m in mentors] + [current_user.id]
         managers = User.query.filter(
             User.role == 'manager',
-            User.added_by_id.in_(mentor_ids)
+            User.added_by_id.in_(mentor_ids),
+            User.department == current_user.department
         ).all()
+
+    elif current_user.role == 'head':
+        managers = User.query.filter_by(
+            role='manager',
+            department=current_user.department
+        ).all()
+
     else:
         managers = []
 
@@ -166,10 +176,7 @@ def mentor_dashboard():
         m.onboarding_step or 0
         for m in managers if m.onboarding_step is not None
     ]
-    if progresses:
-        average_progress = round(sum(progresses) / len(progresses), 1)
-    else:
-        average_progress = 0
+    average_progress = round(sum(progresses) / len(progresses), 1) if progresses else 0
 
     return render_template(
         'mentor_dashboard.html',
@@ -181,7 +188,7 @@ def mentor_dashboard():
 @bp.route('/managers/list')
 @login_required
 def managers_list():
-    if current_user.role not in ['mentor', 'teamlead', 'developer']:
+    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         return redirect(url_for('main.login'))
 
     if current_user.role == 'developer':
@@ -204,6 +211,12 @@ def managers_list():
             added_by_id=current_user.id,
             department=current_user.department
         ).all()
+
+    elif current_user.role == 'head':
+        managers = User.query.filter_by(
+            role='manager',
+            department=current_user.department
+        ).all()    
 
     # Підрахунок етапів (берём последний инстанс по id)
     for manager in managers:
@@ -228,6 +241,61 @@ def managers_list():
             setattr(manager, 'total_steps_calculated', 0)
 
     return render_template('managers_list.html', managers=managers)
+
+@bp.route('/manager/statistics')
+@login_required
+def manager_statistics():
+    if current_user.role != 'manager':
+        return redirect(url_for('main.login'))
+
+    # Отримуємо активний онбординг інстанс
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=current_user.id)
+                .order_by(OnboardingInstance.id.desc())
+                .first())
+
+    if not instance:
+        flash("У вас немає активного онбордингу.", "warning")
+        return redirect(url_for('main.manager_dashboard'))
+
+    structure = json.loads(instance.structure or '[]')
+
+    # Витягуємо результати з БД
+    results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
+    results_by_step = {r.step_index: r for r in results}
+
+    # Формуємо статистику по кожному блоку
+    stats = []
+    for i, block in enumerate(structure):
+        if block.get('type') != 'stage':
+            continue
+
+        test_data = block.get('test', {})
+        result = results_by_step.get(i)
+        
+        # Підготовка даних
+        stat = {
+            'index': i,
+            'title': block.get('title', f'Блок {i+1}'),
+            'total_questions': len(test_data.get('questions', [])),
+            'correct_answers': result.correct_answers if result else None,
+            'open_questions': [],
+            'checked': result.open_checked if result else False,
+            'feedback': result.feedback or '',
+            'approved': result.open_approved if result else None,
+        }
+
+        # Витягуємо відкриті питання
+        for q in test_data.get('questions', []):
+            if q.get('type') == 'open':
+                stat['open_questions'].append({
+                    'question': q.get('question'),
+                    'answer': result.selected_answers.get(str(q['id'])) if result and result.selected_answers else ''
+                })
+
+        stats.append(stat)
+
+    return render_template('manager_statistics.html', stats=stats, instance=instance)
 
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
@@ -285,7 +353,7 @@ def add_manager():
 @bp.route('/onboarding/plans')
 @login_required
 def onboarding_plans():
-    if current_user.role not in ['mentor', 'teamlead', 'developer']:
+    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         return redirect(url_for('main.login'))
 
     templates = OnboardingTemplate.query.all()

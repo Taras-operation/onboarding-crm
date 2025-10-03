@@ -1,0 +1,24 @@
+<!-- templates/components/manager_sidebar.html -->
+<div class="w-64 bg-white shadow-md h-screen p-4 fixed top-0 left-0">
+  <h2 class="text-xl font-bold mb-6 text-gray-800">Меню</h2>
+  <ul class="space-y-4">
+    <li>
+      <a href="{{ url_for('main.manager_dashboard') }}"
+         class="block px-4 py-2 rounded hover:bg-blue-100 {% if request.path == url_for('main.manager_dashboard') %}bg-blue-200 font-semibold{% endif %}">
+        🧩 Етапи
+      </a>
+    </li>
+    <li>
+      <a href="{{ url_for('main.manager_statistics') }}"
+         class="block px-4 py-2 rounded hover:bg-blue-100 {% if request.path == url_for('main.manager_statistics') %}bg-blue-200 font-semibold{% endif %}">
+        📊 Статистика
+      </a>
+    </li>
+    <li>
+      <a href="{{ url_for('auth.logout') }}"
+         class="block px-4 py-2 rounded hover:bg-red-100 text-red-600">
+        🚪 Вийти
+      </a>
+    </li>
+  </ul>
+</div>

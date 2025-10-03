@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Статистика онбордингу</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+  <!-- 🔷 Сайдбар -->
+  {% include 'components/manager_sidebar.html' %}
+
+  <!-- 🔷 Основний контент -->
+  <div class="ml-64 p-6">
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">📊 Статистика онбордингу</h1>
+
+    {% for step in results %}
+      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4 text-blue-700">Етап {{ loop.index }} — {{ step.title }}</h2>
+
+        <!-- ✅ Закриті питання -->
+        <div class="mb-3">
+          <p class="font-semibold">Правильні відповіді: {{ step.correct_answers }} / {{ step.total_questions }}</p>
+        </div>
+
+        <!-- ✅ Відкриті питання -->
+        {% if step.open_questions %}
+          <div class="mt-4">
+            <h3 class="font-semibold mb-2">Відкриті питання:</h3>
+            <ul class="space-y-2">
+              {% for open_q in step.open_questions %}
+                <li class="border rounded p-3 bg-gray-50">
+                  <p class="mb-2"><span class="font-semibold">Питання:</span> {{ open_q.question }}</p>
+                  <p class="mb-2"><span class="font-semibold">Ваша відповідь:</span> {{ open_q.answer }}</p>
+
+                  {% if open_q.reviewed %}
+                    <p class="mb-1">
+                      <span class="font-semibold">Оцінка:</span>
+                      {% if open_q.accepted %}
+                        ✅ <span class="text-green-600">Зараховано</span>
+                      {% else %}
+                        ❌ <span class="text-red-600">Не зараховано</span>
+                      {% endif %}
+                    </p>
+                    {% if open_q.feedback %}
+                      <p class="mb-1"><span class="font-semibold">Коментар:</span> {{ open_q.feedback }}</p>
+                    {% endif %}
+                  {% else %}
+                    <p class="text-yellow-600 italic">Очікує перевірки від ТЛ/Ментора...</p>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <!-- 🔶 Фінальна плашка -->
+    {% if final_status == 'waiting' %}
+      <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-5 rounded-md">
+        <p class="font-semibold text-lg mb-1">🎓 Основний етап вашого навчання завершено</p>
+        <p>Очікуйте фідбеку від Тімліда/Ментора щодо остаточного рішення.</p>
+      </div>
+    {% elif final_status == 'passed' %}
+      <div class="bg-green-100 border-l-4 border-green-500 text-green-800 p-5 rounded-md">
+        <p class="font-semibold text-lg mb-1">✅ Ви успішно завершили всі етапи онбордингу!</p>
+        <p>Вітаємо! Тепер ви повноцінний учасник команди 🎉</p>
+      </div>
+    {% elif final_status == 'extra_block_added' %}
+      <div class="bg-red-100 border-l-4 border-red-500 text-red-800 p-5 rounded-md">
+        <p class="font-semibold text-lg mb-1">🔁 Додано додатковий блок для завершення навчання</p>
+        <p>Будь ласка, пройдіть фінальну перевірку знань.</p>
+      </div>
+    {% endif %}
+
+  </div>
+</body>
+</html>
