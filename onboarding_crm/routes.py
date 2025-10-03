@@ -248,73 +248,72 @@ def manager_statistics():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    # Отримуємо останній онбординг-інстанс менеджера
+    # Отримуємо останній інстанс
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
                 .first())
 
-    # Якщо інстанс відсутній
     if not instance:
-        flash("Поки що ви не пройшли жодного тесту. Статистика з’явиться після проходження хоча б одного етапу.", "info")
+        flash("Поки що ви не пройшли жодного тесту.", "info")
         return render_template('manager_statistics.html', stats=[], instance=None)
 
     # Парсимо structure
     try:
-        structure = json.loads(instance.structure) if instance.structure else []
-    except Exception as e:
-        flash("Помилка читання структури онбордингу.", "danger")
-        return render_template('manager_statistics.html', stats=[], instance=None)
+        structure = json.loads(instance.structure or '[]')
+    except Exception:
+        structure = []
 
-    if not isinstance(structure, list):
-        flash("Невірний формат онбордингу.", "danger")
-        return render_template('manager_statistics.html', stats=[], instance=None)
+    # Завантажуємо всі результати
+    results = TestResult.query.filter_by(
+        manager_id=current_user.id,
+        onboarding_instance_id=instance.id
+    ).order_by(TestResult.step.asc()).all()
 
-    # Витягуємо всі результати тестів
-    results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
-    results_by_step = {r.step: r for r in results}
-
-    # ✅ Парсимо selected_answers з JSON в dict
-    for r in results:
-        if isinstance(r.selected_answers, str):
-            try:
-                r.selected_answers = json.loads(r.selected_answers)
-            except Exception:
-                r.selected_answers = {}
-
-    # Якщо жодного тесту не пройдено
     if not results:
-        flash("Поки що ви не пройшли жодного тесту. Статистика з’явиться після проходження хоча б одного етапу.", "info")
+        flash("Поки що ви не пройшли жодного тесту.", "info")
         return render_template('manager_statistics.html', stats=[], instance=instance)
 
-    # Формуємо статистику
+    # Групуємо по step
+    results_by_step = {r.step: r for r in results}
+
+    # Статистика по кожному блоку
     stats = []
-    for i, block in enumerate(structure):
+    for step_index, block in enumerate(structure):
         if block.get('type') != 'stage':
             continue
 
-        test_data = block.get('test', {})
-        result = results_by_step.get(i)
+        result = results_by_step.get(step_index)
 
-        stat = {
-            'index': i,
-            'title': block.get('title', f'Блок {i+1}'),
-            'total_questions': len(test_data.get('questions', [])),
-            'correct_answers': result.correct_answers if result else 0,
-            'open_questions': [],
+        # Парсимо відповіді
+        if result and isinstance(result.selected_answers, str):
+            try:
+                result.selected_answers = json.loads(result.selected_answers)
+            except Exception:
+                result.selected_answers = {}
+
+        # Питання
+        questions = block.get('test', {}).get('questions', []) if block.get('test') else []
+        open_questions = []
+
+        for q in questions:
+            if q.get('type') == 'open':
+                qid = str(q.get('id'))
+                open_questions.append({
+                    'question': q.get('question'),
+                    'answer': result.selected_answers.get(qid, '') if result else ''
+                })
+
+        stats.append({
+            'index': step_index,
+            'title': block.get('title', f"Блок {step_index+1}"),
+            'total_questions': len(questions),
+            'correct_answers': result.correct_answers if result else None,
+            'open_questions': open_questions,
             'checked': result.open_checked if result else False,
             'feedback': result.feedback or '',
             'approved': result.open_approved if result else None,
-        }
-
-        for q in test_data.get('questions', []):
-            if q.get('type') == 'open':
-                stat['open_questions'].append({
-                    'question': q.get('question'),
-                    'answer': result.selected_answers.get(str(q['id']), '') if result else ''
-                })
-
-        stats.append(stat)
+        })
 
     return render_template('manager_statistics.html', stats=stats, instance=instance)
 
