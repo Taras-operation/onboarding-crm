@@ -258,7 +258,17 @@ def manager_statistics():
         flash("У вас немає активного онбордингу.", "warning")
         return redirect(url_for('main.manager_dashboard'))
 
-    structure = instance.structure or []
+    # Розпарсити структуру з JSON
+    try:
+        structure = json.loads(instance.structure) if instance.structure else []
+    except Exception as e:
+        flash("Помилка читання структури онбордингу.", "danger")
+        return redirect(url_for('main.manager_dashboard'))
+
+    # Додаткова перевірка
+    if not isinstance(structure, list):
+        flash("Невірний формат онбордингу.", "danger")
+        return redirect(url_for('main.manager_dashboard'))
 
     # Витягуємо результати з БД
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
@@ -272,8 +282,7 @@ def manager_statistics():
 
         test_data = block.get('test', {})
         result = results_by_step.get(i)
-        
-        # Підготовка даних
+
         stat = {
             'index': i,
             'title': block.get('title', f'Блок {i+1}'),
@@ -285,7 +294,7 @@ def manager_statistics():
             'approved': result.open_approved if result else None,
         }
 
-        # Витягуємо відкриті питання
+        # Витягуємо відповіді на відкриті питання
         for q in test_data.get('questions', []):
             if q.get('type') == 'open':
                 stat['open_questions'].append({
@@ -296,6 +305,7 @@ def manager_statistics():
         stats.append(stat)
 
     return render_template('manager_statistics.html', stats=stats, instance=instance)
+
 
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
