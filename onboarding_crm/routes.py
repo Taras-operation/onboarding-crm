@@ -258,7 +258,7 @@ def manager_statistics():
         flash("У вас немає активного онбордингу.", "warning")
         return redirect(url_for('main.manager_dashboard'))
 
-    structure = json.loads(instance.structure or '[]')
+    structure = instance.structure or []
 
     # Витягуємо результати з БД
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
