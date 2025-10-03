@@ -248,33 +248,38 @@ def manager_statistics():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    # Отримуємо активний онбординг інстанс
+    # Отримуємо останній онбординг-інстанс менеджера
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
                 .first())
 
+    # Якщо інстанс відсутній, просто рендеримо порожню статистику з повідомленням
     if not instance:
-        flash("У вас немає активного онбордингу.", "warning")
-        return redirect(url_for('main.manager_dashboard'))
+        flash("Поки що ви не пройшли жодного тесту. Статистика з’явиться після проходження хоча б одного етапу.", "info")
+        return render_template('manager_statistics.html', stats=[], instance=None)
 
-    # Розпарсити структуру з JSON
+    # Пробуємо розпарсити структуру
     try:
         structure = json.loads(instance.structure) if instance.structure else []
     except Exception as e:
         flash("Помилка читання структури онбордингу.", "danger")
-        return redirect(url_for('main.manager_dashboard'))
+        return render_template('manager_statistics.html', stats=[], instance=None)
 
-    # Додаткова перевірка
     if not isinstance(structure, list):
         flash("Невірний формат онбордингу.", "danger")
-        return redirect(url_for('main.manager_dashboard'))
+        return render_template('manager_statistics.html', stats=[], instance=None)
 
-    # Витягуємо результати з БД
+    # Витягуємо результати
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     results_by_step = {r.step: r for r in results}
 
-    # Формуємо статистику по кожному блоку
+    # Якщо результатів немає — також виводимо повідомлення
+    if not results:
+        flash("Поки що ви не пройшли жодного тесту. Статистика з’явиться після проходження хоча б одного етапу.", "info")
+        return render_template('manager_statistics.html', stats=[], instance=instance)
+
+    # Формуємо статистику
     stats = []
     for i, block in enumerate(structure):
         if block.get('type') != 'stage':
@@ -294,7 +299,6 @@ def manager_statistics():
             'approved': result.open_approved if result else None,
         }
 
-        # Витягуємо відповіді на відкриті питання
         for q in test_data.get('questions', []):
             if q.get('type') == 'open':
                 stat['open_questions'].append({
