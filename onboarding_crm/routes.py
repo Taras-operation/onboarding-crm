@@ -326,21 +326,21 @@ def manager_statistics():
 
         stats.append(block_stats)
 
-    # Фінальний статус
-    if not stats:
+        # ───── ⬇️ Фінальний статус ─────
+    total_stage_blocks = sum(1 for block in structure if isinstance(block, dict) and block.get("type") == "stage")
+    completed_blocks = len(stats)
+
+    print(f"[DEBUG] 📊 Total stages: {total_stage_blocks}, Completed: {completed_blocks}")
+
+    if completed_blocks < total_stage_blocks:
         final_status = None
     elif any(oq for step in stats for oq in step["open_questions"] if oq.get("reviewed") is False):
         final_status = 'waiting'
     elif any(oq for step in stats for oq in step["open_questions"] if oq.get("accepted") is False):
         final_status = 'extra_block_added'
     else:
-        final_status = 'passed'
-
-    print(f"[DEBUG] ✅ Final status: {final_status}")
-    print(f"[DEBUG] ✅ Rendered {len(stats)} stats blocks")
-
-    return render_template('manager_statistics.html', stats=stats, final_status=final_status)
-
+        final_status = 'passed' 
+        
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
 def add_manager():
