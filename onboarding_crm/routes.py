@@ -271,11 +271,18 @@ def manager_statistics():
         print("[ERROR] ❌ Unknown format of structure field")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
+    # Нормалізуємо структуру (забираємо blocks, якщо є)
+    if isinstance(structure, dict) and 'blocks' in structure:
+        structure = structure['blocks']
+
+    if not isinstance(structure, list):
+        print("[ERROR] ❌ Structure is not a list after normalization")
+        return render_template('manager_statistics.html', stats=None, final_status=None)
+
     # Витягуємо результати
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     print(f"[DEBUG] ✅ Found {len(results)} TestResult entries")
 
-    # Групуємо по кроках
     results_by_step = {}
     for r in results:
         if r.step not in results_by_step:
@@ -285,6 +292,10 @@ def manager_statistics():
     stats = []
 
     for idx, block in enumerate(structure):
+        if not isinstance(block, dict):
+            print(f"[ERROR] ❌ Block at index {idx} is not a dict: {block}")
+            continue
+
         if block.get('type') != 'stage':
             continue
 
@@ -293,7 +304,6 @@ def manager_statistics():
             print(f"[DEBUG] ℹ️ No results for block index {idx}")
             continue
 
-        # Рахуємо правильні та відкриті
         correct_answers = sum(1 for r in step_results if r.is_correct is True)
         total_questions = sum(1 for r in step_results if r.is_correct is not None)
 
@@ -305,7 +315,7 @@ def manager_statistics():
         }
 
         for r in step_results:
-            if r.is_correct is None:  # відкриті питання
+            if r.is_correct is None:
                 block_stats["open_questions"].append({
                     "question": r.question,
                     "answer": r.selected_answer,
@@ -327,7 +337,7 @@ def manager_statistics():
         final_status = 'passed'
 
     print(f"[DEBUG] ✅ Final status: {final_status}")
-    print(f"[DEBUG] ✅ Rendered {len(stats)} blocks")
+    print(f"[DEBUG] ✅ Rendered {len(stats)} stats blocks")
 
     return render_template('manager_statistics.html', stats=stats, final_status=final_status)
 
