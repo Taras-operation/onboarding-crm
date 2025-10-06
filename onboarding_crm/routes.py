@@ -263,37 +263,34 @@ def manager_statistics():
         try:
             structure = json.loads(structure_raw)
         except Exception as e:
-            print(f"[ERROR] ❌ JSON parse error in instance.structure: {e}")
+            print(f"[ERROR] ❌ JSON parse error: {e}")
             return render_template('manager_statistics.html', stats=None, final_status=None)
     elif isinstance(structure_raw, (dict, list)):
         structure = structure_raw
     else:
-        print("[ERROR] ❌ Unknown format of structure field")
+        print("[ERROR] ❌ Unknown format for structure")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
-    # Нормалізуємо структуру (забираємо blocks, якщо є)
+    # Нормалізуємо структуру
     if isinstance(structure, dict) and 'blocks' in structure:
         structure = structure['blocks']
 
     if not isinstance(structure, list):
-        print("[ERROR] ❌ Structure is not a list after normalization")
+        print("[ERROR] ❌ Structure is not a list")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
-    # Витягуємо результати
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     print(f"[DEBUG] ✅ Found {len(results)} TestResult entries")
 
     results_by_step = {}
     for r in results:
-        if r.step not in results_by_step:
-            results_by_step[r.step] = []
-        results_by_step[r.step].append(r)
+        results_by_step.setdefault(r.step, []).append(r)
 
     stats = []
 
     for idx, block in enumerate(structure):
         if not isinstance(block, dict):
-            print(f"[ERROR] ❌ Block at index {idx} is not a dict: {block}")
+            print(f"[ERROR] ❌ Block {idx} is not dict")
             continue
 
         if block.get('type') != 'stage':
@@ -326,21 +323,24 @@ def manager_statistics():
 
         stats.append(block_stats)
 
-        # ───── ⬇️ Фінальний статус ─────
-    total_stage_blocks = sum(1 for block in structure if isinstance(block, dict) and block.get("type") == "stage")
+    # Підрахунок завершеності
+    total_stage_blocks = sum(1 for b in structure if isinstance(b, dict) and b.get("type") == "stage")
     completed_blocks = len(stats)
 
     print(f"[DEBUG] 📊 Total stages: {total_stage_blocks}, Completed: {completed_blocks}")
 
+    # Статус
     if completed_blocks < total_stage_blocks:
         final_status = None
-    elif any(oq for step in stats for oq in step["open_questions"] if oq.get("reviewed") is False):
+    elif any(oq for s in stats for oq in s["open_questions"] if oq.get("reviewed") is False):
         final_status = 'waiting'
-    elif any(oq for step in stats for oq in step["open_questions"] if oq.get("accepted") is False):
+    elif any(oq for s in stats for oq in s["open_questions"] if oq.get("accepted") is False):
         final_status = 'extra_block_added'
     else:
-        final_status = 'passed' 
-        return render_template('manager_statistics.html', stats=stats, final_status=final_status)
+        final_status = 'passed'
+
+    print(f"[DEBUG] ✅ Final status: {final_status}")
+    return render_template('manager_statistics.html', stats=stats, final_status=final_status)
         
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
