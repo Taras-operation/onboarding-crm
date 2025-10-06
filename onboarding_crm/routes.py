@@ -889,7 +889,7 @@ def manager_dashboard():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    # Берём самый свежий инстанс онбординга
+    # Беремо найсвіжіший інстанс онбордингу
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
@@ -899,7 +899,7 @@ def manager_dashboard():
 
     print(f"[manager_dashboard] use onboarding_instance id={instance.id}")
 
-    # --- Разбор структуры (мягко, с двойным JSON) ---
+    # --- Розбір структури (м'яко, з подвійним JSON) ---
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -916,15 +916,15 @@ def manager_dashboard():
         print(f"[manager_dashboard] ❌ JSON error: {e}")
         blocks_all = []
 
-    # Берём только stage-блоки
+    # Беремо тільки stage-блоки
     stage_blocks = [b for b in blocks_all if b.get("type") == "stage"]
 
-    # Текущий курсор онбординга
+    # Поточний курсор онбордингу
     current_step = instance.onboarding_step or 0
     if current_step >= len(stage_blocks):
         current_step = len(stage_blocks) - 1 if stage_blocks else 0
 
-    # --- Прогресс по шагам (нормализуем к dict)
+    # --- Прогрес по кроках (нормалізуємо до dict)
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
         try:
@@ -932,7 +932,7 @@ def manager_dashboard():
         except Exception:
             progress = {}
 
-    # --- Строим метаданные по шагам и сразу готовые URL
+    # --- Будуємо метадані по кроках і одразу готові URL (оновлений блок)
     steps_meta = []
     total_steps = len(stage_blocks)
     cursor = instance.onboarding_step or 0
@@ -940,8 +940,8 @@ def manager_dashboard():
     for i, b in enumerate(stage_blocks):
         p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
 
-        # 🛠 Чинимо правильно: якщо курсор дошёл до конца — помечаем все блоки как пройденные
-        if cursor >= total_steps or i < cursor:
+        # Корректно помечаем завершённые блоки: если step <= текущего — считаем завершённым
+        if i < cursor or (i == cursor and i == total_steps - 1):
             started = True
             completed = True
         else:
