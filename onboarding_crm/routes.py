@@ -932,23 +932,23 @@ def manager_dashboard():
         except Exception:
             progress = {}
 
-    # --- Строим метаданные по шагам и сразу готовые URL
+        # --- Строим метаданные по шагам и сразу готовые URL
     steps_meta = []
     total_steps = len(stage_blocks)
     cursor = instance.onboarding_step or 0
 
     for i, b in enumerate(stage_blocks):
         p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
-        started = bool(p.get('started', False))
-        completed = bool(p.get('completed', False))
 
-        # ✅ Фикс: если курсор дошел до конца — помечаем все completed=True
-        if cursor >= total_steps and i >= total_steps - 1:
+        # 🛠 Если менеджер завершил все шаги — принудительно отмечаем completed=True
+        if cursor >= total_steps:
             started = True
             completed = True
+        else:
+            started = bool(p.get('started', False))
+            completed = bool(p.get('completed', False))
 
-        # Если шаг начат и не завершён — добавляем ?start=1,
-        # чтобы при возврате сразу открылись тесты (как на шаге 0)
+        # Если шаг начат и не завершён — добавляем ?start=1
         step_url = url_for('main.manager_step', step=i, start=1) if (started and not completed) \
                    else url_for('main.manager_step', step=i)
 
