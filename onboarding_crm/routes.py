@@ -932,37 +932,36 @@ def manager_dashboard():
         except Exception:
             progress = {}
 
-        # --- Строим метаданные по шагам и сразу готовые URL
-steps_meta = []
-total_steps = len(stage_blocks)
-cursor = instance.onboarding_step or 0
+    # --- Строим метаданные по шагам и сразу готовые URL
+    steps_meta = []
+    total_steps = len(stage_blocks)
+    cursor = instance.onboarding_step or 0
 
-for i, b in enumerate(stage_blocks):
-    p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
+    for i, b in enumerate(stage_blocks):
+        p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
 
-    # 🛠 Чинимо правильно: якщо курсор дошёл до конца — помечаем все блоки как пройденные
-    if cursor >= total_steps or i < cursor:
-        started = True
-        completed = True
-    else:
-        started = bool(p.get('started', False))
-        completed = bool(p.get('completed', False))
+        # 🛠 Чинимо правильно: якщо курсор дошёл до конца — помечаем все блоки как пройденные
+        if cursor >= total_steps or i < cursor:
+            started = True
+            completed = True
+        else:
+            started = bool(p.get('started', False))
+            completed = bool(p.get('completed', False))
 
-    step_url = url_for('main.manager_step', step=i, start=1) if (started and not completed) \
-               else url_for('main.manager_step', step=i)
+        step_url = url_for('main.manager_step', step=i, start=1) if (started and not completed) \
+                   else url_for('main.manager_step', step=i)
 
-    steps_meta.append({
-        "index": i,
-        "title": b.get("title") or f"Крок {i+1}",
-        "description": b.get("description") or "",
-        "started": started,
-        "completed": completed,
-        "url": step_url,
-    })
+        steps_meta.append({
+            "index": i,
+            "title": b.get("title") or f"Крок {i+1}",
+            "description": b.get("description") or "",
+            "started": started,
+            "completed": completed,
+            "url": step_url,
+        })
 
     return render_template(
         'manager_dashboard.html',
-        # передаём и «сырой» список блоков, и подготовленные шаги
         blocks=stage_blocks,
         steps_meta=steps_meta,
         current_step=current_step,
