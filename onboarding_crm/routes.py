@@ -257,24 +257,30 @@ def manager_statistics():
         print("[DEBUG] ❌ No OnboardingInstance found")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
-    # ✅ Фіксимо structure
+    # ───── ⬇️ Обробка структури ─────
     structure_raw = instance.structure
     if isinstance(structure_raw, str):
         try:
             structure = json.loads(structure_raw)
+            print(f"[DEBUG] ✅ Structure parsed from string. Blocks: {len(structure)}")
         except Exception as e:
             print(f"[ERROR] ❌ JSON parse error in instance.structure: {e}")
             return render_template('manager_statistics.html', stats=None, final_status=None)
-    elif isinstance(structure_raw, dict) or isinstance(structure_raw, list):
+    elif isinstance(structure_raw, (dict, list)):
         structure = structure_raw
+        print(f"[DEBUG] ✅ Structure is already parsed. Type: {type(structure)}")
     else:
         print("[ERROR] ❌ Unknown format of structure field")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
+    # ───── ⬇️ Отримуємо результати тестів ─────
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     print(f"[DEBUG] ✅ Found {len(results)} TestResult entries")
+    for r in results:
+        print(f"   └─ Step {r.step}: {r.question[:50]}...")
 
-    results_by_step = {res.step_index: res for res in results}
+    # 🔹 Групуємо по кроку
+    results_by_step = {res.step: res for res in results}
     stats = []
 
     for idx, block in enumerate(structure):
@@ -304,26 +310,26 @@ def manager_statistics():
                         "accepted": oq.get("accepted"),
                         "feedback": oq.get("feedback")
                     })
+                print(f"[DEBUG] 🟡 Parsed {len(open_qs)} open questions for step {idx}")
             except Exception as e:
-                print(f"[ERROR] 🔥 Failed to parse open questions JSON: {e}")
+                print(f"[ERROR] 🔥 Failed to parse open questions JSON for step {idx}: {e}")
 
         stats.append(block_stats)
 
-    # Фінальний статус
+    # ───── ⬇️ Фінальний статус ─────
     if not stats:
         final_status = None
-    elif any(oq for step in stats for oq in step["open_questions"] if not oq.get("reviewed", False)):
+    elif any(oq for step in stats for oq in step["open_questions"] if oq.get("reviewed") is False):
         final_status = 'waiting'
     elif any(oq for step in stats for oq in step["open_questions"] if oq.get("accepted") is False):
         final_status = 'extra_block_added'
     else:
         final_status = 'passed'
 
-    print(f"[DEBUG] Final status: {final_status}")
-    print(f"[DEBUG] Rendered {len(stats)} blocks")
+    print(f"[DEBUG] ✅ Final status: {final_status}")
+    print(f"[DEBUG] ✅ Rendered {len(stats)} stats blocks")
 
     return render_template('manager_statistics.html', stats=stats, final_status=final_status)
-         
 
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
