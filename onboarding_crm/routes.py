@@ -257,16 +257,23 @@ def manager_statistics():
         print("[DEBUG] ❌ No OnboardingInstance found")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
-    try:
-        structure = json.loads(instance.structure)
-    except Exception as e:
-        print(f"[ERROR] ❌ JSON parse error in instance.structure: {e}")
+    # ✅ Фіксимо structure
+    structure_raw = instance.structure
+    if isinstance(structure_raw, str):
+        try:
+            structure = json.loads(structure_raw)
+        except Exception as e:
+            print(f"[ERROR] ❌ JSON parse error in instance.structure: {e}")
+            return render_template('manager_statistics.html', stats=None, final_status=None)
+    elif isinstance(structure_raw, dict) or isinstance(structure_raw, list):
+        structure = structure_raw
+    else:
+        print("[ERROR] ❌ Unknown format of structure field")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     print(f"[DEBUG] ✅ Found {len(results)} TestResult entries")
 
-    # Групуємо результати по етапам
     results_by_step = {res.step_index: res for res in results}
     stats = []
 
@@ -305,7 +312,7 @@ def manager_statistics():
     # Фінальний статус
     if not stats:
         final_status = None
-    elif any(oq for step in stats for oq in step["open_questions"] if oq.get("reviewed") is False):
+    elif any(oq for step in stats for oq in step["open_questions"] if not oq.get("reviewed", False)):
         final_status = 'waiting'
     elif any(oq for step in stats for oq in step["open_questions"] if oq.get("accepted") is False):
         final_status = 'extra_block_added'
@@ -316,6 +323,7 @@ def manager_statistics():
     print(f"[DEBUG] Rendered {len(stats)} blocks")
 
     return render_template('manager_statistics.html', stats=stats, final_status=final_status)
+         
 
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
