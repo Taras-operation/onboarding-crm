@@ -340,6 +340,7 @@ def manager_statistics():
         final_status = 'extra_block_added'
     else:
         final_status = 'passed' 
+        return render_template('manager_statistics.html', stats=stats, final_status=final_status)
         
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
