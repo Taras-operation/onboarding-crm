@@ -943,7 +943,7 @@ def manager_dashboard():
         completed = bool(p.get('completed', False))
 
         # ✅ Фикс: если курсор дошел до конца — помечаем все completed=True
-        if cursor >= total_steps:
+        if cursor >= total_steps and i >= total_steps - 1:
             started = True
             completed = True
 
