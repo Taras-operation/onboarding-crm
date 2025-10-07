@@ -156,5 +156,9 @@ class TestResult(db.Model):
     
     # ✅ None = відкриті питання (очікують перевірки)
     is_correct = db.Column(db.Boolean, nullable=True)
+
+    # 🔥 Нове поле — фідбек від ментора
+    feedback = db.Column(db.Text, nullable=True)
+
     step = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
