@@ -64,7 +64,19 @@
             {{ r.selected_answer | urlize(target="_blank", rel="noopener noreferrer") | safe }}
           </div>
         </div>
-        <div class="mt-2 text-sm text-gray-500 italic">Очікує перевірки</div>
+        {% if r.approved is none %}
+  <div class="mt-2 text-sm text-gray-500 italic">Очікує перевірки</div>
+{% elif r.approved %}
+  <div class="mt-2 text-sm text-green-600 font-semibold">✅ Зараховано</div>
+{% else %}
+  <div class="mt-2 text-sm text-red-600 font-semibold">❌ Не зараховано</div>
+{% endif %}
+
+{% if r.feedback %}
+  <div class="mt-1 text-sm text-gray-700">
+    <span class="font-semibold">Фідбек:</span> {{ r.feedback }}
+  </div>
+{% endif %}
       </div>
     {% endfor %}
   </div>

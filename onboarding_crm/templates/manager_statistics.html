@@ -29,37 +29,35 @@
           </div>
 
           <!-- ✅ Відкриті питання -->
-          {% if step.open_questions %}
-            <div class="mt-4">
-              <h3 class="font-semibold mb-2">Відкриті питання:</h3>
-              <ul class="space-y-2">
-                {% for open_q in step.open_questions %}
-                  <li class="border rounded p-3 bg-gray-50">
-                    <p class="mb-2"><span class="font-semibold">Питання:</span> {{ open_q.question }}</p>
-                    <p class="mb-2"><span class="font-semibold">Ваша відповідь:</span> {{ open_q.answer }}</p>
+{% if step.open_questions %}
+  <div class="mt-4">
+    <h3 class="font-semibold mb-2">Відкриті питання:</h3>
+    <ul class="space-y-2">
+      {% for open_q in step.open_questions %}
+        <li class="border rounded p-3 bg-gray-50">
+          <p class="mb-2"><span class="font-semibold">Питання:</span> {{ open_q.question }}</p>
+          <p class="mb-2"><span class="font-semibold">Ваша відповідь:</span> {{ open_q.answer }}</p>
 
-                    {% if open_q.reviewed %}
-                      <p class="mb-1">
-                        <span class="font-semibold">Оцінка:</span>
-                        {% if open_q.accepted %}
-                          ✅ <span class="text-green-600">Зараховано</span>
-                        {% else %}
-                          ❌ <span class="text-red-600">Не зараховано</span>
-                        {% endif %}
-                      </p>
-                      {% if open_q.feedback %}
-                        <p class="mb-1"><span class="font-semibold">Коментар:</span> {{ open_q.feedback }}</p>
-                      {% endif %}
-                    {% else %}
-                      <p class="text-yellow-600 italic">Очікує перевірки від ТЛ/Ментора...</p>
-                    {% endif %}
-                  </li>
-                {% endfor %}
-              </ul>
-            </div>
+          {% if open_q.reviewed %}
+            <p class="mb-1">
+              <span class="font-semibold">Оцінка:</span>
+              {% if open_q.accepted %}
+                ✅ <span class="text-green-600">Зараховано</span>
+              {% else %}
+                ❌ <span class="text-red-600">Не зараховано</span>
+              {% endif %}
+            </p>
+            {% if open_q.feedback %}
+              <p class="mb-1"><span class="font-semibold">Коментар ментора:</span> {{ open_q.feedback }}</p>
+            {% endif %}
+          {% else %}
+            <p class="text-yellow-600 italic">Очікує перевірки від ТЛ/Ментора...</p>
           {% endif %}
-        </div>
+        </li>
       {% endfor %}
+    </ul>
+  </div>
+{% endif %}
 
       <!-- 🔶 Фінальна плашка -->
       {% if final_status == 'waiting' %}
