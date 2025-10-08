@@ -149,16 +149,19 @@ class TestResult(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     onboarding_instance_id = db.Column(db.Integer, db.ForeignKey('onboarding_instance.id', ondelete='CASCADE'))
-    
+
     question = db.Column(db.String(512), nullable=False)
     correct_answer = db.Column(db.String(512), nullable=True)
     selected_answer = db.Column(db.String(512), nullable=True)
-    
+
     # ✅ None = відкриті питання (очікують перевірки)
     is_correct = db.Column(db.Boolean, nullable=True)
 
-    # 🔥 Нове поле — фідбек від ментора
+    # 🔥 Фідбек від ментора
     feedback = db.Column(db.Text, nullable=True)
+
+    # ✅ Нове поле: оцінено як зараховано/не зараховано
+    approved = db.Column(db.Boolean, nullable=True)
 
     step = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
