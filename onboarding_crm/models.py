@@ -162,6 +162,9 @@ class TestResult(db.Model):
 
     # ✅ Нове поле: оцінено як зараховано/не зараховано
     approved = db.Column(db.Boolean, nullable=True)
+    
+    # ✅ Нове поле: зберегти як чорнетку
+    draft = db.Column(db.Boolean, default=True) 
 
     step = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
