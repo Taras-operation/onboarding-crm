@@ -316,9 +316,8 @@ def manager_statistics():
                 block_stats["open_questions"].append({
                     "question": r.question,
                     "answer": r.selected_answer,
-                    "reviewed": getattr(r, 'reviewed', False),
-                    "accepted": getattr(r, 'accepted', None),
-                    "feedback": getattr(r, 'feedback', None)
+                    "approved": r.approved,
+                    "feedback": r.feedback
                 })
 
         stats.append(block_stats)

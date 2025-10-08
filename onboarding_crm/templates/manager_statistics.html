@@ -38,10 +38,10 @@
           <p class="mb-2"><span class="font-semibold">Питання:</span> {{ open_q.question }}</p>
           <p class="mb-2"><span class="font-semibold">Ваша відповідь:</span> {{ open_q.answer }}</p>
 
-          {% if open_q.reviewed %}
+          {% if open_q.approved is not none %}
             <p class="mb-1">
               <span class="font-semibold">Оцінка:</span>
-              {% if open_q.accepted %}
+              {% if open_q.approved %}
                 ✅ <span class="text-green-600">Зараховано</span>
               {% else %}
                 ❌ <span class="text-red-600">Не зараховано</span>
