@@ -328,15 +328,23 @@ def manager_statistics():
 
     print(f"[DEBUG] 📊 Total stages: {total_stage_blocks}, Completed: {completed_blocks}")
 
-    # Статус
-    if completed_blocks < total_stage_blocks:
-        final_status = None
-    elif any(oq for s in stats for oq in s["open_questions"] if oq.get("reviewed") is False):
-        final_status = 'waiting'
-    elif any(oq for s in stats for oq in s["open_questions"] if oq.get("accepted") is False):
-        final_status = 'extra_block_added'
+    # Збираємо всі open question відповіді
+    all_open = [oq for s in stats for oq in s["open_questions"] if oq.get("answer")]
+
+    # Перевіряємо статуси
+    all_reviewed = all(oq.get("approved") is not None for oq in all_open)
+    all_passed = all(oq.get("approved") is True for oq in all_open)
+    any_failed = any(oq.get("approved") is False for oq in all_open)
+
+    # Логіка статусу
+    if not all_reviewed:
+        final_status = "waiting"
+    elif all_passed:
+        final_status = "passed"
+    elif any_failed:
+        final_status = "extra_block_added"
     else:
-        final_status = 'passed'
+        final_status = "waiting"  # на всякий випадок
 
     print(f"[DEBUG] ✅ Final status: {final_status}")
     return render_template('manager_statistics.html', stats=stats, final_status=final_status)
