@@ -58,7 +58,7 @@
       <div class="space-y-6 border border-gray-300 rounded p-4 bg-gray-50">
         {% for r in open_results %}
           <form class="autosave-form" data-result-id="{{ r.id }}">
-            <div class="mb-4 p-4 bg-white rounded shadow">
+            <div class="mb-4 p-4 rounded shadow {{ 'border border-green-300 bg-green-50' if r.approved is not none and r.feedback }}">
               <div class="font-semibold mb-2">Крок {{ r.step }}: {{ r.question }}</div>
 
               <div class="whitespace-pre-wrap text-gray-800 border-t pt-2 mb-2">
@@ -69,16 +69,27 @@
 
               <div class="mb-2">
                 <label class="block text-sm font-semibold text-gray-700">Оцінка:</label>
-                <select name="approved" class="border rounded p-2">
-                  <option value="" {% if r.approved is none %}selected{% endif %}>Очікує</option>
-                  <option value="True" {% if r.approved is true %}selected{% endif %}>✅ Зараховано</option>
-                  <option value="False" {% if r.approved is false %}selected{% endif %}>❌ Не зараховано</option>
-                </select>
+                <div class="flex space-x-4">
+                  <label class="inline-flex items-center">
+                    <input type="radio" name="approved_{{ r.id }}" value="True"
+                      {% if r.approved is true %}checked{% endif %}
+                      {% if r.approved is not none and r.feedback %}disabled{% endif %}
+                      class="form-radio text-green-500">
+                    <span class="ml-2">✅ Зараховано</span>
+                  </label>
+                  <label class="inline-flex items-center">
+                    <input type="radio" name="approved_{{ r.id }}" value="False"
+                      {% if r.approved is false %}checked{% endif %}
+                      {% if r.approved is not none and r.feedback %}disabled{% endif %}
+                      class="form-radio text-red-500">
+                    <span class="ml-2">❌ Не зараховано</span>
+                  </label>
+                </div>
               </div>
 
               <div class="mb-2">
                 <label class="block text-sm font-semibold text-gray-700">Фідбек:</label>
-                <textarea name="feedback" rows="2" class="w-full border rounded p-2">{{ r.feedback or '' }}</textarea>
+                <textarea name="feedback" rows="2" class="w-full border rounded p-2" {% if r.approved is not none and r.feedback %}disabled{% endif %}>{{ r.feedback or '' }}</textarea>
               </div>
             </div>
           </form>
@@ -86,45 +97,41 @@
       </div>
 
       <!-- Кнопка опублікувати фідбек (через JS) -->
-<button
-  id="publish-feedback-btn"
-  class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
->
-  ✅ Опублікувати фідбек
-</button>
+      <button id="publish-feedback-btn"
+        class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
+        ✅ Опублікувати фідбек
+      </button>
 
-<script>
-  document.getElementById('publish-feedback-btn').addEventListener('click', () => {
-    fetch("{{ url_for('main.publish_feedback', manager_id=manager.id, step=step) }}", {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': '{{ csrf_token() }}'
-      }
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === "published") {
-        alert("✅ Фідбек успішно опубліковано!");
-        window.location.href = "{{ url_for('main.managers_list') }}";
-      } else {
-        alert("⚠ Помилка при публікації.");
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      alert("❌ Сталася помилка при надсиланні запиту.");
-    });
-  });
-</script>
-
+      <script>
+        document.getElementById('publish-feedback-btn').addEventListener('click', () => {
+          fetch("{{ url_for('main.publish_feedback', manager_id=manager.id, step=step) }}", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': '{{ csrf_token() }}'
+            }
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.status === "published") {
+              alert("✅ Фідбек успішно опубліковано!");
+              window.location.href = "{{ url_for('main.managers_list') }}";
+            } else {
+              alert("⚠ Помилка при публікації.");
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            alert("❌ Сталася помилка при надсиланні запиту.");
+          });
+        });
+      </script>
     {% else %}
       <p>Немає відкритих відповідей.</p>
     {% endif %}
 
     <!-- Кнопка Назад -->
-    <a href="{{ url_for('main.managers_list') }}" 
-       class="mt-6 inline-block text-blue-600 hover:underline">← Назад</a>
+    <a href="{{ url_for('main.managers_list') }}" class="mt-6 inline-block text-blue-600 hover:underline">← Назад</a>
   </div>
 
   <!-- JS для автосейву -->
@@ -132,10 +139,10 @@
     document.querySelectorAll('.autosave-form').forEach(form => {
       const resultId = form.dataset.resultId;
 
-      form.querySelectorAll('select, textarea').forEach(input => {
+      form.querySelectorAll('input[type=radio], textarea').forEach(input => {
         input.addEventListener('change', () => {
-          const approved = form.querySelector('select[name="approved"]').value;
-          const feedback = form.querySelector('textarea[name="feedback"]').value;
+          const approved = form.querySelector('input[type=radio]:checked')?.value;
+          const feedback = form.querySelector('textarea[name=feedback]').value;
 
           fetch(`/update_result/${resultId}`, {
             method: 'POST',
