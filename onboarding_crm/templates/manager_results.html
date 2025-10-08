@@ -53,40 +53,85 @@
     {% endif %}
 
     <!-- Відкриті питання -->
-<h2 class="text-xl font-semibold mb-2 mt-8">Відкриті питання</h2>
-{% if open_results %}
-  <div class="space-y-6 border border-gray-300 rounded p-4 bg-gray-50">
-    {% for r in open_results %}
-      <div class="mb-4 p-4 bg-white rounded shadow">
-        <div class="font-semibold mb-2">Крок {{ r.step }}: {{ r.question }}</div>
-        <div class="whitespace-pre-wrap text-gray-800 border-t pt-2">
-          <div class="prose prose-sm">
-            {{ r.selected_answer | urlize(target="_blank", rel="noopener noreferrer") | safe }}
-          </div>
-        </div>
-        {% if r.approved is none %}
-  <div class="mt-2 text-sm text-gray-500 italic">Очікує перевірки</div>
-{% elif r.approved %}
-  <div class="mt-2 text-sm text-green-600 font-semibold">✅ Зараховано</div>
-{% else %}
-  <div class="mt-2 text-sm text-red-600 font-semibold">❌ Не зараховано</div>
-{% endif %}
+    <h2 class="text-xl font-semibold mb-2 mt-8">Відкриті питання</h2>
+    {% if open_results %}
+      <div class="space-y-6 border border-gray-300 rounded p-4 bg-gray-50">
+        {% for r in open_results %}
+          <form class="autosave-form" data-result-id="{{ r.id }}">
+            <div class="mb-4 p-4 bg-white rounded shadow">
+              <div class="font-semibold mb-2">Крок {{ r.step }}: {{ r.question }}</div>
 
-{% if r.feedback %}
-  <div class="mt-1 text-sm text-gray-700">
-    <span class="font-semibold">Фідбек:</span> {{ r.feedback }}
-  </div>
-{% endif %}
+              <div class="whitespace-pre-wrap text-gray-800 border-t pt-2 mb-2">
+                <div class="prose prose-sm">
+                  {{ r.selected_answer | urlize(target="_blank", rel="noopener noreferrer") | safe }}
+                </div>
+              </div>
+
+              <div class="mb-2">
+                <label class="block text-sm font-semibold text-gray-700">Оцінка:</label>
+                <select name="approved" class="border rounded p-2">
+                  <option value="" {% if r.approved is none %}selected{% endif %}>Очікує</option>
+                  <option value="True" {% if r.approved is true %}selected{% endif %}>✅ Зараховано</option>
+                  <option value="False" {% if r.approved is false %}selected{% endif %}>❌ Не зараховано</option>
+                </select>
+              </div>
+
+              <div class="mb-2">
+                <label class="block text-sm font-semibold text-gray-700">Фідбек:</label>
+                <textarea name="feedback" rows="2" class="w-full border rounded p-2">{{ r.feedback or '' }}</textarea>
+              </div>
+            </div>
+          </form>
+        {% endfor %}
       </div>
-    {% endfor %}
-  </div>
-{% else %}
-  <p>Немає відкритих відповідей.</p>
-{% endif %}
+
+      <!-- Кнопка опублікувати фідбек -->
+      <form method="POST" action="{{ url_for('main.publish_feedback', manager_id=manager.id, step=step) }}">
+        <button type="submit" class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
+          ✅ Опублікувати фідбек
+        </button>
+      </form>
+
+    {% else %}
+      <p>Немає відкритих відповідей.</p>
+    {% endif %}
 
     <!-- Кнопка Назад -->
     <a href="{{ url_for('main.managers_list') }}" 
        class="mt-6 inline-block text-blue-600 hover:underline">← Назад</a>
   </div>
+
+  <!-- JS для автосейву -->
+  <script>
+    document.querySelectorAll('.autosave-form').forEach(form => {
+      const resultId = form.dataset.resultId;
+
+      form.querySelectorAll('select, textarea').forEach(input => {
+        input.addEventListener('change', () => {
+          const approved = form.querySelector('select[name="approved"]').value;
+          const feedback = form.querySelector('textarea[name="feedback"]').value;
+
+          fetch(`/update_result/${resultId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+              approved: approved,
+              feedback: feedback,
+              draft: true
+            })
+          }).then(response => {
+            if (response.ok) {
+              console.log(`✔ Збережено: ${resultId}`);
+            } else {
+              console.error('❌ Помилка збереження');
+            }
+          });
+        });
+      });
+    });
+  </script>
 </body>
 </html>

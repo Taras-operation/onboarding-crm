@@ -1211,7 +1211,8 @@ def manager_results(manager_id, onboarding_id):
         manager=manager,
         instance=instance,
         choice_results=choice_results,
-        open_results=open_results
+        open_results=open_results,
+        step=instance.onboarding_step  # ✅ ось що було потрібно
     )
     
 # --- API: старт теста ---
@@ -1284,3 +1285,53 @@ def api_test_complete(step):
     resp = jsonify({'status': 'ok'})
     resp.delete_cookie(f"step_started_{step}", path=f"/manager_step/{step}")
     return resp
+
+@bp.route('/update_result/<int:result_id>', methods=['POST'])
+@login_required
+def update_result(result_id):
+    """Автоматичне збереження фідбеку (чернетки) для відкритих питань."""
+    result = TestResult.query.get_or_404(result_id)
+
+    # 🔐 Перевірка доступу
+    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
+        return jsonify({'error': 'Access denied'}), 403
+
+    data = request.get_json()
+    try:
+        if 'approved' in data:
+            if data['approved'] == "True":
+                result.approved = True
+            elif data['approved'] == "False":
+                result.approved = False
+            else:
+                result.approved = None  # якщо не вибрано
+
+        result.feedback = data.get('feedback', '').strip()
+        result.draft = True  # 🔸 автосейв завжди як чернетка
+
+        db.session.commit()
+        return jsonify({'status': 'success'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+    
+@bp.route('/publish_feedback/<int:manager_id>/<int:step>', methods=['POST'])
+@login_required
+def publish_feedback(manager_id, step):
+    """Публікація фідбеку по конкретному етапу."""
+    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        results = TestResult.query.filter_by(manager_id=manager_id, step=step).all()
+        for r in results:
+            r.draft = False  # 🔓 робимо видимим для менеджера
+        db.session.commit()
+
+        flash('Фідбек по етапу опубліковано', 'success')
+        return jsonify({'status': 'published'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500    
