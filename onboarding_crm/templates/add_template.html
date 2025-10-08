@@ -31,6 +31,7 @@
     <h1 class="text-2xl font-bold mb-4">Редактор онбордингу</h1>
 
     <form method="POST">
+      {{ csrf_token() }}
       <input
         type="text"
         name="name"

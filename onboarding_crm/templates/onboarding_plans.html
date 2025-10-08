@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Плани Онбордингу</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -176,30 +177,34 @@
   </div>
 
   <script>
-  function confirmDeleteInstance(onboardingId) {
-    if (confirm("Ви впевнені, що хочете видалити цей онбординг?")) {
-      fetch(`/onboarding/instance/delete/${onboardingId}`, {
-        method: 'DELETE'
-      })
-      .then(response => {
-        if (response.status === 204) {
-          const row = document.getElementById(`manager-row-${onboardingId}`);
-          if (row) {
-            row.remove(); // 🧹 М’яке видалення з DOM
-          } else {
-            location.reload(); // 🔁 Якщо чомусь не знайшов — оновлюємо
+    function confirmDeleteInstance(onboardingId) {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      if (confirm("Ви впевнені, що хочете видалити цей онбординг?")) {
+        fetch(`/onboarding/instance/delete/${onboardingId}`, {
+          method: 'DELETE',
+          headers: {
+            'X-CSRFToken': csrfToken
           }
-        } else {
-          response.json().then(data => {
-            alert(data.message || 'Помилка при видаленні');
-          });
-        }
-      })
-      .catch(error => {
-        alert('Помилка з’єднання: ' + error);
-      });
+        })
+        .then(response => {
+          if (response.status === 204) {
+            const row = document.getElementById(`manager-row-${onboardingId}`);
+            if (row) {
+              row.remove();
+            } else {
+              location.reload();
+            }
+          } else {
+            response.json().then(data => {
+              alert(data.message || 'Помилка при видаленні');
+            });
+          }
+        })
+        .catch(error => {
+          alert('Помилка з’єднання: ' + error);
+        });
+      }
     }
-  }
-</script>
+  </script>
 </body>
 </html>

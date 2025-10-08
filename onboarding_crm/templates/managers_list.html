@@ -69,18 +69,30 @@
     </table>
 </div>
 
+<!-- CSRF токен -->
 <script>
+  const csrfToken = "{{ csrf_token() }}";
+
   function deleteManager(managerId) {
     if (!confirm("Ви впевнені, що хочете видалити цього менеджера?")) return;
 
     fetch(`/onboarding/user/delete/${managerId}`, {
-      method: 'DELETE'
-    }).then(res => {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken  // 🔒 Додаємо токен CSRF
+      }
+    })
+    .then(res => {
       if (res.ok) {
         document.getElementById(`manager-row-${managerId}`)?.remove();
       } else {
         alert("❌ Помилка при видаленні менеджера");
       }
+    })
+    .catch(err => {
+      console.error("❌ Помилка запиту:", err);
+      alert("⚠ Сталася помилка при надсиланні запиту.");
     });
   }
 </script>

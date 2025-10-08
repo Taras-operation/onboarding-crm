@@ -85,13 +85,38 @@
         {% endfor %}
       </div>
 
-      <!-- Кнопка опублікувати фідбек -->
-      <form method="POST" action="{{ url_for('main.publish_feedback', manager_id=manager.id, step=step) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
-          ✅ Опублікувати фідбек
-        </button>
-      </form>
+      <!-- Кнопка опублікувати фідбек (через JS) -->
+<button
+  id="publish-feedback-btn"
+  class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
+>
+  ✅ Опублікувати фідбек
+</button>
+
+<script>
+  document.getElementById('publish-feedback-btn').addEventListener('click', () => {
+    fetch("{{ url_for('main.publish_feedback', manager_id=manager.id, step=step) }}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token() }}'
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "published") {
+        alert("✅ Фідбек успішно опубліковано!");
+        window.location.href = "{{ url_for('main.managers_list') }}";
+      } else {
+        alert("⚠ Помилка при публікації.");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("❌ Сталася помилка при надсиланні запиту.");
+    });
+  });
+</script>
 
     {% else %}
       <p>Немає відкритих відповідей.</p>

@@ -57,6 +57,8 @@
     <div class="form-box">
         <h2>Додати менеджера</h2>
 <form method="POST">
+  {{ csrf_token() }}
+
   <label for="tg_nick">Telegram нік</label>
   <input type="text" id="tg_nick" name="tg_nick" placeholder="@nickname" class="form-control" required>
 
@@ -86,7 +88,7 @@
   <input type="password" id="password" name="password" class="form-control" required>
 
   <button type="submit" class="btn btn-primary mt-3">Додати менеджера</button>
-</form>        </form>
+</form>       
     </div>
 </body>
 </html>

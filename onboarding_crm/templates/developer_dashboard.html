@@ -17,6 +17,7 @@
     <div class="card-header fw-bold">Додати нового користувача</div>
     <div class="card-body">
       <form action="{{ url_for('main.developer_dashboard') }}" method="POST">
+        {{ csrf_token() }} 
         <div class="row g-3">
           <div class="col-md-4">
             <input name="tg_nick" placeholder="TG нік" class="form-control" required>
