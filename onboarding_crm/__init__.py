@@ -1,9 +1,10 @@
 from flask import Flask
-from onboarding_crm.extensions import db, login_manager
+from onboarding_crm.extensions import db, login_manager, migrate  # ✅ добавляем migrate
 from onboarding_crm.routes import bp
 from onboarding_crm.models import User
 from onboarding_crm.utils import register_custom_filters
 import os
+
 
 def create_app():
     app = Flask(__name__)
@@ -20,7 +21,10 @@ def create_app():
 
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+    # ✅ подключаем базы и миграции
     db.init_app(app)
+    migrate.init_app(app, db)  # <── вот эта строка добавляет поддержку `flask db migrate`
+    
     login_manager.init_app(app)
     login_manager.login_view = 'login'
 
