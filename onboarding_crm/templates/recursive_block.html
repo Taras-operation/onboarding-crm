@@ -9,7 +9,6 @@
     {{ block.description | autolink | safe }}
   </div>
 
-  {# === INFO SECTION: всегда в DOM === #}
   <div class="space-y-6 info-section {% if test_started and not test_completed %}hidden{% endif %}">
     {% if block.subblocks %}
       {% for sub in block.subblocks %}
@@ -32,7 +31,6 @@
     {% endif %}
   </div>
 
-  {# === КНОПКА «Перейти до тесту»: рисуем, пока шаг не завершён === #}
   {% if not test_completed %}
     <div class="mt-6">
       <button id="proceedToTest_{{ index }}"
@@ -44,7 +42,6 @@
     </div>
   {% endif %}
 
-  {# === TEST SECTION: всегда в DOM; показываем/прячем классом === #}
   <div class="test-section mt-6 {% if not (test_started and not test_completed) %}hidden{% endif %}">
     {% if (block.test and block.test.questions) or block.open_questions %}
       <form method="POST" id="testFormBlock_{{ index }}" class="space-y-6">
@@ -89,7 +86,6 @@
     {% endif %}
   </div>
 
-  {# === MODAL === #}
   <div id="resultModal_{{ index }}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
       <h2 class="text-2xl font-bold text-green-600 mb-2">Тест завершено!</h2>
@@ -104,6 +100,11 @@
 
   <script>
   setTimeout(function () {
+    function getCookie(name) {
+      const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+      return match ? decodeURIComponent(match[2]) : null;
+    }
+
     const root = document.getElementById("block-{{ index }}");
     const infoSection = root.querySelector(".info-section");
     const testSection = root.querySelector(".test-section");
@@ -127,15 +128,13 @@
         proceedBtn.classList.add("opacity-50","cursor-not-allowed");
       }
     }
+
     function showTest() {
       infoSection?.classList.add("hidden");
       testSection?.classList.remove("hidden");
       proceedBtn?.classList.add("hidden");
     }
 
-    // --- ГАРАНТИЯ ?start=1 для начатых, но не завершённых шагов ---
-    // Это ключ к «античиту» при возврате Назад: URL всегда содержит start=1,
-    // сервер помечает step как started, а UI рисует тест.
     (function enforceStartParam(){
       if (started && !completed) {
         try {
@@ -148,12 +147,10 @@
       }
     })();
 
-    // Инициализация UI по флагам
     if (completed) showInfo();
     else if (started) showTest();
     else showInfo();
 
-    // Кнопка активируется только когда все чекбоксы отмечены
     function updateButtonState() {
       if (!proceedBtn) return;
       if (checkboxes.length === 0) {
@@ -166,10 +163,10 @@
       proceedBtn.classList.toggle("opacity-50", !allChecked);
       proceedBtn.classList.toggle("cursor-not-allowed", !allChecked);
     }
+
     checkboxes.forEach(cb => cb.addEventListener("change", updateButtonState));
     updateButtonState();
 
-    // START → запись в БД и фиксация ?start=1 (для F5/Назад)
     if (proceedBtn) {
       proceedBtn.addEventListener("click", async () => {
         try { await fetch(`/api/test/start/{{ index }}`, { method: 'POST' }); } catch (_) {}
@@ -183,14 +180,20 @@
       });
     }
 
-    // SUBMIT → COMPLETE
     if (form) {
       form.addEventListener("submit", async function (e) {
         e.preventDefault();
         const formData = new FormData(form);
+        formData.append('csrf_token', getCookie('csrf_token'));  // ✅ ВАЖЛИВА ПРАВКА
+
         try {
-          const res = await fetch("", { method: "POST", body: formData });
+          const res = await fetch("", {
+            method: "POST",
+            body: formData,
+            credentials: "include"
+          });
           const data = await res.json();
+
           try { await fetch(`/api/test/complete/{{ index }}`, { method: "POST" }); } catch (_) {}
 
           if (data.status === "ok") {
@@ -209,7 +212,6 @@
       });
     }
 
-    // Поведение при bfcache/Назад: если started && !completed — всегда показываем тест
     window.addEventListener("pageshow", function () {
       if (started && !completed) showTest();
     });
@@ -223,7 +225,6 @@
         showTest();
       }
     });
-    // двойной хук на случай Safari
     window.addEventListener("unload", function(){});
   }, 0);
   </script>
