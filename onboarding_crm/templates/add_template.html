@@ -8,7 +8,7 @@
   <!-- Tailwind -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 
-  <!-- Немного стилей для drag‑handle -->
+  <!-- Стилі для drag‑handle -->
   <style>
     .drag-handle {
       user-select: none;
@@ -20,7 +20,6 @@
       justify-content: center;
       z-index: 10;
     }
-    /* визуальная подсветка перетаскиваемого блока */
     .sortable-ghost { opacity: .4; }
     .sortable-chosen { background: #f8fafc; }
   </style>
@@ -31,7 +30,10 @@
     <h1 class="text-2xl font-bold mb-4">Редактор онбордингу</h1>
 
     <form method="POST">
-      {{ csrf_token() }}
+      <!-- ✅ CSRF Токен -->
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <!-- Назва шаблону -->
       <input
         type="text"
         name="name"
@@ -41,6 +43,7 @@
         required
       />
 
+      <!-- Вибір менеджера -->
       {% if managers %}
       <select name="selected_manager" class="w-full border rounded p-2 mb-4">
         <option value="template" {% if selected_manager == 'template' %}selected{% endif %}>
@@ -54,9 +57,10 @@
       </select>
       {% endif %}
 
-      <!-- Контейнер для блоков (Sortable инициализируется на нём) -->
+      <!-- Контейнер блоків -->
       <div id="blocks-container" class="space-y-4"></div>
 
+      <!-- Кнопка додавання етапу -->
       <button
         type="button"
         onclick="addStage(); if (typeof autosaveTemplate==='function'){ try{ autosaveTemplate(); }catch(e){} }"
@@ -65,25 +69,27 @@
         + Додати етап
       </button>
 
+      <!-- Приховане поле зі структурою -->
       <input type="hidden" name="structure" id="structure" />
 
+      <!-- Кнопка збереження -->
       <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded mt-4">
         Зберегти
       </button>
     </form>
   </div>
 
-  <!-- Данные из сервера -->
+  <!-- Дані з сервера -->
   <script>
-    window.templateData   = {{ structure | tojson | safe }};
-    window.onboarding_step = {{ onboarding_step | default(0) }};
-    window.templateId     = {{ template.id if template and template.id else 'null' }};
+    window.templateData     = {{ structure | tojson | safe }};
+    window.onboarding_step  = {{ onboarding_step | default(0) }};
+    window.templateId       = {{ template.id if template and template.id else 'null' }};
   </script>
 
-  <!-- ВАЖНО: подключаем SortableJS ДО editor_blocks.js -->
+  <!-- SortableJS -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-  <!-- Наш скрипт редактора -->
+  <!-- Основний JS редактора -->
   <script src="{{ url_for('static', filename='js/editor_blocks.js') }}"></script>
 </body>
 </html>
