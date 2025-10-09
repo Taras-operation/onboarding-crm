@@ -8,41 +8,52 @@
             font-family: Arial, sans-serif;
             background-color: #f4f6f9;
             display: flex;
-            height: 100vh;
             margin: 0;
         }
 
-        aside {
-            width: 250px;
-            background-color: #343a40;
-            color: white;
+        .sidebar {
+            width: 240px;
+            background-color: #ffffff;
+            border-right: 1px solid #ddd;
             padding: 20px;
+            height: 100vh;
             box-sizing: border-box;
         }
 
-        aside h2 {
-            font-size: 20px;
+        .sidebar h3 {
+            margin-top: 0;
+            font-size: 18px;
             margin-bottom: 20px;
         }
 
-        aside a {
+        .sidebar a {
             display: block;
-            color: white;
-            text-decoration: none;
+            margin-bottom: 12px;
             padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 5px;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #333;
+            font-weight: 500;
         }
 
-        aside a:hover {
-            background-color: #495057;
+        .sidebar a:hover {
+            background-color: #e8f0fe;
         }
 
-        main {
+        .sidebar .active {
+            background-color: #d6eaff;
+            font-weight: bold;
+        }
+
+        .sidebar .logout {
+            color: red;
+            border: 1px solid red;
+            text-align: center;
+        }
+
+        .content {
             flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            padding: 40px;
         }
 
         .form-box {
@@ -93,60 +104,51 @@
 </head>
 <body>
 
-<!-- Сайдбар -->
-  <div class="sidebar d-flex flex-column">
-    <h4 class="mb-4 text-center">Додати менеджера</h4>
-
-    <a href="{{ url_for('main.managers_list') }}" class="btn btn-primary mb-2">
-      📋 Список менеджерів
-    </a>
-    <a href="{{ url_for('main.onboarding_plans') }}" class="btn btn-warning text-white mb-2">
-      📅 Плани онбордингу
-    </a>
-    <a href="{{ url_for('main.mentor_dashboard') }}" class="btn btn-info text-white mb-2">
-      📊 Назад до дашборду
-    </a>
-    <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger mt-2">
-      🚪 Вийти
-    </a>
-  </div>
-
-<!-- Основний контент -->
-<main>
-    <div class="form-box">
-        <h2>Додати менеджера</h2>
-        <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-            <label for="tg_nick">Telegram нік</label>
-            <input type="text" id="tg_nick" name="tg_nick" placeholder="@nickname" class="form-control" required>
-
-            <label for="position">Посада</label>
-            <input type="text" id="position" name="position" class="form-control" required>
-
-            <label for="department">Відділ</label>
-            <input type="text" id="department" name="department" class="form-control" required>
-
-            <label for="mentor_id">Ментор</label>
-            <select name="mentor_id" id="mentor_id" class="form-control" required>
-                <option value="">ПОТОЧНИЙ користувач (авто)</option>
-                {% for mentor in mentors %}
-                    <option value="{{ mentor.id }}" {% if mentor.id == current_user.id %}selected{% endif %}>
-                        {{ mentor.username }}
-                    </option>
-                {% endfor %}
-            </select>
-
-            <label for="username">Логін</label>
-            <input type="text" id="username" name="username" class="form-control" required>
-
-            <label for="password">Пароль</label>
-            <input type="password" id="password" name="password" class="form-control" required>
-
-            <button type="submit">Додати менеджера</button>
-        </form>
+    <!-- ✅ Sidebar -->
+    <div class="sidebar">
+        <h3>Кабінет Ментора</h3>
+        <a href="{{ url_for('main.managers_list') }}">📋 Список менеджерів</a>
+        <a href="{{ url_for('main.onboarding_plans') }}">📅 Плани онбордингу</a>
+        <a href="{{ url_for('main.mentor_dashboard') }}">⬅️ Назад до дашборду</a>
+        <a href="{{ url_for('main.logout') }}" class="logout">🚪 Вийти</a>
     </div>
-</main>
+
+    <!-- ✅ Main content -->
+    <div class="content">
+        <div class="form-box">
+            <h2>Додати менеджера</h2>
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <label for="tg_nick">Telegram нік</label>
+                <input type="text" id="tg_nick" name="tg_nick" placeholder="@nickname" class="form-control" required>
+
+                <label for="position">Посада</label>
+                <input type="text" id="position" name="position" class="form-control" required>
+
+                <label for="department">Відділ</label>
+                <input type="text" id="department" name="department" class="form-control" required>
+
+                <label for="mentor_id">Ментор</label>
+                <select name="mentor_id" id="mentor_id" class="form-control" required>
+                    <option value="">ПОТОЧНИЙ користувач (авто)</option>
+                    {% for mentor in mentors %}
+                        <option value="{{ mentor.id }}" {% if mentor.id == current_user.id %}selected{% endif %}>
+                            {{ mentor.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <label for="username">Логін</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+
+                <button type="submit">Додати менеджера</button>
+            </form>
+        </div>
+    </div>
 
 </body>
 </html>
