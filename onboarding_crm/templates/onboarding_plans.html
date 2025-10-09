@@ -122,7 +122,7 @@
           </thead>
           <tbody>
             {% for template in templates %}
-            <tr>
+            <tr id="template-row-{{ template.id }}">
               <td>{{ loop.index }}</td>
               <td>{{ template.name }}</td>
               <td>{{ template.step_count }} етапів</td>
@@ -197,6 +197,35 @@
           } else {
             response.json().then(data => {
               alert(data.message || 'Помилка при видаленні');
+            });
+          }
+        })
+        .catch(error => {
+          alert('Помилка з’єднання: ' + error);
+        });
+      }
+    }
+
+    function confirmDeleteTemplate(templateId, templateName) {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      if (confirm(`Ви впевнені, що хочете видалити шаблон "${templateName}"?`)) {
+        fetch(`/onboarding/template/delete/${templateId}`, {
+          method: 'DELETE',
+          headers: {
+            'X-CSRFToken': csrfToken
+          }
+        })
+        .then(response => {
+          if (response.status === 204) {
+            const row = document.getElementById(`template-row-${templateId}`);
+            if (row) {
+              row.remove();
+            } else {
+              location.reload();
+            }
+          } else {
+            response.json().then(data => {
+              alert(data.message || 'Помилка при видаленні шаблону');
             });
           }
         })
