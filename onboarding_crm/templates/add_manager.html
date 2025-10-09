@@ -8,10 +8,43 @@
             font-family: Arial, sans-serif;
             background-color: #f4f6f9;
             display: flex;
+            height: 100vh;
+            margin: 0;
+        }
+
+        aside {
+            width: 250px;
+            background-color: #343a40;
+            color: white;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        aside h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+
+        aside a {
+            display: block;
+            color: white;
+            text-decoration: none;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+
+        aside a:hover {
+            background-color: #495057;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
         }
+
         .form-box {
             background: white;
             padding: 30px 40px;
@@ -20,16 +53,19 @@
             width: 100%;
             max-width: 500px;
         }
+
         h2 {
             text-align: center;
             color: #333;
         }
+
         label {
             display: block;
             margin-top: 15px;
             font-weight: bold;
             color: #555;
         }
+
         input, select {
             width: 100%;
             padding: 10px;
@@ -37,6 +73,7 @@
             border-radius: 5px;
             border: 1px solid #ccc;
         }
+
         button {
             margin-top: 20px;
             width: 100%;
@@ -48,47 +85,60 @@
             font-size: 16px;
             cursor: pointer;
         }
+
         button:hover {
             background-color: #0056b3;
         }
     </style>
 </head>
 <body>
+
+<!-- Сайдбар -->
+<aside>
+    <h2>📁 Меню</h2>
+    <a href="{{ url_for('main.managers_list') }}">Список менеджерів</a>
+    <a href="{{ url_for('main.add_manager') }}" style="background-color: #495057;">Додати менеджера</a>
+    <a href="{{ url_for('main.onboarding_plans') }}">Плани онбордингу</a>
+    <a href="{{ url_for('main.results') }}">Результати тестів</a>
+    <a href="{{ url_for('main.logout') }}" style="color: #dc3545;">Вийти</a>
+</aside>
+
+<!-- Основний контент -->
+<main>
     <div class="form-box">
         <h2>Додати менеджера</h2>
-<form method="POST">
-  {{ csrf_token() }}
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  <label for="tg_nick">Telegram нік</label>
-  <input type="text" id="tg_nick" name="tg_nick" placeholder="@nickname" class="form-control" required>
+            <label for="tg_nick">Telegram нік</label>
+            <input type="text" id="tg_nick" name="tg_nick" placeholder="@nickname" class="form-control" required>
 
-  <label for="position">Посада</label>
-  <input type="text" id="position" name="position" class="form-control" required>
+            <label for="position">Посада</label>
+            <input type="text" id="position" name="position" class="form-control" required>
 
-  <label for="department">Відділ</label>
-  <input type="text" id="department" name="department" class="form-control" required>
+            <label for="department">Відділ</label>
+            <input type="text" id="department" name="department" class="form-control" required>
 
-<div class="mb-4">
-  <label for="mentor_id" class="block text-sm font-medium text-gray-700">Ментор</label>
-  <select name="mentor_id" id="mentor_id"
-          class="form-control w-full rounded px-3 py-2 border border-gray-300" required>
-    <option value="">ПОТОЧНИЙ користувач (авто)</option>
-    {% for mentor in mentors %}
-      <option value="{{ mentor.id }}" {% if mentor.id == current_user.id %}selected{% endif %}>
-        {{ mentor.username }}
-      </option>
-    {% endfor %}
-  </select>
-</div>
+            <label for="mentor_id">Ментор</label>
+            <select name="mentor_id" id="mentor_id" class="form-control" required>
+                <option value="">ПОТОЧНИЙ користувач (авто)</option>
+                {% for mentor in mentors %}
+                    <option value="{{ mentor.id }}" {% if mentor.id == current_user.id %}selected{% endif %}>
+                        {{ mentor.username }}
+                    </option>
+                {% endfor %}
+            </select>
 
-  <label for="username">Логін</label>
-  <input type="text" id="username" name="username" class="form-control" required>
+            <label for="username">Логін</label>
+            <input type="text" id="username" name="username" class="form-control" required>
 
-  <label for="password">Пароль</label>
-  <input type="password" id="password" name="password" class="form-control" required>
+            <label for="password">Пароль</label>
+            <input type="password" id="password" name="password" class="form-control" required>
 
-  <button type="submit" class="btn btn-primary mt-3">Додати менеджера</button>
-</form>       
+            <button type="submit">Додати менеджера</button>
+        </form>
     </div>
+</main>
+
 </body>
 </html>
