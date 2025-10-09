@@ -324,9 +324,11 @@ def manager_statistics():
 
     # Підрахунок завершеності
     total_stage_blocks = sum(1 for b in structure if isinstance(b, dict) and b.get("type") == "stage")
-    completed_blocks = len(stats)
+    test_progress = instance.test_progress or {}
+    completed_steps = test_progress.get("completed", [])
+    onboarding_finished = len(completed_steps) >= total_stage_blocks
 
-    print(f"[DEBUG] 📊 Total stages: {total_stage_blocks}, Completed: {completed_blocks}")
+    print(f"[DEBUG] 📊 Total stages: {total_stage_blocks}, Completed steps: {len(completed_steps)}")
 
     # Збираємо всі open question відповіді
     all_open = [oq for s in stats for oq in s["open_questions"] if oq.get("answer")]
@@ -337,18 +339,20 @@ def manager_statistics():
     any_failed = any(oq.get("approved") is False for oq in all_open)
 
     # Логіка статусу
-    if not all_reviewed:
+    if not onboarding_finished:
+        final_status = None  # Не показуємо плашку до завершення всіх етапів
+    elif not all_reviewed:
         final_status = "waiting"
     elif all_passed:
         final_status = "passed"
     elif any_failed:
         final_status = "extra_block_added"
     else:
-        final_status = "waiting"  # на всякий випадок
+        final_status = "waiting"  # fallback
 
     print(f"[DEBUG] ✅ Final status: {final_status}")
     return render_template('manager_statistics.html', stats=stats, final_status=final_status)
-        
+
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
 def add_manager():
