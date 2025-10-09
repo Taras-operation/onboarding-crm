@@ -94,13 +94,22 @@
 <body>
 
 <!-- Сайдбар -->
-<aside>
-    <h2>📁 Меню</h2>
-    <a href="{{ url_for('main.managers_list') }}">Список менеджерів</a>
-    <a href="{{ url_for('main.onboarding_plans') }}">Плани онбордингу</a>
-    <a href="{{ url_for('main.mentor_dashboard') }}" style="background-color: #495057;">Назад до Дашборду</a>
-    <a href="{{ url_for('main.logout') }}" style="color: #dc3545;">Вийти</a>
-</aside>
+  <div class="sidebar d-flex flex-column">
+    <h4 class="mb-4 text-center">Додати менеджера</h4>
+
+    <a href="{{ url_for('main.managers_list') }}" class="btn btn-primary mb-2">
+      📋 Список менеджерів
+    </a>
+    <a href="{{ url_for('main.onboarding_plans') }}" class="btn btn-warning text-white mb-2">
+      📅 Плани онбордингу
+    </a>
+    <a href="{{ url_for('main.mentor_dashboard') }}" class="btn btn-info text-white mb-2">
+      📊 Назад до дашборду
+    </a>
+    <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger mt-2">
+      🚪 Вийти
+    </a>
+  </div>
 
 <!-- Основний контент -->
 <main>
