@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>Онбординг — {{ block.title }}</title>
+
+  <!-- CSRF для JavaScript -->
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+
+  <!-- Tailwind CSS -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100 p-6">

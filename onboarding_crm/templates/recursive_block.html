@@ -100,9 +100,9 @@
 
   <script>
   setTimeout(function () {
-    function getCookie(name) {
-      const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-      return match ? decodeURIComponent(match[2]) : null;
+    function getCSRFToken() {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      return meta ? meta.getAttribute('content') : '';
     }
 
     const root = document.getElementById("block-{{ index }}");
@@ -184,7 +184,7 @@
       form.addEventListener("submit", async function (e) {
         e.preventDefault();
         const formData = new FormData(form);
-        formData.append('csrf_token', getCookie('csrf_token'));  // ✅ ВАЖЛИВА ПРАВКА
+        formData.append('csrf_token', getCSRFToken());
 
         try {
           const res = await fetch("", {
