@@ -339,7 +339,7 @@ def manager_statistics():
     any_failed = any(oq.get("approved") is False for oq in all_open)
 
     # Логіка статусу
-    if not onboarding_finished:
+    if not all_open:
         final_status = None  # Не показуємо плашку до завершення всіх етапів
     elif not all_reviewed:
         final_status = "waiting"
