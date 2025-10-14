@@ -28,7 +28,7 @@ target_metadata = db.metadata
 def run_migrations_offline():
     """Run migrations in 'offline' mode."""
     context.configure(
-        url=config.get_main_option("sqlalchemy.url"),
+        url=app.config['SQLALCHEMY_DATABASE_URI'],  # 🔥 беремо URL з app.config
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -40,7 +40,10 @@ def run_migrations_offline():
 
 def run_migrations_online():
     """Run migrations in 'online' mode."""
+
+    # ✅ Важливо: задаємо URL БД ПЕРЕД engine_from_config
     config.set_main_option('sqlalchemy.url', app.config['SQLALCHEMY_DATABASE_URI'])
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -59,6 +62,7 @@ def run_migrations_online():
                 context.run_migrations()
 
 
+# 🧪 Запускаємо режим online / offline
 if context.is_offline_mode():
     run_migrations_offline()
 else:
