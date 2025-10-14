@@ -1187,28 +1187,38 @@ def manager_results(manager_id, onboarding_id):
     manager = User.query.get_or_404(manager_id)
     instance = OnboardingInstance.query.get_or_404(onboarding_id)
 
-    if manager.role != 'manager' or instance.manager_id != manager.id:
-        abort(403)
+    if instance.manager_id != manager.id:
+        flash("⛔️ Онбординг не належить цьому менеджеру", "danger")
+        return redirect(url_for('main.login'))
 
-    # 🔐 Проверка доступа
-    if current_user.role == 'mentor':
-        if manager.added_by_id != current_user.id:
-            abort(403)
+    # Отримуємо структуру
+    try:
+        structure = json.loads(instance.structure)
+    except Exception as e:
+        flash("❌ Помилка структури онбордингу", "danger")
+        return redirect(url_for('main.login'))
 
-    elif current_user.role == 'teamlead':
-        if manager.added_by_id != current_user.id:
-            mentor = User.query.get(manager.added_by_id)
-            if not mentor or mentor.added_by_id != current_user.id:
-                abort(403)
-
-    # 🔍 Загружаем только те результаты, что относятся к этому онбордингу
-    results = TestResult.query.filter_by(
+    # Всі результати по тестах (вибіркові)
+    choice_results = TestResult.query.filter_by(
         manager_id=manager.id,
-        onboarding_instance_id=onboarding_id
-    ).order_by(TestResult.step.asc()).all()
+        onboarding_id=instance.id,
+        question_type='choice'
+    ).all()
 
-    choice_results = [r for r in results if r.is_correct is not None]
-    open_results = [r for r in results if r.is_correct is None]
+    # Всі результати по відкритих питаннях
+    open_results = TestResult.query.filter_by(
+        manager_id=manager.id,
+        onboarding_id=instance.id,
+        question_type='open'
+    ).all()
+
+    # --- Авто-перевірка: чи можна показати модалку з переходом до фінального фідбеку
+    show_popup = False
+    if open_results:
+        if all(r.approved is not None and not r.draft for r in open_results):
+            show_popup = True
+    elif not open_results:
+        show_popup = True  # якщо відкритих питань немає — модалку можна показувати
 
     return render_template(
         'manager_results.html',
@@ -1216,7 +1226,8 @@ def manager_results(manager_id, onboarding_id):
         instance=instance,
         choice_results=choice_results,
         open_results=open_results,
-        step=instance.onboarding_step  # ✅ ось що було потрібно
+        step=instance.onboarding_step,
+        show_popup=show_popup
     )
     
 # --- API: старт теста ---
@@ -1338,4 +1349,101 @@ def publish_feedback(manager_id, step):
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500    
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/final_feedback/<int:manager_id>')
+@login_required
+def final_feedback(manager_id):
+    # 1. Перевірка прав доступу
+    if current_user.role not in ['mentor', 'teamlead', 'developer']:
+        return redirect(url_for('main.login'))
+
+    # 2. Отримуємо активний інстанс онбордингу
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=manager_id)
+                .order_by(OnboardingInstance.id.desc())
+                .first())
+
+    if not instance:
+        flash("Онбординг не знайдено", "danger")
+        return redirect(url_for('main.dashboard'))
+
+    # 3. Отримуємо всі відповіді
+    results = TestResult.query.filter_by(instance_id=instance.id).all()
+
+    test_results = [r for r in results if not r.is_open_question]
+    open_questions = [r for r in results if r.is_open_question]
+
+    # 4. Розрахунок тестів
+    total_tests = len(test_results)
+    correct_tests = sum(1 for r in test_results if r.is_correct)
+    test_percent = (correct_tests / total_tests * 100) if total_tests else 0
+
+    if test_percent >= 80:
+        test_recommendation = "Пройдено"
+    elif 51 <= test_percent < 80:
+        test_recommendation = "На доопрацювання"
+    else:
+        test_recommendation = "Не пройдено"
+
+    # 5. Розрахунок відкритих
+    total_open = len(open_questions)
+    approved_open = sum(1 for r in open_questions if r.approved is True)
+    open_percent = (approved_open / total_open * 100) if total_open else 100  # якщо немає відкритих — ок
+
+    if total_open == 0:
+        open_recommendation = "Пройдено"
+    elif open_percent >= 80:
+        open_recommendation = "Пройдено"
+    elif 51 <= open_percent < 80:
+        open_recommendation = "На доопрацювання"
+    else:
+        open_recommendation = "Не пройдено"
+
+    # 6. Фінальна оцінка
+    if test_recommendation == "Пройдено" and open_recommendation == "Пройдено":
+        final_recommendation = "✅ Рекомендується завершити онбординг"
+    elif test_recommendation == "Не пройдено" or open_recommendation == "Не пройдено":
+        final_recommendation = "❌ Онбординг не пройдено"
+    else:
+        final_recommendation = "⚠️ Необхідне доопрацювання"
+
+    # 7. Повертаємо шаблон
+    return render_template('final_feedback.html',
+                           manager=User.query.get(manager_id),
+                           instance=instance,
+                           test_results=test_results,
+                           open_questions=open_questions,
+                           test_percent=round(test_percent),
+                           open_percent=round(open_percent),
+                           test_recommendation=test_recommendation,
+                           open_recommendation=open_recommendation,
+                           final_recommendation=final_recommendation
+                           )   
+
+
+@bp.route('/final_decision', methods=['POST'])
+@login_required
+@csrf.exempt  # або прибери, якщо CSRF токен у формі є
+def final_decision():
+    instance_id = request.form.get('instance_id')
+    decision = request.form.get('decision')
+
+    instance = OnboardingInstance.query.get(instance_id)
+
+    if not instance:
+        flash("Онбординг не знайдено", "danger")
+        return redirect(url_for('main.managers_list'))
+
+    if decision == 'approved':
+        instance.onboarding_status = 'completed'
+        flash("✅ Онбординг зараховано", "success")
+    elif decision == 'rejected':
+        instance.onboarding_status = 'failed'
+        flash("❌ Онбординг не зараховано", "danger")
+    else:
+        flash("⚠️ Невідома дія", "warning")
+        return redirect(url_for('main.final_feedback', manager_id=instance.manager_id))
+
+    db.session.commit()
+    return redirect(url_for('main.managers_list'))

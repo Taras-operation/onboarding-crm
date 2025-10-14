@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-5xl mx-auto mt-10 bg-white shadow-md rounded p-6 border border-gray-200">
+
+  <h1 class="text-2xl font-bold text-gray-800 mb-6">📋 Фінальний фідбек: {{ manager.full_name or manager.username }}</h1>
+
+  <!-- Загальна інформація -->
+  <div class="mb-6">
+    <p>👤 Менеджер: <strong>{{ manager.full_name or manager.username }}</strong></p>
+    <p>📅 Старт онбордингу: {{ instance.created_at.strftime('%d.%m.%Y') }}</p>
+    <p>🧑‍🏫 Ментор / ТЛ: {{ current_user.username }}</p>
+  </div>
+
+  <!-- Блок Тестові питання -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-700 mb-3">🧠 Тестові питання</h2>
+    <p>– Усього питань: <strong>{{ test_results|length }}</strong></p>
+    <p>– Правильних відповідей: <strong>{{ test_percent }}%</strong></p>
+    <p class="mt-2">🔎 Рекомендація: 
+      {% if test_recommendation == "Пройдено" %}
+        <span class="text-green-600 font-semibold">✅ Пройдено</span>
+      {% elif test_recommendation == "На доопрацювання" %}
+        <span class="text-yellow-600 font-semibold">⚠️ На доопрацювання</span>
+      {% else %}
+        <span class="text-red-600 font-semibold">❌ Не пройдено</span>
+      {% endif %}
+    </p>
+  </div>
+
+  <!-- Блок Відкриті питання -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-700 mb-3">✍️ Відкриті питання</h2>
+    {% if open_questions %}
+      <p>– Всього: <strong>{{ open_questions|length }}</strong></p>
+      <p>– Зараховано: <strong>{{ open_percent }}%</strong></p>
+
+      <div class="mt-4 space-y-4">
+        {% for r in open_questions %}
+          <div class="p-4 border rounded {% if r.approved is sameas true %}border-green-300 bg-green-50{% elif r.approved is sameas false %}border-red-300 bg-red-50{% else %}border-gray-200{% endif %}">
+            <p class="font-medium text-gray-800">❓ {{ r.question }}</p>
+            <p class="text-sm mt-2">💬 Коментар ментора: <em>{{ r.feedback or "—" }}</em></p>
+            <p class="mt-1">
+              Статус: 
+              {% if r.approved is sameas true %}
+                <span class="text-green-700 font-semibold">Зараховано</span>
+              {% elif r.approved is sameas false %}
+                <span class="text-red-700 font-semibold">Не зараховано</span>
+              {% else %}
+                <span class="text-gray-500 italic">Не перевірено</span>
+              {% endif %}
+            </p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <p class="mt-4">🔎 Рекомендація:
+        {% if open_recommendation == "Пройдено" %}
+          <span class="text-green-600 font-semibold">✅ Пройдено</span>
+        {% elif open_recommendation == "На доопрацювання" %}
+          <span class="text-yellow-600 font-semibold">⚠️ На доопрацювання</span>
+        {% else %}
+          <span class="text-red-600 font-semibold">❌ Не пройдено</span>
+        {% endif %}
+      </p>
+    {% else %}
+      <p class="text-green-700">✅ Відкритих питань не було — автоматично зараховано</p>
+    {% endif %}
+  </div>
+
+  <!-- Підсумкова рекомендація -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-700 mb-3">🏁 Підсумок</h2>
+    <p class="text-lg font-bold">
+      {{ final_recommendation }}
+    </p>
+  </div>
+
+  <!-- Дії -->
+  <form action="{{ url_for('main.final_decision') }}" method="POST" class="flex flex-wrap gap-4">
+    <input type="hidden" name="instance_id" value="{{ instance.id }}">
+    {{ csrf_token() }}
+    <button name="decision" value="approved" type="submit"
+            class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">
+      ✅ Зарахувати онбординг
+    </button>
+    <button name="decision" value="rejected" type="submit"
+            class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded">
+      ❌ Не зараховано
+    </button>
+    <a href="{{ url_for('main.edit_onboarding', instance_id=instance.id) }}"
+       class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded">
+      ✍️ На доопрацювання
+    </a>
+  </form>
+</div>
+{% endblock %}

@@ -114,7 +114,7 @@ class OnboardingTest(db.Model):
 
 # ─────────────────────────────────────────────
 # 🔹 Індивідуальний онбординг
-# ─────────────────────────────────────────────
+# ────────────────────────────────────────────
 class OnboardingInstance(db.Model):
     __tablename__ = 'onboarding_instance'
     
@@ -124,14 +124,19 @@ class OnboardingInstance(db.Model):
     mentor_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     structure = db.Column(db.JSON, nullable=False)
 
-    # ✅ Новое поле: прогресс тестов по шагам
-    # Пример: {"0": {"started": true, "completed": true}, "1": {...}}
+    # Прогресс по каждому этапу (0, 1, 2 и т.д.)
     test_progress = db.Column(JSONB, nullable=True, default=dict)
 
     onboarding_step = db.Column(db.Integer, default=0)
     onboarding_step_total = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # 🔽 Новые поля для финального фидбека
+    onboarding_status = db.Column(db.String(50), nullable=True)     # completed / failed / etc.
+    final_decision = db.Column(db.String(50), nullable=True)        # approved / rejected / revision
+    final_comment = db.Column(db.Text, nullable=True)               # текст финального фидбека
+
+    # Результаты тестов
     test_results = db.relationship(
         'TestResult',
         backref='onboarding_instance',

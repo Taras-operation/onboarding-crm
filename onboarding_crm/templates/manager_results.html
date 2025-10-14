@@ -166,5 +166,30 @@
       });
     });
   </script>
+  {% if show_popup %}
+<script>
+  window.addEventListener("DOMContentLoaded", function () {
+    document.getElementById('finalFeedbackModal').classList.remove('hidden');
+  });
+</script>
+
+<div id="finalFeedbackModal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
+  <div class="bg-white rounded-lg p-6 max-w-md w-full shadow-xl text-center">
+    <h2 class="text-xl font-bold mb-3">🎉 Увага!</h2>
+    <p class="mb-2">Усі тести та відкриті питання менеджера <strong>{{ manager.tg_nick or manager.username }}</strong> завершено.</p>
+    <p class="mb-4 text-sm text-gray-600">Ви можете перейти до фінального фідбеку та зарахувати або повернути на доопрацювання.</p>
+    <div class="flex justify-center gap-4 mt-4">
+      <a href="{{ url_for('main.final_feedback', manager_id=manager.id) }}"
+         class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+        🔍 Перейти до фінального фідбеку
+      </a>
+      <button onclick="document.getElementById('finalFeedbackModal').classList.add('hidden')"
+              class="text-gray-500 hover:text-gray-700 px-4 py-2">
+        Закрити
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
 </body>
 </html>
