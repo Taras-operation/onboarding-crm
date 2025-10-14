@@ -1424,7 +1424,6 @@ def final_feedback(manager_id):
 
 @bp.route('/final_decision', methods=['POST'])
 @login_required
-@csrf.exempt  # або прибери, якщо CSRF токен у формі є
 def final_decision():
     instance_id = request.form.get('instance_id')
     decision = request.form.get('decision')
