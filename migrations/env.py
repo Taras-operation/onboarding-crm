@@ -14,12 +14,9 @@ from onboarding_crm import db
 # 📄 Alembic Config object
 config = context.config
 
-# 🧠 Вказуємо правильний шлях до alembic.ini (на рівень вище)
-alembic_ini_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'alembic.ini')
-if os.path.exists(alembic_ini_path):
-    fileConfig(alembic_ini_path)
-else:
-    print(f"⚠️ Warning: alembic.ini not found at {alembic_ini_path}")
+# 🧠 Логін конфіг (опційно)
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
 
 # 🗂️ Підключаємо metadata
 target_metadata = db.metadata
@@ -27,8 +24,9 @@ target_metadata = db.metadata
 
 def run_migrations_offline():
     """Run migrations in 'offline' mode."""
+    url = app.config['SQLALCHEMY_DATABASE_URI']
     context.configure(
-        url=app.config['SQLALCHEMY_DATABASE_URI'],  # 🔥 беремо URL з app.config
+        url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -40,12 +38,9 @@ def run_migrations_offline():
 
 def run_migrations_online():
     """Run migrations in 'online' mode."""
-
-    # ✅ Важливо: задаємо URL БД ПЕРЕД engine_from_config
-    config.set_main_option('sqlalchemy.url', app.config['SQLALCHEMY_DATABASE_URI'])
-
+    url = app.config['SQLALCHEMY_DATABASE_URI']
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        {"sqlalchemy.url": url},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
@@ -62,7 +57,6 @@ def run_migrations_online():
                 context.run_migrations()
 
 
-# 🧪 Запускаємо режим online / offline
 if context.is_offline_mode():
     run_migrations_offline()
 else:
