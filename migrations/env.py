@@ -1,5 +1,5 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import pool
 from alembic import context
 import os
 import sys
@@ -7,18 +7,21 @@ import sys
 # 🧭 Додаємо корінь проєкту до системного шляху
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# 🧩 Імпортуємо app з run.py та db з проєкту
+# 🧩 Імпортуємо Flask app і SQLAlchemy db
 from run import app
 from onboarding_crm import db
 
 # 📄 Alembic Config object
 config = context.config
 
-# 🧠 Логін конфіг (опційно)
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# 🧠 Налаштування логів, якщо файл alembic.ini існує
+alembic_ini_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'alembic.ini')
+if os.path.exists(alembic_ini_path):
+    fileConfig(alembic_ini_path)
+else:
+    print(f"⚠️ Warning: alembic.ini not found at {alembic_ini_path}")
 
-# 🗂️ Підключаємо metadata
+# 📦 Підключення metadata для autogenerate
 target_metadata = db.metadata
 
 
@@ -38,25 +41,21 @@ def run_migrations_offline():
 
 def run_migrations_online():
     """Run migrations in 'online' mode."""
-    url = app.config['SQLALCHEMY_DATABASE_URI']
-    connectable = engine_from_config(
-        {"sqlalchemy.url": url},
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
     with app.app_context():
+        connectable = db.engine  # Використовуємо Flask SQLAlchemy engine
+
         with connectable.connect() as connection:
             context.configure(
                 connection=connection,
                 target_metadata=target_metadata,
-                compare_type=True,
+                compare_type=True,  # Важливо для оновлення типів колонок
             )
 
             with context.begin_transaction():
                 context.run_migrations()
 
 
+# 🔁 Вибір режиму: online або offline
 if context.is_offline_mode():
     run_migrations_offline()
 else:
