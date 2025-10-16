@@ -1211,10 +1211,10 @@ def manager_results(manager_id, onboarding_id):
             structure = json.loads(instance.structure)
         else:
             structure = instance.structure  # вже dict
-except Exception as e:
-    print("❌ JSON parsing error:", e)
-    flash("❌ Помилка структури онбордингу", "danger")
-    return redirect(url_for('main.managers_list'))
+    except Exception as e:
+        print("❌ JSON parsing error:", e)
+        flash("❌ Помилка структури онбордингу", "danger")
+        return redirect(url_for('main.managers_list'))
 
     # --- Отримуємо результати тестів ---
     choice_results = TestResult.query.filter_by(
