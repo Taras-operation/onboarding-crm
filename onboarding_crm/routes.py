@@ -1218,31 +1218,34 @@ def manager_results(manager_id, onboarding_id):
         flash("❌ Помилка структури онбордингу", "danger")
         return redirect(url_for('main.managers_list'))
 
-    # --- Отримуємо результати тестів ---
-    # Закриті питання (radio/checkbox/choice) — показуються в таблиці результатів
-    choice_results = TestResult.query.filter_by(
-        manager_id=manager.id,
-        onboarding_instance_id=instance.id,
-        question_type='choice'
+    # --- Витягуємо результати ---
+    # Закриті питання (choice: radio/checkbox): is_correct не None
+    choice_results = TestResult.query.filter(
+        and_(
+            TestResult.manager_id == manager.id,
+            TestResult.onboarding_instance_id == instance.id,
+            TestResult.is_correct != None
+        )
     ).order_by(TestResult.step.asc()).all()
 
-    # Відкриті питання (open/freeform answers) — відображаються з фідбеком
-    open_results = TestResult.query.filter_by(
-        manager_id=manager.id,
-        onboarding_instance_id=instance.id,
-        question_type='open'
+    # Відкриті питання: is_correct == None
+    open_results = TestResult.query.filter(
+        and_(
+            TestResult.manager_id == manager.id,
+            TestResult.onboarding_instance_id == instance.id,
+            TestResult.is_correct == None
+        )
     ).order_by(TestResult.step.asc()).all()
 
-    # --- Автоматична перевірка, чи можна показувати модальне вікно фінального фідбеку ---
+    # --- Логіка: чи показувати модальне вікно фінального фідбеку ---
     show_popup = False
 
-    # Якщо є відкриті питання
     if open_results:
-        # Якщо всі відкриті питання перевірені (approved не None) і знято статус draft
+        # Якщо всі відкриті питання перевірені (approved != None) і не є чернетками
         if all(r.approved is not None and not r.draft for r in open_results):
             show_popup = True
     else:
-        # Якщо відкритих питань немає — можна переходити до фінального фідбеку
+        # Якщо немає відкритих питань — можна одразу показувати
         show_popup = True
 
     print(f"📊 {len(choice_results)} choice_results, {len(open_results)} open_results, popup={show_popup}")
