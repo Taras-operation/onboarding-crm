@@ -36,16 +36,24 @@
             <td class="border p-2">{{ r.step }}</td>
             <td class="border p-2">{{ r.question }}</td>
             <td class="border p-2">
-              {% set selected = r.selected_answer | safe | fromjson %}
-              {% if selected and selected|length > 0 %}
-                {{ selected | join(', ') }}
+              {% if r.selected_answer.startswith('[') %}
+                {% set selected = r.selected_answer | safe | fromjson %}
+                {% if selected and selected|length > 0 %}
+                  {{ selected | join(', ') }}
+                {% else %}
+                  <i class="text-gray-400">Нічого не вибрано</i>
+                {% endif %}
               {% else %}
-                <i class="text-gray-400">Нічого не вибрано</i>
+                {{ r.selected_answer }}
               {% endif %}
             </td>
             <td class="border p-2">
-              {% set correct = r.correct_answer | safe | fromjson %}
-              {{ correct | join(', ') }}
+              {% if r.correct_answer.startswith('[') %}
+                {% set correct = r.correct_answer | safe | fromjson %}
+                {{ correct | join(', ') }}
+              {% else %}
+                {{ r.correct_answer }}
+              {% endif %}
             </td>
             <td class="border p-2 text-center">
               {% if r.is_correct %}
