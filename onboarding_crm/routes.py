@@ -1181,6 +1181,11 @@ def manager_step(step):
 @bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
 @login_required
 def manager_results(manager_id, onboarding_id):
+    # 🔍 DEBUG: перевірка авторизації та ролі
+    print("🔒 current_user:", current_user)
+    print("🔒 is_authenticated:", current_user.is_authenticated)
+    print("🔒 current_user.role:", getattr(current_user, 'role', None))
+    
     if current_user.role not in ['mentor', 'teamlead', 'developer']:
         return redirect(url_for('main.login'))
 
