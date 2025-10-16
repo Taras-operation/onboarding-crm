@@ -29,7 +29,7 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    login_manager.login_view = 'login'
+    login_manager.login_view = 'main.login'
 
     # ✅ 4. Підключаємо CSRFProtect до всього додатку
     csrf.init_app(app)
