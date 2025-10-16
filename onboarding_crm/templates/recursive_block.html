@@ -194,18 +194,27 @@
           });
           const data = await res.json();
 
-          try { await fetch(`/api/test/complete/{{ index }}`, { method: "POST" }); } catch (_) {}
+          // ✅ ВЫЗЫВАЕМ ВСЕГДА
+          try {
+            await fetch(`/api/test/complete/{{ index }}`, {
+              method: "POST",
+              headers: { 'X-CSRFToken': getCSRFToken() }
+            });
+          } catch (_) {}
+
+          form.classList.add("hidden");
 
           if (data.status === "ok") {
-            form.classList.add("hidden");
             resultTextModal.innerText =
               `✅ Ви дали правильних відповідей: ${data.correct} із ${data.total_choice}\n` +
               `Відкриті відповіді відправлені на перевірку`;
-            motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
-            resultModal.classList.remove("hidden");
           } else {
-            alert("Помилка при надсиланні тесту");
+            resultTextModal.innerText = `Тест завершено. Ваші відповіді надіслані.`;
           }
+
+          motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
+          resultModal.classList.remove("hidden");
+
         } catch (err) {
           alert("Помилка при відправці запиту.");
         }
