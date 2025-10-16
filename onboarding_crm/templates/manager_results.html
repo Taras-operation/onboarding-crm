@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>Результати тестів {{ manager.username }}</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100 p-6">
   <div class="max-w-4xl mx-auto bg-white p-6 rounded shadow">
     
-    <!-- Заголовок -->
     <h1 class="text-2xl font-bold mb-4">
       Результати тестів для {{ manager.tg_nick or manager.username }}
       <br>
@@ -17,7 +17,6 @@
       </span>
     </h1>
 
-    <!-- Тестові питання -->
     <h2 class="text-xl font-semibold mb-2 mt-6">Тестові питання</h2>
     {% if choice_results %}
       <table class="w-full table-auto border border-gray-300">
@@ -70,7 +69,6 @@
       <p>Немає тестових результатів.</p>
     {% endif %}
 
-    <!-- Відкриті питання -->
     <h2 class="text-xl font-semibold mb-2 mt-8">Відкриті питання</h2>
     {% if open_results %}
       <div class="space-y-6 border border-gray-300 rounded p-4 bg-gray-50">
@@ -114,20 +112,24 @@
         {% endfor %}
       </div>
 
-      <!-- Кнопка опублікувати фідбек -->
       <button id="publish-feedback-btn"
         class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
         ✅ Опублікувати фідбек
       </button>
 
       <script>
+        function getCSRFToken() {
+          return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        }
+
         document.getElementById('publish-feedback-btn').addEventListener('click', () => {
           fetch("{{ url_for('main.publish_feedback', manager_id=manager.id, step=step) }}", {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-CSRFToken': '{{ csrf_token() }}'
-            }
+              'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ publish: true })
           })
           .then(res => res.json())
           .then(data => {
@@ -148,12 +150,14 @@
       <p>Немає відкритих відповідей.</p>
     {% endif %}
 
-    <!-- Кнопка Назад -->
     <a href="{{ url_for('main.managers_list') }}" class="mt-6 inline-block text-blue-600 hover:underline">← Назад</a>
   </div>
 
-  <!-- JS для автосейву -->
   <script>
+    function getCSRFToken() {
+      return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    }
+
     document.querySelectorAll('.autosave-form').forEach(form => {
       const resultId = form.dataset.resultId;
 
@@ -166,7 +170,7 @@
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-CSRFToken': '{{ csrf_token() }}'
+              'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify({
               approved: approved,
