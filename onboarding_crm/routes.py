@@ -1178,6 +1178,8 @@ def manager_step(step):
 
     return resp
 
+from sqlalchemy import and_
+
 @bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
 @login_required
 def manager_results(manager_id, onboarding_id):
@@ -1217,17 +1219,20 @@ def manager_results(manager_id, onboarding_id):
         return redirect(url_for('main.managers_list'))
 
     # --- Отримуємо результати тестів ---
-    # ⚙️ Поле в TestResult називається onboarding_instance_id
-    choice_results = TestResult.query.filter_by(
-        manager_id=manager.id,
-        onboarding_instance_id=instance.id,
-        is_correct=True  # ✅ тільки закриті питання (choice)
+    # Вибираємо всі закриті питання (де is_correct має значення True або False)
+    choice_results = TestResult.query.filter(
+        and_(
+            TestResult.manager_id == manager.id,
+            TestResult.onboarding_instance_id == instance.id,
+            TestResult.is_correct != None
+        )
     ).all()
 
+    # Відкриті питання — ті, де is_correct = None
     open_results = TestResult.query.filter_by(
         manager_id=manager.id,
         onboarding_instance_id=instance.id,
-        is_correct=None  # ✅ відкриті питання
+        is_correct=None
     ).all()
 
     # --- Авто‑перевірка: чи можна показувати модальне вікно з переходом до фінального фідбеку ---
@@ -1249,7 +1254,7 @@ def manager_results(manager_id, onboarding_id):
         step=instance.onboarding_step,
         show_popup=show_popup
     )
-    
+
 # --- API: старт теста ---
 @bp.route('/api/test/start/<int:step>', methods=['POST'])
 @login_required
