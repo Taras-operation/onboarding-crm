@@ -1185,9 +1185,11 @@ def manager_results(manager_id, onboarding_id):
     print("🔒 current_user:", current_user)
     print("🔒 is_authenticated:", current_user.is_authenticated)
     print("🔒 current_user.role:", getattr(current_user, 'role', None))
+    print("📌 instance.manager_id:", instance.manager_id)
+    print("📌 manager.id:", manager.id)
     
     if current_user.role not in ['mentor', 'teamlead', 'developer']:
-        return redirect(url_for('main.login'))
+        return redirect(url_for('main.managers_list'))
 
     manager = User.query.get_or_404(manager_id)
     instance = OnboardingInstance.query.get_or_404(onboarding_id)
