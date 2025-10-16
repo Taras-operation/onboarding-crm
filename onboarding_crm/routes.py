@@ -1185,6 +1185,7 @@ def manager_results(manager_id, onboarding_id):
     print("🔒 is_authenticated:", current_user.is_authenticated)
     print("🔒 current_user.role:", getattr(current_user, 'role', None))
 
+    # 🔐 Доступ лише для ролей з правом перевірки
     if current_user.role not in ['mentor', 'teamlead', 'developer']:
         flash("⛔️ Доступ заборонено", "danger")
         return redirect(url_for('main.managers_list'))
@@ -1197,7 +1198,6 @@ def manager_results(manager_id, onboarding_id):
         flash("❌ Менеджер або онбординг не знайдено", "danger")
         return redirect(url_for('main.managers_list'))
 
-    # --- Важливо: ці print тепер БЕЗПЕЧНО використовувати ---
     print("📌 manager.id:", manager.id)
     print("📌 instance.manager_id:", instance.manager_id)
 
@@ -1217,25 +1217,28 @@ def manager_results(manager_id, onboarding_id):
         return redirect(url_for('main.managers_list'))
 
     # --- Отримуємо результати тестів ---
+    # ⚙️ Поле в TestResult називається onboarding_instance_id
     choice_results = TestResult.query.filter_by(
         manager_id=manager.id,
-        onboarding_id=instance.id,
-        question_type='choice'
+        onboarding_instance_id=instance.id,
+        is_correct=True  # ✅ тільки закриті питання (choice)
     ).all()
 
     open_results = TestResult.query.filter_by(
         manager_id=manager.id,
-        onboarding_id=instance.id,
-        question_type='open'
+        onboarding_instance_id=instance.id,
+        is_correct=None  # ✅ відкриті питання
     ).all()
 
-    # --- Перевіряємо, чи можна показувати модальне вікно ---
+    # --- Авто‑перевірка: чи можна показувати модальне вікно з переходом до фінального фідбеку ---
     show_popup = False
     if open_results:
+        # Якщо всі відкриті питання оцінені (approved != None) і чернетки знято
         if all(r.approved is not None and not r.draft for r in open_results):
             show_popup = True
     else:
-        show_popup = True  # якщо відкритих питань немає
+        # Якщо відкритих питань взагалі немає — можна показувати фінальний фідбек
+        show_popup = True
 
     return render_template(
         'manager_results.html',
