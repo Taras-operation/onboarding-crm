@@ -1181,51 +1181,58 @@ def manager_step(step):
 @bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
 @login_required
 def manager_results(manager_id, onboarding_id):
-    # 🔍 DEBUG: перевірка авторизації та ролі
     print("🔒 current_user:", current_user)
     print("🔒 is_authenticated:", current_user.is_authenticated)
     print("🔒 current_user.role:", getattr(current_user, 'role', None))
-    print("📌 instance.manager_id:", instance.manager_id)
-    print("📌 manager.id:", manager.id)
-    
+
     if current_user.role not in ['mentor', 'teamlead', 'developer']:
+        flash("⛔️ Доступ заборонено", "danger")
         return redirect(url_for('main.managers_list'))
 
-    manager = User.query.get_or_404(manager_id)
-    instance = OnboardingInstance.query.get_or_404(onboarding_id)
+    # --- Безпечне отримання об'єктів ---
+    manager = User.query.get(manager_id)
+    instance = OnboardingInstance.query.get(onboarding_id)
+
+    if not manager or not instance:
+        flash("❌ Менеджер або онбординг не знайдено", "danger")
+        return redirect(url_for('main.managers_list'))
+
+    # --- Важливо: ці print тепер БЕЗПЕЧНО використовувати ---
+    print("📌 manager.id:", manager.id)
+    print("📌 instance.manager_id:", instance.manager_id)
 
     if instance.manager_id != manager.id:
         flash("⛔️ Онбординг не належить цьому менеджеру", "danger")
-        return redirect(url_for('main.login'))
+        return redirect(url_for('main.managers_list'))
 
-    # Отримуємо структуру
+    # --- Парсимо структуру ---
     try:
         structure = json.loads(instance.structure)
     except Exception as e:
+        print("❌ JSON parsing error:", e)
         flash("❌ Помилка структури онбордингу", "danger")
-        return redirect(url_for('main.login'))
+        return redirect(url_for('main.managers_list'))
 
-    # Всі результати по тестах (вибіркові)
+    # --- Отримуємо результати тестів ---
     choice_results = TestResult.query.filter_by(
         manager_id=manager.id,
         onboarding_id=instance.id,
         question_type='choice'
     ).all()
 
-    # Всі результати по відкритих питаннях
     open_results = TestResult.query.filter_by(
         manager_id=manager.id,
         onboarding_id=instance.id,
         question_type='open'
     ).all()
 
-    # --- Авто-перевірка: чи можна показати модалку з переходом до фінального фідбеку
+    # --- Перевіряємо, чи можна показувати модальне вікно ---
     show_popup = False
     if open_results:
         if all(r.approved is not None and not r.draft for r in open_results):
             show_popup = True
-    elif not open_results:
-        show_popup = True  # якщо відкритих питань немає — модалку можна показувати
+    else:
+        show_popup = True  # якщо відкритих питань немає
 
     return render_template(
         'manager_results.html',
