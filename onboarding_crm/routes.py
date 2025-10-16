@@ -1212,39 +1212,42 @@ def manager_results(manager_id, onboarding_id):
         if isinstance(instance.structure, str):
             structure = json.loads(instance.structure)
         else:
-            structure = instance.structure  # вже dict
+            structure = instance.structure  # вже dict або list
     except Exception as e:
         print("❌ JSON parsing error:", e)
         flash("❌ Помилка структури онбордингу", "danger")
         return redirect(url_for('main.managers_list'))
 
     # --- Отримуємо результати тестів ---
-    # Вибираємо всі закриті питання (де is_correct має значення True або False)
-    choice_results = TestResult.query.filter(
-        and_(
-            TestResult.manager_id == manager.id,
-            TestResult.onboarding_instance_id == instance.id,
-            TestResult.is_correct != None
-        )
-    ).all()
+    # Закриті питання (radio/checkbox/choice) — показуються в таблиці результатів
+    choice_results = TestResult.query.filter_by(
+        manager_id=manager.id,
+        onboarding_instance_id=instance.id,
+        question_type='choice'
+    ).order_by(TestResult.step.asc()).all()
 
-    # Відкриті питання — ті, де is_correct = None
+    # Відкриті питання (open/freeform answers) — відображаються з фідбеком
     open_results = TestResult.query.filter_by(
         manager_id=manager.id,
         onboarding_instance_id=instance.id,
-        is_correct=None
-    ).all()
+        question_type='open'
+    ).order_by(TestResult.step.asc()).all()
 
-    # --- Авто‑перевірка: чи можна показувати модальне вікно з переходом до фінального фідбеку ---
+    # --- Автоматична перевірка, чи можна показувати модальне вікно фінального фідбеку ---
     show_popup = False
+
+    # Якщо є відкриті питання
     if open_results:
-        # Якщо всі відкриті питання оцінені (approved != None) і чернетки знято
+        # Якщо всі відкриті питання перевірені (approved не None) і знято статус draft
         if all(r.approved is not None and not r.draft for r in open_results):
             show_popup = True
     else:
-        # Якщо відкритих питань взагалі немає — можна показувати фінальний фідбек
+        # Якщо відкритих питань немає — можна переходити до фінального фідбеку
         show_popup = True
 
+    print(f"📊 {len(choice_results)} choice_results, {len(open_results)} open_results, popup={show_popup}")
+
+    # --- Рендер ---
     return render_template(
         'manager_results.html',
         manager=manager,
