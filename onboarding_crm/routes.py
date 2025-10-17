@@ -1192,7 +1192,7 @@ def manager_results(manager_id, onboarding_id):
         flash("⛔️ Доступ заборонено", "danger")
         return redirect(url_for('main.managers_list'))
 
-    # --- Безпечне отримання об'єктів ---
+    # --- Отримуємо обʼєкти ---
     manager = User.query.get(manager_id)
     instance = OnboardingInstance.query.get(onboarding_id)
 
@@ -1212,14 +1212,13 @@ def manager_results(manager_id, onboarding_id):
         if isinstance(instance.structure, str):
             structure = json.loads(instance.structure)
         else:
-            structure = instance.structure  # вже dict або list
+            structure = instance.structure
     except Exception as e:
         print("❌ JSON parsing error:", e)
         flash("❌ Помилка структури онбордингу", "danger")
         return redirect(url_for('main.managers_list'))
 
-    # --- Витягуємо результати ---
-    # Закриті питання (choice: radio/checkbox): is_correct не None
+    # --- Результати тестів (вибіркові) ---
     choice_results = TestResult.query.filter(
         and_(
             TestResult.manager_id == manager.id,
@@ -1228,7 +1227,7 @@ def manager_results(manager_id, onboarding_id):
         )
     ).order_by(TestResult.step.asc()).all()
 
-    # Відкриті питання: is_correct == None
+    # --- Відкриті питання ---
     open_results = TestResult.query.filter(
         and_(
             TestResult.manager_id == manager.id,
@@ -1237,20 +1236,22 @@ def manager_results(manager_id, onboarding_id):
         )
     ).order_by(TestResult.step.asc()).all()
 
-    # --- Логіка: чи показувати модальне вікно фінального фідбеку ---
+    # --- DEBUG: вивід відкритих ---
+    print(f"📋 OPEN RESULTS ({len(open_results)}):")
+    for r in open_results:
+        print(f"🧪 ID={r.id} | Step={r.step} | Approved={r.approved} | Draft={r.draft} | Feedback={r.feedback}")
+
+    # --- Чи показувати модалку фінального фідбеку ---
     show_popup = False
 
     if open_results:
-        # Якщо всі відкриті питання перевірені (approved != None) і не є чернетками
         if all(r.approved is not None and not r.draft for r in open_results):
             show_popup = True
     else:
-        # Якщо немає відкритих питань — можна одразу показувати
         show_popup = True
 
     print(f"📊 {len(choice_results)} choice_results, {len(open_results)} open_results, popup={show_popup}")
 
-    # --- Рендер ---
     return render_template(
         'manager_results.html',
         manager=manager,
