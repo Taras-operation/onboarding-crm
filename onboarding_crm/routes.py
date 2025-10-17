@@ -1371,16 +1371,26 @@ def publish_feedback(manager_id, step):
         return jsonify({'error': 'Access denied'}), 403
 
     try:
+        print(f"\n🟦 Publish request for manager_id={manager_id}, step={step}")
+
         results = TestResult.query.filter_by(manager_id=manager_id, step=step).all()
         for r in results:
-            r.draft = False  # 🔓 робимо видимим для менеджера
+            print(f"🔄 Before update: result_id={r.id}, draft={r.draft}")
+            r.draft = False  # робимо видимим для менеджера
+
         db.session.commit()
+
+        # Перевіримо, чи збережено
+        after = TestResult.query.filter_by(manager_id=manager_id, step=step).all()
+        for r in after:
+            print(f"✅ After update: result_id={r.id}, draft={r.draft}")
 
         flash('Фідбек по етапу опубліковано', 'success')
         return jsonify({'status': 'published'}), 200
 
     except Exception as e:
         db.session.rollback()
+        print(f"❌ Error during publish_feedback: {e}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/final_feedback/<int:manager_id>')
