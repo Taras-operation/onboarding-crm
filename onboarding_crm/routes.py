@@ -1363,30 +1363,38 @@ def update_result(result_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
     
-@bp.route('/publish_feedback/<int:manager_id>/<int:step>', methods=['POST'])
+@bp.route('/publish_feedback/<int:manager_id>', methods=['POST'])
 @login_required
-def publish_feedback(manager_id, step):
-    """Публікація фідбеку по конкретному етапу."""
+def publish_feedback(manager_id):
+    """Публікація фідбеку по ВСІМ етапам для менеджера"""
     if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         return jsonify({'error': 'Access denied'}), 403
 
     try:
-        print(f"\n🟦 Publish request for manager_id={manager_id}, step={step}")
+        print(f"\n🟦 Publish request for manager_id={manager_id}")
 
-        results = TestResult.query.filter_by(manager_id=manager_id, step=step).all()
+        # Отримуємо ВСІ open-відповіді цього менеджера
+        results = TestResult.query.filter_by(manager_id=manager_id, question_type='open').all()
+        updated = False
+
         for r in results:
-            print(f"🔄 Before update: result_id={r.id}, draft={r.draft}")
-            r.draft = False  # робимо видимим для менеджера
+            print(f"🔄 Before update: result_id={r.id}, draft={r.draft}, approved={r.approved}, feedback={r.feedback}")
+
+            # Оновлюємо лише якщо є оцінка і фідбек
+            if r.approved is not None and r.feedback and r.draft:
+                r.draft = False
+                db.session.add(r)
+                print(f"✅ After update: result_id={r.id}, draft={r.draft}")
+                updated = True
 
         db.session.commit()
 
-        # Перевіримо, чи збережено
-        after = TestResult.query.filter_by(manager_id=manager_id, step=step).all()
-        for r in after:
-            print(f"✅ After update: result_id={r.id}, draft={r.draft}")
-
-        flash('Фідбек по етапу опубліковано', 'success')
-        return jsonify({'status': 'published'}), 200
+        if updated:
+            flash('Фідбек опубліковано', 'success')
+            return jsonify({'status': 'published'}), 200
+        else:
+            print("ℹ️ Немає відповідей для оновлення.")
+            return jsonify({'status': 'no_changes'}), 200
 
     except Exception as e:
         db.session.rollback()

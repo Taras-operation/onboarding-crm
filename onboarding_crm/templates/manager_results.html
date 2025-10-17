@@ -123,8 +123,7 @@
         }
 
         document.getElementById('publish-feedback-btn').addEventListener('click', () => {
-          const lastStep = {{ open_results[-1].step if open_results else 0 }};
-          fetch(`/publish_feedback/{{ manager.id }}/${lastStep}`, {
+          fetch(`/publish_feedback/{{ manager.id }}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -137,6 +136,8 @@
             if (data.status === "published") {
               alert("✅ Фідбек успішно опубліковано!");
               window.location.href = "{{ url_for('main.managers_list') }}";
+            } else if (data.status === "no_changes") {
+              alert("ℹ️ Немає оновлень — перевірте, чи всі відповіді мають оцінку та фідбек.");
             } else {
               alert("⚠ Помилка при публікації.");
             }
