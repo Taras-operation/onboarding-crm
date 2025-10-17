@@ -123,7 +123,8 @@
         }
 
         document.getElementById('publish-feedback-btn').addEventListener('click', () => {
-          fetch("{{ url_for('main.publish_feedback', manager_id=manager.id, step=step) }}", {
+          const lastStep = {{ open_results[-1].step if open_results else 0 }};
+          fetch(`/publish_feedback/{{ manager.id }}/${lastStep}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
