@@ -78,7 +78,8 @@
   <!-- Дії -->
   <form action="{{ url_for('main.final_decision') }}" method="POST" class="flex flex-wrap gap-4">
     <input type="hidden" name="instance_id" value="{{ instance.id }}">
-    {{ csrf_token() }}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
     <button name="decision" value="approved" type="submit"
             class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">
       ✅ Зарахувати онбординг
@@ -88,7 +89,7 @@
       ❌ Не зараховано
     </button>
     <a href="{{ url_for('main.edit_onboarding', manager_id=manager.id) }}"
-            class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded">
+       class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded">
       ✍️ На доопрацювання
     </a>
   </form>
