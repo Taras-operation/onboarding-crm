@@ -1411,27 +1411,33 @@ def publish_feedback(manager_id):
 @bp.route('/final_feedback/<int:manager_id>')
 @login_required
 def final_feedback(manager_id):
-    # 1. Перевірка прав доступу
-    if current_user.role not in ['mentor', 'teamlead', 'developer']:
+    """Фінальний фідбек після перевірки всіх етапів онбордингу."""
+    # 1. Перевірка доступу
+    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
+        flash("⛔️ Доступ заборонено", "danger")
         return redirect(url_for('main.login'))
 
-    # 2. Отримуємо активний інстанс онбордингу
+    # 2. Отримуємо останній інстанс онбордингу
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=manager_id)
                 .order_by(OnboardingInstance.id.desc())
                 .first())
 
     if not instance:
-        flash("Онбординг не знайдено", "danger")
-        return redirect(url_for('main.dashboard'))
+        flash("❌ Онбординг не знайдено", "danger")
+        return redirect(url_for('main.managers_list'))
 
-    # 3. Отримуємо всі відповіді
-    results = TestResult.query.filter_by(instance_id=instance.id).all()
+    print(f"📋 FINAL FEEDBACK for manager_id={manager_id}, instance_id={instance.id}")
 
-    test_results = [r for r in results if not r.is_open_question]
-    open_questions = [r for r in results if r.is_open_question]
+    # 3. Отримуємо всі результати цього інстансу
+    results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
+    print(f"🔹 Found {len(results)} results total")
 
-    # 4. Розрахунок тестів
+    # 4. Поділ: закриті (тести) та відкриті (open)
+    test_results = [r for r in results if r.is_correct is not None]
+    open_questions = [r for r in results if r.is_correct is None]
+
+    # 5. Розрахунок по тестах
     total_tests = len(test_results)
     correct_tests = sum(1 for r in test_results if r.is_correct)
     test_percent = (correct_tests / total_tests * 100) if total_tests else 0
@@ -1443,10 +1449,10 @@ def final_feedback(manager_id):
     else:
         test_recommendation = "Не пройдено"
 
-    # 5. Розрахунок відкритих
+    # 6. Розрахунок по відкритих питаннях
     total_open = len(open_questions)
     approved_open = sum(1 for r in open_questions if r.approved is True)
-    open_percent = (approved_open / total_open * 100) if total_open else 100  # якщо немає відкритих — ок
+    open_percent = (approved_open / total_open * 100) if total_open else 100
 
     if total_open == 0:
         open_recommendation = "Пройдено"
@@ -1457,7 +1463,7 @@ def final_feedback(manager_id):
     else:
         open_recommendation = "Не пройдено"
 
-    # 6. Фінальна оцінка
+    # 7. Фінальна оцінка
     if test_recommendation == "Пройдено" and open_recommendation == "Пройдено":
         final_recommendation = "✅ Рекомендується завершити онбординг"
     elif test_recommendation == "Не пройдено" or open_recommendation == "Не пройдено":
@@ -1465,19 +1471,21 @@ def final_feedback(manager_id):
     else:
         final_recommendation = "⚠️ Необхідне доопрацювання"
 
-    # 7. Повертаємо шаблон
-    return render_template('final_feedback.html',
-                           manager=User.query.get(manager_id),
-                           instance=instance,
-                           test_results=test_results,
-                           open_questions=open_questions,
-                           test_percent=round(test_percent),
-                           open_percent=round(open_percent),
-                           test_recommendation=test_recommendation,
-                           open_recommendation=open_recommendation,
-                           final_recommendation=final_recommendation
-                           )   
+    print(f"📊 test={test_percent:.1f}% ({test_recommendation}), open={open_percent:.1f}% ({open_recommendation})")
 
+    # 8. Рендер шаблону
+    return render_template(
+        'final_feedback.html',
+        manager=User.query.get(manager_id),
+        instance=instance,
+        test_results=test_results,
+        open_questions=open_questions,
+        test_percent=round(test_percent),
+        open_percent=round(open_percent),
+        test_recommendation=test_recommendation,
+        open_recommendation=open_recommendation,
+        final_recommendation=final_recommendation
+    )
 
 @bp.route('/final_decision', methods=['POST'])
 @login_required
