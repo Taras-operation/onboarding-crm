@@ -1366,41 +1366,48 @@ def update_result(result_id):
 @bp.route('/publish_feedback/<int:manager_id>', methods=['POST'])
 @login_required
 def publish_feedback(manager_id):
-    """Публікація фідбеку по ВСІМ етапам для менеджера"""
+    """Публікація фідбеку по ВСІМ відкритим питанням менеджера"""
     if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         return jsonify({'error': 'Access denied'}), 403
 
     try:
         print(f"\n🟦 Publish request for manager_id={manager_id}")
 
-        # Отримуємо ВСІ open-відповіді цього менеджера
-        results = TestResult.query.filter_by(manager_id=manager_id, question_type='open').all()
-        updated = False
+        # Отримуємо ВСІ відкриті відповіді цього менеджера, які ще не опубліковані
+        results = TestResult.query.filter(
+            TestResult.manager_id == manager_id,
+            TestResult.correct_answer == None,        # open question (без правильної відповіді)
+            TestResult.selected_answer != None,       # є відповідь менеджера
+            TestResult.feedback != None,              # фідбек заповнений
+            TestResult.approved != None,              # є оцінка (зараховано / не зараховано)
+            TestResult.draft == True                  # ще не опубліковано
+        ).all()
 
+        print(f"🔎 Found {len(results)} open results to publish")
+
+        updated = False
         for r in results:
             print(f"🔄 Before update: result_id={r.id}, draft={r.draft}, approved={r.approved}, feedback={r.feedback}")
-
-            # Оновлюємо лише якщо є оцінка і фідбек
-            if r.approved is not None and r.feedback and r.draft:
-                r.draft = False
-                db.session.add(r)
-                print(f"✅ After update: result_id={r.id}, draft={r.draft}")
-                updated = True
+            r.draft = False  # робимо видимим для менеджера
+            db.session.add(r)
+            updated = True
+            print(f"✅ After update: result_id={r.id}, draft={r.draft}")
 
         db.session.commit()
 
         if updated:
-            flash('Фідбек опубліковано', 'success')
+            print("✅ Feedback successfully published.")
+            flash('Фідбек успішно опубліковано', 'success')
             return jsonify({'status': 'published'}), 200
         else:
-            print("ℹ️ Немає відповідей для оновлення.")
+            print("ℹ️ Немає нових відповідей для оновлення (усе вже опубліковано або порожньо).")
             return jsonify({'status': 'no_changes'}), 200
 
     except Exception as e:
         db.session.rollback()
         print(f"❌ Error during publish_feedback: {e}")
         return jsonify({'error': str(e)}), 500
-
+    
 @bp.route('/final_feedback/<int:manager_id>')
 @login_required
 def final_feedback(manager_id):
