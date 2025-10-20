@@ -248,6 +248,7 @@ def manager_statistics():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
+    # 🔹 Отримуємо останній інстанс онбордингу
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
@@ -257,7 +258,7 @@ def manager_statistics():
         print("[DEBUG] ❌ No OnboardingInstance found")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
-    # Парсимо структуру
+    # 🔹 Парсимо структуру
     structure_raw = instance.structure
     if isinstance(structure_raw, str):
         try:
@@ -271,7 +272,7 @@ def manager_statistics():
         print("[ERROR] ❌ Unknown format for structure")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
-    # Нормалізуємо структуру
+    # 🔹 Нормалізуємо структуру
     if isinstance(structure, dict) and 'blocks' in structure:
         structure = structure['blocks']
 
@@ -279,6 +280,7 @@ def manager_statistics():
         print("[ERROR] ❌ Structure is not a list")
         return render_template('manager_statistics.html', stats=None, final_status=None)
 
+    # 🔹 Отримуємо результати
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     print(f"[DEBUG] ✅ Found {len(results)} TestResult entries")
 
@@ -287,7 +289,6 @@ def manager_statistics():
         results_by_step.setdefault(r.step, []).append(r)
 
     stats = []
-
     for idx, block in enumerate(structure):
         if not isinstance(block, dict):
             print(f"[ERROR] ❌ Block {idx} is not dict")
@@ -298,7 +299,6 @@ def manager_statistics():
 
         step_results = results_by_step.get(idx, [])
         if not step_results:
-            print(f"[DEBUG] ℹ️ No results for block index {idx}")
             continue
 
         correct_answers = sum(1 for r in step_results if r.is_correct is True)
@@ -322,37 +322,38 @@ def manager_statistics():
 
         stats.append(block_stats)
 
-    # Підрахунок завершеності
+    # 🔹 Підрахунок завершених етапів (оновлена логіка)
     total_stage_blocks = sum(1 for b in structure if isinstance(b, dict) and b.get("type") == "stage")
+
     test_progress = instance.test_progress or {}
-    completed_steps = test_progress.get("completed", [])
-    onboarding_finished = len(completed_steps) >= total_stage_blocks
+    if not isinstance(test_progress, dict):
+        try:
+            test_progress = json.loads(test_progress)
+        except Exception:
+            test_progress = {}
 
-    print(f"[DEBUG] 📊 Total stages: {total_stage_blocks}, Completed steps: {len(completed_steps)}")
+    completed_steps = sum(1 for v in test_progress.values()
+                          if isinstance(v, dict) and v.get("completed"))
+    onboarding_finished = completed_steps >= total_stage_blocks
 
-    # Збираємо всі open question відповіді
-    all_open = [oq for s in stats for oq in s["open_questions"] if oq.get("answer")]
+    print(f"[DEBUG] 📊 Total stages: {total_stage_blocks}, Completed steps: {completed_steps}, Finished={onboarding_finished}")
 
-    # Перевіряємо статуси
-    all_reviewed = all(oq.get("approved") is not None for oq in all_open)
-    all_passed = all(oq.get("approved") is True for oq in all_open)
-    any_failed = any(oq.get("approved") is False for oq in all_open)
-
-    # Логіка статусу
-    if not all_open:
-        final_status = None  # Не показуємо плашку до завершення всіх етапів
-    elif not all_reviewed:
-        final_status = "waiting"
-    elif all_passed:
-        final_status = "passed"
-    elif any_failed:
-        final_status = "extra_block_added"
+    # 🔹 Визначаємо фінальний статус
+    if not onboarding_finished:
+        final_status = None  # Ще проходить етапи
+    elif not instance.final_decision:
+        final_status = "waiting"  # Очікує фінального рішення
     else:
-        final_status = "waiting"  # fallback
+        # Використовуємо готове фінальне рішення (passed / rejected / extra)
+        final_status = instance.final_decision
 
-    print(f"[DEBUG] ✅ Final status: {final_status}")
-    return render_template('manager_statistics.html', stats=stats, final_status=final_status)
+    print(f"[DEBUG] ✅ Final status (based on final_decision): {final_status}")
 
+    return render_template(
+        'manager_statistics.html',
+        stats=stats,
+        final_status=final_status
+    )
 @bp.route('/add_manager', methods=['GET', 'POST'])
 @login_required
 def add_manager():
@@ -951,8 +952,9 @@ def manager_dashboard():
     for i, b in enumerate(stage_blocks):
         p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
 
-        # Корректно помечаем завершённые блоки: если step <= текущего — считаем завершённым
-        if i < cursor or (i == cursor and i == total_steps - 1):
+        # Логіка завершення: для ВСІХ блоків до current_step — completed=True
+        # Для current_step (остання пройдена) — completed=True
+        if i < cursor or (i == cursor and p.get('completed')):
             started = True
             completed = True
         else:
