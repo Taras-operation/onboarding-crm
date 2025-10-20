@@ -4,11 +4,20 @@
      data-started="{{ 1 if test_started else 0 }}"
      data-completed="{{ 1 if test_completed else 0 }}">
 
+  <!-- 🔹 Назва блока -->
   <h2 class="text-xl font-semibold text-gray-800 mb-2">{{ block.title }}</h2>
+
+  <!-- ✅ Плашка "Пройдено", якщо тест завершено -->
+  {% if test_completed %}
+    <div class="text-green-600 font-medium mb-2">✅ Пройдено</div>
+  {% endif %}
+
+  <!-- 🔸 Опис блока -->
   <div class="text-gray-700 mb-4 leading-relaxed">
     {{ block.description | autolink | safe }}
   </div>
 
+  <!-- 🔸 Сабблоки (якщо не запущено тест або вже завершено) -->
   <div class="space-y-6 info-section {% if test_started and not test_completed %}hidden{% endif %}">
     {% if block.subblocks %}
       {% for sub in block.subblocks %}
@@ -31,6 +40,7 @@
     {% endif %}
   </div>
 
+  <!-- 🔹 Кнопка перейти до тесту -->
   {% if not test_completed %}
     <div class="mt-6">
       <button id="proceedToTest_{{ index }}"
@@ -42,6 +52,7 @@
     </div>
   {% endif %}
 
+  <!-- 🧪 Тест -->
   <div class="test-section mt-6 {% if not (test_started and not test_completed) %}hidden{% endif %}">
     {% if (block.test and block.test.questions) or block.open_questions %}
       <form method="POST" id="testFormBlock_{{ index }}" class="space-y-6">
@@ -86,6 +97,7 @@
     {% endif %}
   </div>
 
+  <!-- ✅ Модальне вікно результату -->
   <div id="resultModal_{{ index }}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
       <h2 class="text-2xl font-bold text-green-600 mb-2">Тест завершено!</h2>
@@ -98,6 +110,7 @@
     </div>
   </div>
 
+  <!-- 🧠 Скрипт для логіки -->
   <script>
   setTimeout(function () {
     function getCSRFToken() {
@@ -194,7 +207,6 @@
           });
           const data = await res.json();
 
-          // ✅ ВЫЗЫВАЕМ ВСЕГДА
           try {
             await fetch(`/api/test/complete/{{ index }}`, {
               method: "POST",
