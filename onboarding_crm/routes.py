@@ -1538,7 +1538,7 @@ def final_feedback(manager_id):
         final_recommendation=final_recommendation,
         explanations=explanations,
         average_percent=round(average_percent)
-        **final_score=round(average_percent)**
+        final_score=round(average_percent)
     )
 
 @bp.route('/final_decision', methods=['POST'])
