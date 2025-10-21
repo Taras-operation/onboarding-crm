@@ -1571,6 +1571,8 @@ def final_feedback(manager_id):
         open_approved_count=open_approved_count,
         correct_test_answers=correct_test_answers,
         total_test_questions=total_test_questions,
+        not_approved_open=not_approved_open,   # 👈 ВОТ ЭТА СТРОКА
+
 
         # Слабкі блоки з назвами
         weak_test_blocks=weak_test_blocks,
