@@ -21,75 +21,96 @@
     <!-- Блок Тестові питання -->
     <div class="mb-8 bg-blue-50 border border-blue-200 rounded p-6">
       <h2 class="text-xl font-semibold text-blue-700 mb-3">🧠 Тестові питання</h2>
-      <p>– Усього питань: <strong>{{ test_results|length }}</strong></p>
-      <p>– Правильних відповідей: <strong>{{ test_percent }}%</strong></p>
-      <p class="mt-2">🔎 Рекомендація: 
-        {% if test_recommendation == "Пройдено" %}
-          <span class="text-green-700 font-semibold">✅ Пройдено</span>
-        {% elif test_recommendation == "На доопрацювання" %}
-          <span class="text-yellow-700 font-semibold">⚠️ На доопрацювання</span>
-        {% else %}
-          <span class="text-red-700 font-semibold">❌ Не пройдено</span>
-        {% endif %}
-      </p>
+      <p>– Усього питань: <strong>{{ total_test_questions }}</strong></p>
+      <p>– Правильних відповідей: <strong>{{ correct_test_answers }}/{{ total_test_questions }}</strong></p>
+      <p>– Відсоток правильних: <strong>{{ test_percent }}%</strong></p>
+
+      {% if weak_test_blocks %}
+        <div class="mt-4">
+          <p class="font-medium text-red-600">📉 Слабкі блоки (менше 60%):</p>
+          <ul class="list-disc list-inside text-gray-800">
+            {% for b in weak_test_blocks %}
+              <li>{{ b.title }} — {{ b.percent }}%</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% elif weakest_test_block %}
+        <div class="mt-4">
+          <p class="font-medium text-yellow-600">📉 Найменш успішний блок:</p>
+          <p>{{ weakest_test_block.title }} — {{ weakest_test_block.percent }}%</p>
+        </div>
+      {% endif %}
     </div>
 
     <!-- Блок Відкриті питання -->
     <div class="mb-8 bg-yellow-50 border border-yellow-200 rounded p-6">
       <h2 class="text-xl font-semibold text-yellow-800 mb-3">✍️ Відкриті питання</h2>
-      {% if open_questions %}
-        <p>– Всього: <strong>{{ open_questions|length }}</strong></p>
-        <p>– Зараховано: <strong>{{ open_percent }}%</strong></p>
+      <p>– Всього питань: <strong>{{ open_questions|length }}</strong></p>
+      <p>– Зараховано: <strong>{{ open_approved_count }}/{{ open_questions|length }}</strong></p>
+      <p>– Відсоток зарахованих: <strong>{{ open_percent }}%</strong></p>
 
-        <div class="mt-4 space-y-4">
-          {% for r in open_questions %}
-            <div class="p-4 rounded border
-              {% if r.approved is sameas true %} border-green-400 bg-green-50
-              {% elif r.approved is sameas false %} border-red-400 bg-red-50
-              {% else %} border-gray-300 {% endif %}">
-              <p class="text-gray-800 font-medium">❓ {{ r.question }}</p>
-              <p class="text-sm mt-2">💬 <strong>Коментар ментора:</strong> <em>{{ r.feedback or "—" }}</em></p>
-              <p class="mt-1">
-                <strong>Статус:</strong>
-                {% if r.approved is sameas true %}
-                  <span class="text-green-700 font-semibold">Зараховано</span>
-                {% elif r.approved is sameas false %}
-                  <span class="text-red-700 font-semibold">Не зараховано</span>
-                {% else %}
-                  <span class="text-gray-500 italic">Не перевірено</span>
-                {% endif %}
-              </p>
-            </div>
-          {% endfor %}
+      {% if weak_open_blocks %}
+        <div class="mt-4">
+          <p class="font-medium text-red-600">📉 Блоки з >2 незарахованими відповідями:</p>
+          <ul class="list-disc list-inside text-gray-800">
+            {% for b in weak_open_blocks %}
+              <li>{{ b }}</li>
+            {% endfor %}
+          </ul>
         </div>
-
-        <p class="mt-4">🔎 Рекомендація:
-          {% if open_recommendation == "Пройдено" %}
-            <span class="text-green-700 font-semibold">✅ Пройдено</span>
-          {% elif open_recommendation == "На доопрацювання" %}
-            <span class="text-yellow-700 font-semibold">⚠️ На доопрацювання</span>
-          {% else %}
-            <span class="text-red-700 font-semibold">❌ Не пройдено</span>
-          {% endif %}
-        </p>
-      {% else %}
-        <p class="text-green-700">✅ Відкритих питань не було — автоматично зараховано</p>
       {% endif %}
+
+      <div class="mt-6 space-y-4">
+        {% for r in open_questions %}
+          <div class="p-4 rounded border
+            {% if r.approved is sameas true %} border-green-400 bg-green-50
+            {% elif r.approved is sameas false %} border-red-400 bg-red-50
+            {% else %} border-gray-300 {% endif %}">
+            <p class="text-gray-800 font-medium">❓ {{ r.question }}</p>
+            <p class="text-sm mt-2">💬 <strong>Коментар ментора:</strong> <em>{{ r.feedback or "—" }}</em></p>
+            <p class="mt-1">
+              <strong>Статус:</strong>
+              {% if r.approved is sameas true %}
+                <span class="text-green-700 font-semibold">Зараховано</span>
+              {% elif r.approved is sameas false %}
+                <span class="text-red-700 font-semibold">Не зараховано</span>
+              {% else %}
+                <span class="text-gray-500 italic">Не перевірено</span>
+              {% endif %}
+            </p>
+          </div>
+        {% endfor %}
+      </div>
     </div>
 
-    <!-- Підсумкова рекомендація -->
+    <!-- Фінальна рекомендація -->
     <div class="mb-8 bg-gray-100 border border-gray-300 rounded p-6">
       <h2 class="text-xl font-semibold text-gray-700 mb-2">🏁 Підсумок</h2>
-      <p class="text-lg font-bold text-gray-800">
-        {{ final_recommendation }}
+      <p class="text-lg font-bold text-gray-800 mb-2">
+        {% if final_score >= 71 %}✅ Пройдено
+        {% elif final_score >= 41 %}🟠 Потребує доопрацювання
+        {% else %}❌ Не пройдено
+        {% endif %}
       </p>
+      <p class="text-gray-700">Середній бал (тести + відкриті): <strong>{{ final_score }}%</strong></p>
+
+      {% if summary_issues %}
+        <div class="mt-3">
+          <p class="font-semibold text-gray-800">📌 Просідання в блоках:</p>
+          <ul class="list-disc list-inside text-sm text-gray-700">
+            {% for msg in summary_issues %}
+              <li>{{ msg }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
     </div>
 
     <!-- Дії -->
     <form action="{{ url_for('main.final_decision') }}" method="POST" class="flex flex-wrap gap-4 mt-6">
       <input type="hidden" name="instance_id" value="{{ instance.id }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      
+
       <button name="decision" value="approved" type="submit"
               class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">
         ✅ Зарахувати онбординг

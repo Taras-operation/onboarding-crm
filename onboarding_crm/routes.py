@@ -1407,13 +1407,10 @@ def publish_feedback(manager_id):
 @bp.route('/final_feedback/<int:manager_id>')
 @login_required
 def final_feedback(manager_id):
-    """Фінальний фідбек після перевірки всіх етапів онбордингу."""
-    # 1. Перевірка доступу
     if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         flash("⛔️ Доступ заборонено", "danger")
         return redirect(url_for('main.login'))
 
-    # 2. Отримуємо останній інстанс онбордингу
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=manager_id)
                 .order_by(OnboardingInstance.id.desc())
@@ -1423,64 +1420,84 @@ def final_feedback(manager_id):
         flash("❌ Онбординг не знайдено", "danger")
         return redirect(url_for('main.managers_list'))
 
-    print(f"📋 FINAL FEEDBACK for manager_id={manager_id}, instance_id={instance.id}")
-
-    # 3. Отримуємо всі результати цього інстансу
+    structure = instance.structure or []
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
-    print(f"🔹 Found {len(results)} results total")
-
-    # 4. Поділ: закриті (тести) та відкриті (open)
     test_results = [r for r in results if r.is_correct is not None]
     open_questions = [r for r in results if r.is_correct is None]
 
-    # 5. Розрахунок по тестах
-    total_tests = len(test_results)
-    correct_tests = sum(1 for r in test_results if r.is_correct)
-    test_percent = (correct_tests / total_tests * 100) if total_tests else 0
+    # ---- Розрахунок по тестах ----
+    block_test_stats = {}
+    for r in test_results:
+        block = r.step_index
+        if block not in block_test_stats:
+            block_test_stats[block] = {'total': 0, 'correct': 0}
+        block_test_stats[block]['total'] += 1
+        if r.is_correct:
+            block_test_stats[block]['correct'] += 1
 
-    if test_percent >= 80:
-        test_recommendation = "Пройдено"
-    elif 51 <= test_percent < 80:
-        test_recommendation = "На доопрацювання"
+    weak_test_blocks = []
+    for i, stats in block_test_stats.items():
+        percent = (stats['correct'] / stats['total']) * 100
+        if percent < 60:
+            weak_test_blocks.append((i, percent))
+
+    if not weak_test_blocks and block_test_stats:
+        # Додати найслабший блок, якщо всі > 60%
+        i, percent = min(
+            ((i, (s['correct'] / s['total']) * 100) for i, s in block_test_stats.items()),
+            key=lambda x: x[1]
+        )
+        weak_test_blocks.append((i, percent))
+
+    # ---- Розрахунок по відкритих ----
+    block_open_stats = {}
+    for r in open_questions:
+        block = r.step_index
+        if block not in block_open_stats:
+            block_open_stats[block] = {'total': 0, 'not_approved': 0}
+        block_open_stats[block]['total'] += 1
+        if r.approved is False:
+            block_open_stats[block]['not_approved'] += 1
+
+    weak_open_blocks = [i for i, s in block_open_stats.items() if s['not_approved'] > 2]
+
+    # ---- Пояснення слабких блоків ----
+    block_titles = [b.get('title') for b in structure]
+    explanations = []
+
+    for i, percent in weak_test_blocks:
+        title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
+        explanations.append(f"📉 {title}: низький % по тестах ({int(percent)}%)")
+
+    for i in weak_open_blocks:
+        title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
+        explanations.append(f"🟥 {title}: незараховані відкриті питання")
+
+    # ---- Загальний середній відсоток ----
+    all_percents = [p for _, p in weak_test_blocks if p] + \
+                   [100 - (block_open_stats[i]['not_approved'] / block_open_stats[i]['total']) * 100
+                    for i in weak_open_blocks if block_open_stats[i]['total'] > 0]
+    average_percent = sum(all_percents) / len(all_percents) if all_percents else 100
+
+    if average_percent >= 71:
+        final_recommendation = "✅ Пройдено"
+    elif 41 <= average_percent < 71:
+        final_recommendation = "🟠 Потребує доопрацювання"
     else:
-        test_recommendation = "Не пройдено"
+        final_recommendation = "❌ Не пройдено"
 
-    # 6. Розрахунок по відкритих питаннях
-    total_open = len(open_questions)
-    approved_open = sum(1 for r in open_questions if r.approved is True)
-    open_percent = (approved_open / total_open * 100) if total_open else 100
-
-    if total_open == 0:
-        open_recommendation = "Пройдено"
-    elif open_percent >= 80:
-        open_recommendation = "Пройдено"
-    elif 51 <= open_percent < 80:
-        open_recommendation = "На доопрацювання"
-    else:
-        open_recommendation = "Не пройдено"
-
-    # 7. Фінальна оцінка
-    if test_recommendation == "Пройдено" and open_recommendation == "Пройдено":
-        final_recommendation = "✅ Рекомендується завершити онбординг"
-    elif test_recommendation == "Не пройдено" or open_recommendation == "Не пройдено":
-        final_recommendation = "❌ Онбординг не пройдено"
-    else:
-        final_recommendation = "⚠️ Необхідне доопрацювання"
-
-    print(f"📊 test={test_percent:.1f}% ({test_recommendation}), open={open_percent:.1f}% ({open_recommendation})")
-
-    # 8. Рендер шаблону
     return render_template(
         'final_feedback.html',
         manager=User.query.get(manager_id),
         instance=instance,
         test_results=test_results,
         open_questions=open_questions,
-        test_percent=round(test_percent),
-        open_percent=round(open_percent),
-        test_recommendation=test_recommendation,
-        open_recommendation=open_recommendation,
-        final_recommendation=final_recommendation
+        test_percent=round(average_percent),
+        open_percent=round(average_percent),
+        test_recommendation=final_recommendation,
+        open_recommendation=final_recommendation,
+        final_recommendation=final_recommendation,
+        explanations=explanations
     )
 
 @bp.route('/final_decision', methods=['POST'])
