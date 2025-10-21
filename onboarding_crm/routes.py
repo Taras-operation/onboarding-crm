@@ -1537,7 +1537,7 @@ def final_feedback(manager_id):
         open_recommendation=final_recommendation,
         final_recommendation=final_recommendation,
         explanations=explanations,
-        average_percent=round(average_percent)
+        average_percent=round(average_percent),
         final_score=round(average_percent)
     )
 
