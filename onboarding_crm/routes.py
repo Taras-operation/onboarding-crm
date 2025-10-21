@@ -952,14 +952,8 @@ def manager_dashboard():
     for i, b in enumerate(stage_blocks):
         p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
 
-        # Логіка завершення: для ВСІХ блоків до current_step — completed=True
-        # Для current_step (остання пройдена) — completed=True
-        if i < cursor or (i == cursor and p.get('completed')):
-            started = True
-            completed = True
-        else:
-            started = bool(p.get('started', False))
-            completed = bool(p.get('completed', False))
+        started = bool(p.get('started', False))
+        completed = bool(p.get('completed', False))
 
         step_url = url_for('main.manager_step', step=i, start=1) if (started and not completed) \
                    else url_for('main.manager_step', step=i)
