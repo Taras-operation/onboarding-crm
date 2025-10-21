@@ -1536,6 +1536,7 @@ def final_feedback(manager_id):
     # 🔹 Додаткові обчислення для шаблону
     # ==========================================================
     open_approved_count = len([r for r in open_questions if r.approved is True])
+    not_approved_open = len([r for r in open_questions if r.approved is False])
     correct_test_answers = sum(1 for r in test_results if r.is_correct)
     total_test_questions = len(test_results)
 
