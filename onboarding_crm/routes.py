@@ -1428,7 +1428,7 @@ def final_feedback(manager_id):
     # ---- Розрахунок по тестах ----
     block_test_stats = {}
     for r in test_results:
-        block = r.step_index
+        block = r.step
         if block not in block_test_stats:
             block_test_stats[block] = {'total': 0, 'correct': 0}
         block_test_stats[block]['total'] += 1
@@ -1452,7 +1452,7 @@ def final_feedback(manager_id):
     # ---- Розрахунок по відкритих ----
     block_open_stats = {}
     for r in open_questions:
-        block = r.step_index
+        block = r.step
         if block not in block_open_stats:
             block_open_stats[block] = {'total': 0, 'not_approved': 0}
         block_open_stats[block]['total'] += 1
