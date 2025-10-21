@@ -1587,6 +1587,7 @@ def final_feedback(manager_id):
 def final_decision():
     instance_id = request.form.get('instance_id')
     decision = request.form.get('decision')
+    comment = request.form.get('comment', '')  # опціональний фідбек
 
     instance = OnboardingInstance.query.get(instance_id)
 
@@ -1594,12 +1595,30 @@ def final_decision():
         flash("Онбординг не знайдено", "danger")
         return redirect(url_for('main.managers_list'))
 
+    # Збереження фінального рішення
+    instance.final_decision = decision
+    instance.final_comment = comment
+
+    # ✅ Пройшов
     if decision == 'approved':
         instance.onboarding_status = 'completed'
+        instance.archived = True
         flash("✅ Онбординг зараховано", "success")
+
+    # ❌ Не пройшов
     elif decision == 'rejected':
         instance.onboarding_status = 'failed'
+        instance.archived = True
         flash("❌ Онбординг не зараховано", "danger")
+
+    # ✍️ Потребує доопрацювання
+    elif decision == 'needs_revision':
+        instance.onboarding_status = 'revision'
+        # НЕ встановлюємо archived — менеджер має пройти ще один блок
+        flash("✍️ Додайте блок для доопрацювання", "info")
+        db.session.commit()
+        return redirect(url_for('main.edit_onboarding', manager_id=instance.manager_id))
+
     else:
         flash("⚠️ Невідома дія", "warning")
         return redirect(url_for('main.final_feedback', manager_id=instance.manager_id))

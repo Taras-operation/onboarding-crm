@@ -136,6 +136,8 @@ class OnboardingInstance(db.Model):
     final_decision = db.Column(db.String(50), nullable=True)        # approved / rejected / revision
     final_comment = db.Column(db.Text, nullable=True)               # текст финального фидбека
 
+    archived = db.Column(db.Boolean, default=False)  # ✅ Поле Архива
+
     # Результаты тестов
     test_results = db.relationship(
         'TestResult',
