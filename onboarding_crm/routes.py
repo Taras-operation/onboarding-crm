@@ -1501,7 +1501,10 @@ def final_feedback(manager_id):
     # ==========================================================
     # 🔹 Загальний середній відсоток (тестові + відкриті)
     # ==========================================================
-    test_percents = [ (s['correct'] / s['total']) * 100 for s in block_test_stats.values() if s['total'] > 0 ]
+    test_percents = [
+        (s['correct'] / s['total']) * 100
+        for s in block_test_stats.values() if s['total'] > 0
+    ]
     open_percents = [
         100 - (s['not_approved'] / s['total']) * 100
         for s in block_open_stats.values() if s['total'] > 0
@@ -1523,6 +1526,13 @@ def final_feedback(manager_id):
     print(f"[final_feedback] manager={manager_id}, avg={average_percent:.1f}%, weak={len(explanations)}")
 
     # ==========================================================
+    # 🔹 Додаткові обчислення для шаблону
+    # ==========================================================
+    open_approved_count = len([r for r in open_questions if r.approved is True])
+    correct_test_answers = sum(r.is_correct for r in test_results if r.is_correct is not None)
+    total_test_questions = len([r for r in test_results if r.is_correct is not None])
+
+    # ==========================================================
     # 🔹 Рендер шаблону
     # ==========================================================
     return render_template(
@@ -1531,14 +1541,35 @@ def final_feedback(manager_id):
         instance=instance,
         test_results=test_results,
         open_questions=open_questions,
+        
+        # Середній % за тестами та відкритими питаннями
         test_percent=round(sum(test_percents)/len(test_percents)) if test_percents else 100,
         open_percent=round(sum(open_percents)/len(open_percents)) if open_percents else 100,
+        
+        # Фінальні рекомендації
         test_recommendation=final_recommendation,
         open_recommendation=final_recommendation,
         final_recommendation=final_recommendation,
+        
+        # Пояснення/слабкі блоки
         explanations=explanations,
+        summary_issues=explanations,
+
+        # Остаточна оцінка
         average_percent=round(average_percent),
-        final_score=round(average_percent)
+        final_score=round(average_percent),
+
+        # Підрахунки для статистики
+        open_approved_count=open_approved_count,
+        correct_test_answers=correct_test_answers,
+        total_test_questions=total_test_questions,
+
+        # Слабкі блоки
+        weak_test_blocks=weak_test_blocks,
+        weak_open_blocks=weak_open_blocks,
+
+        # Резервне поле
+        weakest_test_block=None
     )
 
 @bp.route('/final_decision', methods=['POST'])
