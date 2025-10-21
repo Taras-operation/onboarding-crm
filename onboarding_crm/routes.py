@@ -1407,10 +1407,13 @@ def publish_feedback(manager_id):
 @bp.route('/final_feedback/<int:manager_id>')
 @login_required
 def final_feedback(manager_id):
+    """Фінальний фідбек після перевірки всіх етапів онбордингу"""
+    # --- Перевірка ролі
     if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         flash("⛔️ Доступ заборонено", "danger")
         return redirect(url_for('main.login'))
 
+    # --- Отримуємо останній інстанс онбордингу
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=manager_id)
                 .order_by(OnboardingInstance.id.desc())
@@ -1420,15 +1423,26 @@ def final_feedback(manager_id):
         flash("❌ Онбординг не знайдено", "danger")
         return redirect(url_for('main.managers_list'))
 
+    # --- Парсимо структуру (бо може бути str)
     structure = instance.structure or []
+    if isinstance(structure, str):
+        try:
+            structure = json.loads(structure)
+        except Exception as e:
+            print(f"[final_feedback] JSON parse error: {e}")
+            structure = []
+
+    # --- Отримуємо результати тестів
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     test_results = [r for r in results if r.is_correct is not None]
     open_questions = [r for r in results if r.is_correct is None]
 
-    # ---- Розрахунок по тестах ----
+    # ==========================================================
+    # 🔹 Розрахунок по тестах
+    # ==========================================================
     block_test_stats = {}
     for r in test_results:
-        block = r.step
+        block = r.step or 0
         if block not in block_test_stats:
             block_test_stats[block] = {'total': 0, 'correct': 0}
         block_test_stats[block]['total'] += 1
@@ -1441,18 +1455,20 @@ def final_feedback(manager_id):
         if percent < 60:
             weak_test_blocks.append((i, percent))
 
+    # якщо всі блоки > 60% — додати найслабший
     if not weak_test_blocks and block_test_stats:
-        # Додати найслабший блок, якщо всі > 60%
         i, percent = min(
             ((i, (s['correct'] / s['total']) * 100) for i, s in block_test_stats.items()),
             key=lambda x: x[1]
         )
         weak_test_blocks.append((i, percent))
 
-    # ---- Розрахунок по відкритих ----
+    # ==========================================================
+    # 🔹 Розрахунок по відкритих питаннях
+    # ==========================================================
     block_open_stats = {}
     for r in open_questions:
-        block = r.step
+        block = r.step or 0
         if block not in block_open_stats:
             block_open_stats[block] = {'total': 0, 'not_approved': 0}
         block_open_stats[block]['total'] += 1
@@ -1461,8 +1477,17 @@ def final_feedback(manager_id):
 
     weak_open_blocks = [i for i, s in block_open_stats.items() if s['not_approved'] > 2]
 
-    # ---- Пояснення слабких блоків ----
-    block_titles = [b.get('title') for b in structure]
+    # ==========================================================
+    # 🔹 Побудова пояснень по слабких блоках
+    # ==========================================================
+    block_titles = []
+    if isinstance(structure, dict) and 'blocks' in structure:
+        block_titles = [b.get('title') for b in structure['blocks']]
+    elif isinstance(structure, list):
+        block_titles = [b.get('title') for b in structure if isinstance(b, dict)]
+    else:
+        block_titles = []
+
     explanations = []
 
     for i, percent in weak_test_blocks:
@@ -1473,12 +1498,21 @@ def final_feedback(manager_id):
         title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
         explanations.append(f"🟥 {title}: незараховані відкриті питання")
 
-    # ---- Загальний середній відсоток ----
-    all_percents = [p for _, p in weak_test_blocks if p] + \
-                   [100 - (block_open_stats[i]['not_approved'] / block_open_stats[i]['total']) * 100
-                    for i in weak_open_blocks if block_open_stats[i]['total'] > 0]
+    # ==========================================================
+    # 🔹 Загальний середній відсоток (тестові + відкриті)
+    # ==========================================================
+    test_percents = [ (s['correct'] / s['total']) * 100 for s in block_test_stats.values() if s['total'] > 0 ]
+    open_percents = [
+        100 - (s['not_approved'] / s['total']) * 100
+        for s in block_open_stats.values() if s['total'] > 0
+    ]
+
+    all_percents = test_percents + open_percents
     average_percent = sum(all_percents) / len(all_percents) if all_percents else 100
 
+    # ==========================================================
+    # 🔹 Фінальний висновок
+    # ==========================================================
     if average_percent >= 71:
         final_recommendation = "✅ Пройдено"
     elif 41 <= average_percent < 71:
@@ -1486,18 +1520,24 @@ def final_feedback(manager_id):
     else:
         final_recommendation = "❌ Не пройдено"
 
+    print(f"[final_feedback] manager={manager_id}, avg={average_percent:.1f}%, weak={len(explanations)}")
+
+    # ==========================================================
+    # 🔹 Рендер шаблону
+    # ==========================================================
     return render_template(
         'final_feedback.html',
         manager=User.query.get(manager_id),
         instance=instance,
         test_results=test_results,
         open_questions=open_questions,
-        test_percent=round(average_percent),
-        open_percent=round(average_percent),
+        test_percent=round(sum(test_percents)/len(test_percents)) if test_percents else 100,
+        open_percent=round(sum(open_percents)/len(open_percents)) if open_percents else 100,
         test_recommendation=final_recommendation,
         open_recommendation=final_recommendation,
         final_recommendation=final_recommendation,
-        explanations=explanations
+        explanations=explanations,
+        average_percent=round(average_percent)
     )
 
 @bp.route('/final_decision', methods=['POST'])
