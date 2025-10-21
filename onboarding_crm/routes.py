@@ -1449,19 +1449,33 @@ def final_feedback(manager_id):
         if r.is_correct:
             block_test_stats[block]['correct'] += 1
 
+    block_titles = []
+    if isinstance(structure, dict) and 'blocks' in structure:
+        block_titles = [b.get('title') for b in structure['blocks']]
+    elif isinstance(structure, list):
+        block_titles = [b.get('title') for b in structure if isinstance(b, dict)]
+
     weak_test_blocks = []
     for i, stats in block_test_stats.items():
-        percent = (stats['correct'] / stats['total']) * 100
+        percent = round((stats['correct'] / stats['total']) * 100, 1)
         if percent < 60:
-            weak_test_blocks.append((i, percent))
+            title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
+            weak_test_blocks.append({
+                "index": i,
+                "title": title,
+                "percent": percent
+            })
 
     # якщо всі блоки > 60% — додати найслабший
     if not weak_test_blocks and block_test_stats:
-        i, percent = min(
-            ((i, (s['correct'] / s['total']) * 100) for i, s in block_test_stats.items()),
-            key=lambda x: x[1]
-        )
-        weak_test_blocks.append((i, percent))
+        i, stats = min(block_test_stats.items(), key=lambda x: (x[1]['correct'] / x[1]['total']))
+        percent = round((stats['correct'] / stats['total']) * 100, 1)
+        title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
+        weak_test_blocks.append({
+            "index": i,
+            "title": title,
+            "percent": percent
+        })
 
     # ==========================================================
     # 🔹 Розрахунок по відкритих питаннях
@@ -1475,27 +1489,20 @@ def final_feedback(manager_id):
         if r.approved is False:
             block_open_stats[block]['not_approved'] += 1
 
-    weak_open_blocks = [i for i, s in block_open_stats.items() if s['not_approved'] > 2]
+    weak_open_blocks = []
+    for i, s in block_open_stats.items():
+        if s['not_approved'] > 2:
+            title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
+            weak_open_blocks.append(title)
 
     # ==========================================================
     # 🔹 Побудова пояснень по слабких блоках
     # ==========================================================
-    block_titles = []
-    if isinstance(structure, dict) and 'blocks' in structure:
-        block_titles = [b.get('title') for b in structure['blocks']]
-    elif isinstance(structure, list):
-        block_titles = [b.get('title') for b in structure if isinstance(b, dict)]
-    else:
-        block_titles = []
-
     explanations = []
+    for b in weak_test_blocks:
+        explanations.append(f"📉 {b['title']}: низький % по тестах ({b['percent']}%)")
 
-    for i, percent in weak_test_blocks:
-        title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
-        explanations.append(f"📉 {title}: низький % по тестах ({int(percent)}%)")
-
-    for i in weak_open_blocks:
-        title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
+    for title in weak_open_blocks:
         explanations.append(f"🟥 {title}: незараховані відкриті питання")
 
     # ==========================================================
@@ -1529,8 +1536,8 @@ def final_feedback(manager_id):
     # 🔹 Додаткові обчислення для шаблону
     # ==========================================================
     open_approved_count = len([r for r in open_questions if r.approved is True])
-    correct_test_answers = sum(r.is_correct for r in test_results if r.is_correct is not None)
-    total_test_questions = len([r for r in test_results if r.is_correct is not None])
+    correct_test_answers = sum(1 for r in test_results if r.is_correct)
+    total_test_questions = len(test_results)
 
     # ==========================================================
     # 🔹 Рендер шаблону
@@ -1541,16 +1548,16 @@ def final_feedback(manager_id):
         instance=instance,
         test_results=test_results,
         open_questions=open_questions,
-        
+
         # Середній % за тестами та відкритими питаннями
         test_percent=round(sum(test_percents)/len(test_percents)) if test_percents else 100,
         open_percent=round(sum(open_percents)/len(open_percents)) if open_percents else 100,
-        
+
         # Фінальні рекомендації
         test_recommendation=final_recommendation,
         open_recommendation=final_recommendation,
         final_recommendation=final_recommendation,
-        
+
         # Пояснення/слабкі блоки
         explanations=explanations,
         summary_issues=explanations,
@@ -1564,12 +1571,12 @@ def final_feedback(manager_id):
         correct_test_answers=correct_test_answers,
         total_test_questions=total_test_questions,
 
-        # Слабкі блоки
+        # Слабкі блоки з назвами
         weak_test_blocks=weak_test_blocks,
         weak_open_blocks=weak_open_blocks,
 
-        # Резервне поле
-        weakest_test_block=None
+        # Найслабший блок
+        weakest_test_block=weak_test_blocks[0] if weak_test_blocks else None
     )
 
 @bp.route('/final_decision', methods=['POST'])
