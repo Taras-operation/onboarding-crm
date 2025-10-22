@@ -9,17 +9,6 @@
       margin: 0;
       display: flex;
     }
-    .sidebar {
-      min-width: 250px;
-      max-width: 250px;
-      background-color: #ffffff;
-      height: 100vh;
-      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-      padding: 2rem 1rem;
-      position: fixed;
-      top: 0;
-      left: 0;
-    }
     .main-content {
       margin-left: 250px;
       padding: 2rem;
@@ -71,7 +60,7 @@
   </style>
 </head>
 <body>
-  {% include 'components/mentor_sidebar.html' %}
+  {% include 'components/sidebar.html' %}
 
   <div class="main-content">
     <div class="form-box">
