@@ -1625,3 +1625,27 @@ def final_decision():
 
     db.session.commit()
     return redirect(url_for('main.managers_list'))
+
+@bp.route('/managers/archive')
+@login_required
+def archived_managers():
+    if current_user.role not in ['mentor', 'teamlead', 'developer']:
+        return redirect(url_for('main.login'))
+
+    # Получаем всех архивированных менеджеров в зависимости от роли
+    if current_user.role == 'developer':
+        managers = User.query.filter_by(role='manager').all()
+    elif current_user.role == 'teamlead':
+        mentors = User.query.filter_by(role='mentor', added_by_id=current_user.id, department=current_user.department).all()
+        mentor_ids = [mentor.id for mentor in mentors] + [current_user.id]
+        managers = User.query.filter(User.role == 'manager', User.added_by_id.in_(mentor_ids)).all()
+    elif current_user.role == 'mentor':
+        managers = User.query.filter_by(role='manager', added_by_id=current_user.id, department=current_user.department).all()
+
+    archived_managers = []
+    for manager in managers:
+        instance = OnboardingInstance.query.filter_by(manager_id=manager.id).order_by(OnboardingInstance.id.desc()).first()
+        if instance and instance.archived:
+            archived_managers.append((manager, instance))
+
+    return render_template('archived_managers.html', archived_managers=archived_managers)

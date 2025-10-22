@@ -1,0 +1,55 @@
+<!-- templates/archived_managers.html -->
+{% extends "base.html" %}
+{% block title %}Архів менеджерів{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+  <h1 class="text-3xl font-bold mb-6">📦 Архів менеджерів</h1>
+
+  {% if archived_managers %}
+    <div class="overflow-x-auto">
+      <table class="table table-zebra w-full">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Імʼя</th>
+            <th>Відділ</th>
+            <th>Дата створення</th>
+            <th>Статус онбордингу</th>
+            <th>Рішення</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for manager in archived_managers %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ manager.username }}</td>
+              <td>{{ manager.department or "—" }}</td>
+              <td>{{ manager.created_at.strftime('%d.%m.%Y') }}</td>
+              <td>
+                {% if manager.onboarding_instances %}
+                  Пройдено {{ manager.onboarding_instances[-1].onboarding_step }}/{{ manager.onboarding_instances[-1].structure | length }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>
+                {% set decision = manager.onboarding_instances[-1].final_decision %}
+                {% if decision == 'approved' %}
+                  <span class="badge badge-success">Пройдено</span>
+                {% elif decision == 'rejected' %}
+                  <span class="badge badge-error">Не пройдено</span>
+                {% else %}
+                  <span class="badge badge-ghost">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-gray-500">Поки що архів порожній.</p>
+  {% endif %}
+</div>
+{% endblock %}
