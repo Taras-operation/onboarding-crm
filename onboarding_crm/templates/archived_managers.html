@@ -6,81 +6,84 @@
   <title>📦 Архів менеджерів</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.20/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body {
-      background-color: #f8f9fc;
-    }
-  </style>
 </head>
-<body>
+<body class="bg-base-200">
 
-  {% include 'components/mentor_sidebar.html' %}
+  <div class="flex">
 
-  <!-- Основний контент -->
-  <div class="main-content" style="margin-left: 250px; padding: 2rem;">
+    <!-- Сайдбар -->
+    {% include 'components/mentor_sidebar.html' %}
 
-      <div class="flex items-center justify-between mb-8">
-        <h1 class="text-4xl font-bold flex items-center gap-2">
-          📦 <span>Архів менеджерів</span>
-        </h1>
-        <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline btn-sm">← Назад до списку</a>
+    <!-- Основна частина -->
+    <div class="flex-1 p-10">
+
+      <h1 class="text-3xl font-bold mb-6 flex items-center gap-2">
+        📦 <span>Архів менеджерів</span>
+      </h1>
+
+      <div class="mb-4">
+        <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline btn-sm">
+          ← Назад до списку
+        </a>
       </div>
 
       {% if archived_managers %}
-      <div class="overflow-x-auto rounded-xl shadow-lg bg-white">
-        <table class="table table-zebra w-full text-sm">
-          <thead class="bg-gray-100 text-gray-700">
-            <tr>
-              <th class="py-3 px-4">#</th>
-              <th class="py-3 px-4">Telegram</th>
-              <th class="py-3 px-4">Посада</th>
-              <th class="py-3 px-4">Відділ</th>
-              <th class="py-3 px-4">Дата старту</th>
-              <th class="py-3 px-4">Прогрес</th>
-              <th class="py-3 px-4">Фідбек</th>
-              <th class="py-3 px-4 text-center">Дії</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for pair in archived_managers %}
-              {% set manager = pair[0] %}
-              {% set instance = pair[1] %}
+        <div class="overflow-x-auto shadow-xl rounded-xl bg-white">
+          <table class="table table-zebra w-full text-sm">
+            <thead class="bg-gray-100 text-gray-700">
               <tr>
-                <td class="px-4 py-2 font-medium">{{ loop.index }}</td>
-                <td class="px-4 py-2 text-blue-600 font-semibold">@{{ manager.username }}</td>
-                <td class="px-4 py-2">{{ manager.position }}</td>
-                <td class="px-4 py-2">{{ manager.department }}</td>
-                <td class="px-4 py-2">{{ instance.created_at.strftime('%d.%m.%Y') }}</td>
-                <td class="px-4 py-2">{{ instance.onboarding_step }}/{{ instance.structure | length }}</td>
-                <td class="px-4 py-2">
-                  {% if instance.final_decision == 'approved' %}
-                    <span class="badge badge-success">✅ Пройдено</span>
-                  {% elif instance.final_decision == 'rejected' %}
-                    <span class="badge badge-error">❌ Не пройдено</span>
-                  {% elif instance.final_decision == 'revision' %}
-                    <span class="badge badge-warning">✍️ Доопрацювання</span>
-                  {% else %}
-                    <span class="badge badge-neutral">—</span>
-                  {% endif %}
-                </td>
-                <td class="px-4 py-2 text-center">
-                  <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
-                     class="btn btn-sm btn-outline">
-                    Переглянути
-                  </a>
-                </td>
+                <th class="py-3 px-4">#</th>
+                <th class="py-3 px-4">Telegram</th>
+                <th class="py-3 px-4">Посада</th>
+                <th class="py-3 px-4">Відділ</th>
+                <th class="py-3 px-4">Дата старту</th>
+                <th class="py-3 px-4">Прогрес</th>
+                <th class="py-3 px-4">Фідбек</th>
+                <th class="py-3 px-4 text-center">Дії</th>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {% for pair in archived_managers %}
+                {% set manager = pair[0] %}
+                {% set instance = pair[1] %}
+                <tr>
+                  <td class="px-4 py-2 font-medium">{{ loop.index }}</td>
+                  <td class="px-4 py-2 text-blue-600 font-semibold">@{{ manager.username }}</td>
+                  <td class="px-4 py-2">{{ manager.position }}</td>
+                  <td class="px-4 py-2">{{ manager.department }}</td>
+                  <td class="px-4 py-2">{{ instance.created_at.strftime('%d.%m.%Y') }}</td>
+                  <td class="px-4 py-2">{{ instance.onboarding_step }}/{{ instance.structure | length }}</td>
+                  <td class="px-4 py-2">
+                    {% if instance.final_decision == 'approved' %}
+                      <span class="badge badge-success">✅ Пройдено</span>
+                    {% elif instance.final_decision == 'rejected' %}
+                      <span class="badge badge-error">❌ Не пройдено</span>
+                    {% elif instance.final_decision == 'revision' %}
+                      <span class="badge badge-warning">✍️ Доопрацювання</span>
+                    {% else %}
+                      <span class="badge badge-neutral">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-4 py-2 text-center">
+                    <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
+                      class="btn btn-sm btn-outline">
+                      Переглянути
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% else %}
-      <div class="text-center text-gray-500 mt-10">
-        <p class="text-lg font-semibold">Поки що архів порожній.</p>
-        <p class="text-sm">Коли менеджер завершить онбординг — він зʼявиться тут.</p>
-      </div>
+        <div class="text-center text-gray-500 mt-10">
+          <p class="text-lg font-semibold">Поки що архів порожній.</p>
+          <p class="text-sm">Коли менеджер завершить онбординг — він зʼявиться тут.</p>
+        </div>
       {% endif %}
 
-</div>
+    </div>
+  </div>
+
 </body>
 </html>
