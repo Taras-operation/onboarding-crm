@@ -17,8 +17,10 @@
             <th>Telegram</th>
             <th>Посада</th>
             <th>Відділ</th>
-            <th>Дата створення</th>
+            <th>Дата старту</th>
+            <th>Прогрес</th>
             <th>Фідбек</th>
+            <th>Дії</th>
           </tr>
         </thead>
         <tbody>
@@ -31,7 +33,6 @@
               <td>{{ manager.position }}</td>
               <td>{{ manager.department }}</td>
               <td>{{ instance.created_at.strftime("%d.%m.%Y") }}</td>
-              <td>{{ instance.structure | length }}</td>
               <td>{{ instance.onboarding_step }}/{{ instance.structure | length }}</td>
               <td>
                 {% if instance.final_decision == 'approved' %}
@@ -43,7 +44,13 @@
                 {% else %}
                   <span class="badge badge-ghost">—</span>
                 {% endif %}
-                <<a href="{{ url_for('main.manager_results', onboarding_id=instance.id) }}" class="btn btn-xs btn-outline ml-2">Переглянути</a>
+              </td>
+              <td>
+                <a href="{{ url_for('main.manager_results', onboarding_id=instance.id) }}"
+                   class="btn btn-xs btn-outline">
+                  Переглянути
+                </a>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
