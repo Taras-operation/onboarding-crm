@@ -8,21 +8,25 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-white min-h-screen text-gray-800">
-  <div class="flex">
 
-    <!-- Сайдбар зліва -->
-    {% include 'components/mentor_sidebar.html' %}
+  <div class="flex min-h-screen">
+
+    <!-- Сайдбар -->
+    <aside class="w-64 bg-white border-r shadow-md p-4">
+      {% include 'components/mentor_sidebar.html' %}
+    </aside>
 
     <!-- Основний контент -->
-    <div class="flex-grow px-6 py-10">
+    <main class="flex-grow px-8 py-10">
 
       <div class="flex items-center justify-between mb-8">
         <h1 class="text-4xl font-bold flex items-center gap-2">
           📦 <span>Архів менеджерів</span>
         </h1>
-        <a href="/managers/list" class="btn btn-outline btn-sm">← Назад до списку</a>
+        <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline btn-sm">← Назад до списку</a>
       </div>
 
+      {% if archived_managers %}
       <div class="overflow-x-auto rounded-xl shadow-lg bg-white">
         <table class="table table-zebra w-full text-sm">
           <thead class="bg-gray-100 text-gray-700">
@@ -70,15 +74,15 @@
           </tbody>
         </table>
       </div>
-
-      {% if not archived_managers %}
-        <div class="text-center text-gray-500 mt-10">
-          <p class="text-lg font-semibold">Поки що архів порожній.</p>
-          <p class="text-sm">Коли менеджер завершить онбординг — він зʼявиться тут.</p>
-        </div>
+      {% else %}
+      <div class="text-center text-gray-500 mt-10">
+        <p class="text-lg font-semibold">Поки що архів порожній.</p>
+        <p class="text-sm">Коли менеджер завершить онбординг — він зʼявиться тут.</p>
+      </div>
       {% endif %}
 
-    </div> <!-- /flex-grow -->
-  </div> <!-- /flex -->
+    </main>
+
+  </div>
 </body>
 </html>
