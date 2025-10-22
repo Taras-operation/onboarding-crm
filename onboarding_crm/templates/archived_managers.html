@@ -1,57 +1,66 @@
 {% extends "base.html" %}
+{% block title %}📦 Архів менеджерів{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-6">
-  <h1 class="text-3xl font-bold mb-6">📦 Архів менеджерів</h1>
+<div class="max-w-7xl mx-auto p-6">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">📦 Архів менеджерів</h1>
+    <a href="{{ url_for('main.managers_list') }}" class="btn btn-sm btn-outline btn-secondary">
+      ← Назад до списку
+    </a>
+  </div>
 
   {% if archived_managers %}
-    <div class="overflow-x-auto">
-      <table class="table w-full border border-gray-300 rounded-xl">
-        <thead>
-          <tr class="bg-gray-100 text-gray-800 text-sm">
-            <th class="py-3 px-4">№</th>
-            <th class="py-3 px-4">Імʼя</th>
-            <th class="py-3 px-4">TG нік</th>
-            <th class="py-3 px-4">Посада</th>
-            <th class="py-3 px-4">Відділ</th>
-            <th class="py-3 px-4">Дата створення</th>
-            <th class="py-3 px-4">К-сть блоків</th>
-            <th class="py-3 px-4">Прогрес</th>
-            <th class="py-3 px-4">Дії</th>
+    <div class="overflow-x-auto shadow rounded-lg border border-gray-200">
+      <table class="table w-full text-sm">
+        <thead class="bg-base-200 text-gray-700">
+          <tr>
+            <th class="py-3 px-4 text-left">№</th>
+            <th class="py-3 px-4 text-left">Ім’я</th>
+            <th class="py-3 px-4 text-left">Telegram</th>
+            <th class="py-3 px-4 text-left">Посада</th>
+            <th class="py-3 px-4 text-left">Відділ</th>
+            <th class="py-3 px-4 text-left">Дата створення</th>
+            <th class="py-3 px-4 text-left">К-сть етапів</th>
+            <th class="py-3 px-4 text-left">Прогрес</th>
+            <th class="py-3 px-4 text-left">Фідбек</th>
           </tr>
         </thead>
         <tbody>
-          {% for idx, (manager, instance) in enumerate(archived_managers, start=1) %}
-          <tr class="hover:bg-gray-50 text-sm">
-            <td class="py-2 px-4">{{ idx }}</td>
-            <td class="py-2 px-4">{{ manager.full_name }}</td>
-            <td class="py-2 px-4">{{ manager.tg_nick }}</td>
-            <td class="py-2 px-4">{{ manager.position }}</td>
-            <td class="py-2 px-4">{{ manager.department }}</td>
-            <td class="py-2 px-4">{{ manager.created_at.strftime('%d.%m.%Y') }}</td>
-            <td class="py-2 px-4">
-              {% set blocks = instance.structure | length %}
-              {% set stage_blocks = instance.structure | selectattr('type', 'equalto', 'stage') | list %}
-              {{ stage_blocks|length }}
-            </td>
-            <td class="py-2 px-4">
-              {% set completed = instance.test_progress | selectattr('completed') | list | length %}
-              {% set total = instance.structure | selectattr('type', 'equalto', 'stage') | list | length %}
-              {{ completed }}/{{ total }}
-            </td>
-            <td class="py-2 px-4">
-              <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
-                 class="btn btn-sm btn-outline btn-info">
-                Переглянути
-              </a>
-            </td>
-          </tr>
+          {% for pair in archived_managers %}
+            {% set manager = pair[0] %}
+            {% set instance = pair[1] %}
+            <tr class="hover:bg-base-100">
+              <td class="py-2 px-4 font-semibold">{{ loop.index }}</td>
+              <td class="py-2 px-4">{{ manager.full_name }}</td>
+              <td class="py-2 px-4">@{{ manager.tg_nick }}</td>
+              <td class="py-2 px-4">{{ manager.position }}</td>
+              <td class="py-2 px-4">{{ manager.department }}</td>
+              <td class="py-2 px-4">{{ manager.created_at.strftime('%d.%m.%Y') }}</td>
+              <td class="py-2 px-4">
+                {% set stages = instance.structure | selectattr('type', 'equalto', 'stage') | list %}
+                {{ stages | length }}
+              </td>
+              <td class="py-2 px-4">
+                {% set completed = instance.test_progress | selectattr('completed') | list | length %}
+                {% set total = instance.structure | selectattr('type', 'equalto', 'stage') | list | length %}
+                {{ completed }}/{{ total }}
+              </td>
+              <td class="py-2 px-4">
+                <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
+                   class="btn btn-xs btn-outline btn-info">
+                  Переглянути
+                </a>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <div class="alert alert-info mt-4">Наразі архів порожній.</div>
+    <div class="text-center py-12">
+      <p class="text-gray-500 text-lg">Поки що архів порожній 🗃️</p>
+    </div>
   {% endif %}
 </div>
 {% endblock %}
