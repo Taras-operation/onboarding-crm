@@ -6,34 +6,37 @@
   <h1 class="text-3xl font-bold mb-6">📦 Архів менеджерів</h1>
 
   {% if archived_managers %}
-    <div class="overflow-x-auto">
-      <table class="table table-zebra w-full">
-        <thead>
+    <div class="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
+      <table class="table w-full">
+        <thead class="bg-gray-100 text-gray-800 text-sm uppercase">
           <tr>
-            <th>№</th>
-            <th>Імʼя</th>
-            <th>Відділ</th>
-            <th>Дата створення</th>
-            <th>Прогрес</th>
-            <th>Рішення</th>
+            <th class="px-4 py-2">№</th>
+            <th class="px-4 py-2">Імʼя</th>
+            <th class="px-4 py-2">Відділ</th>
+            <th class="px-4 py-2">Дата створення</th>
+            <th class="px-4 py-2">Прогрес</th>
+            <th class="px-4 py-2">Рішення</th>
+            <th class="px-4 py-2">Деталі</th>
           </tr>
         </thead>
         <tbody>
           {% for manager, instance in archived_managers %}
-            <tr>
-              <td>{{ loop.index }}</td>
-              <td>{{ manager.username }}</td>
-              <td>{{ manager.department or "—" }}</td>
-              <td>{{ manager.created_at.strftime('%d.%m.%Y') }}</td>
-              <td>
+            <tr class="hover:bg-gray-50 transition">
+              <td class="px-4 py-2">{{ loop.index }}</td>
+              <td class="px-4 py-2 font-semibold">{{ manager.username }}</td>
+              <td class="px-4 py-2">{{ manager.department or "—" }}</td>
+              <td class="px-4 py-2">{{ manager.created_at.strftime('%d.%m.%Y') }}</td>
+              <td class="px-4 py-2">
                 {% if instance.structure %}
                   {% set blocks = instance.structure if instance.structure is not string else instance.structure | from_json %}
-                  Пройдено {{ instance.onboarding_step }}/{{ blocks | length }}
+                  <span class="badge badge-outline badge-info">
+                    {{ instance.onboarding_step }}/{{ blocks | length }}
+                  </span>
                 {% else %}
                   —
                 {% endif %}
               </td>
-              <td>
+              <td class="px-4 py-2">
                 {% if instance.final_decision == 'approved' %}
                   <span class="badge badge-success">✅ Пройдено</span>
                 {% elif instance.final_decision == 'rejected' %}
@@ -42,13 +45,19 @@
                   <span class="badge badge-ghost">—</span>
                 {% endif %}
               </td>
+              <td class="px-4 py-2">
+                <a href="{{ url_for('main.manager_results', manager_id=manager.id) }}"
+                   class="btn btn-sm btn-outline btn-primary">
+                  Переглянути
+                </a>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <p class="text-gray-500">Поки що архів порожній.</p>
+    <p class="text-gray-500 mt-4">Поки що архів порожній.</p>
   {% endif %}
 </div>
 {% endblock %}
