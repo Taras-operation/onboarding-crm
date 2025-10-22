@@ -5,94 +5,48 @@
   <title>Додати менеджера</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background-color: #f4f6f9;
-      display: flex;
+      background-color: #f8f9fc;
       margin: 0;
+      display: flex;
     }
-
     .sidebar {
-      width: 250px;
-      background-color: #f8f9fa;
-      padding: 20px;
+      min-width: 250px;
+      max-width: 250px;
+      background-color: #ffffff;
       height: 100vh;
-      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      padding: 2rem 1rem;
+      position: fixed;
+      top: 0;
+      left: 0;
     }
-
-    .sidebar h3 {
-      margin-bottom: 20px;
-      font-size: 18px;
-      font-weight: bold;
-    }
-
-    .sidebar a {
-      display: block;
-      margin-bottom: 12px;
-      padding: 10px 15px;
-      border-radius: 5px;
-      text-decoration: none;
-      font-weight: 500;
-    }
-
-    .sidebar a.list {
-      background-color: #007bff;
-      color: white;
-    }
-
-    .sidebar a.add {
-      background-color: #28a745;
-      color: white;
-    }
-
-    .sidebar a.plans {
-      background-color: #ffc107;
-      color: black;
-    }
-
-    .sidebar a.results {
-      background-color: #17a2b8;
-      color: white;
-    }
-
-    .sidebar a.back {
-      background-color: #6c757d;
-      color: white;
-    }
-
-    .sidebar a.logout {
-      border: 1px solid red;
-      color: red;
-      background: white;
-    }
-
-    .content {
-      flex: 1;
+    .main-content {
+      margin-left: 250px;
+      padding: 2rem;
+      flex-grow: 1;
       display: flex;
       justify-content: center;
       align-items: center;
     }
-
     .form-box {
       background: white;
-      padding: 30px 40px;
+      padding: 40px 50px;
       border-radius: 10px;
       box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
       width: 100%;
       max-width: 500px;
     }
-
     h2 {
       text-align: center;
       color: #333;
+      margin-bottom: 20px;
     }
-
     label {
       display: block;
       margin-top: 15px;
       font-weight: bold;
       color: #555;
     }
-
     input, select {
       width: 100%;
       padding: 10px;
@@ -100,9 +54,8 @@
       border-radius: 5px;
       border: 1px solid #ccc;
     }
-
     button {
-      margin-top: 20px;
+      margin-top: 25px;
       width: 100%;
       padding: 12px;
       background-color: #007bff;
@@ -112,18 +65,15 @@
       font-size: 16px;
       cursor: pointer;
     }
-
     button:hover {
       background-color: #0056b3;
     }
   </style>
 </head>
 <body>
-
-<!-- Сайдбар -->
   {% include 'components/mentor_sidebar.html' %}
 
-  <div class="content">
+  <div class="main-content">
     <div class="form-box">
       <h2>Додати менеджера</h2>
       <form method="POST">
