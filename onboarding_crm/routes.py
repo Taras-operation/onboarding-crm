@@ -195,7 +195,11 @@ def managers_list():
         managers = User.query.filter_by(role='manager').all()
 
     elif current_user.role == 'teamlead':
-        mentors = User.query.filter_by(role='mentor', added_by_id=current_user.id, department=current_user.department).all()
+        mentors = User.query.filter_by(
+            role='mentor',
+            added_by_id=current_user.id,
+            department=current_user.department
+        ).all()
         mentor_ids = [mentor.id for mentor in mentors]
         mentor_ids.append(current_user.id)
 
@@ -218,12 +222,21 @@ def managers_list():
             department=current_user.department
         ).all()    
 
-    # Підрахунок етапів (берём последний инстанс по id)
+    # 🔻 Фільтруємо менеджерів — залишаємо лише тих, у кого останній інстанс не архівований
+    filtered_managers = []
     for manager in managers:
         instance = (OnboardingInstance.query
                     .filter_by(manager_id=manager.id)
                     .order_by(OnboardingInstance.id.desc())
                     .first())
+        if instance and not instance.archived:
+            manager.latest_instance = instance  # зберігаємо для наступного використання
+            filtered_managers.append(manager)
+    managers = filtered_managers
+
+    # 🔢 Підрахунок етапів (беремо останній інстанс по id)
+    for manager in managers:
+        instance = manager.latest_instance  # ми вже витягнули його вище
         if instance and instance.structure:
             try:
                 structure = instance.structure
