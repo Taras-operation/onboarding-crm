@@ -119,13 +119,9 @@
   </style>
 </head>
 <body>
-  <div class="sidebar">
-    <h3>Додати менеджера</h3>
-    <a href="{{ url_for('main.managers_list') }}" class="list">📘 Список менеджерів</a>
-    <a href="{{ url_for('main.onboarding_plans') }}" class="plans">📅 Плани онбордингу</a>
-    <a href="{{ url_for('main.mentor_dashboard') }}" class="back">⬅️ Назад до дашборду</a>
-    <a href="{{ url_for('main.logout') }}" class="logout">🔒 Вийти</a>
-  </div>
+
+<!-- Сайдбар -->
+  {% include 'components/mentor_sidebar.html' %}
 
   <div class="content">
     <div class="form-box">
