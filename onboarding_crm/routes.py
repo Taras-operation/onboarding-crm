@@ -1645,20 +1645,20 @@ def archived_managers():
     if current_user.role not in ['mentor', 'teamlead', 'developer']:
         return redirect(url_for('main.login'))
 
-    # Получаем всех архивированных менеджеров в зависимости от роли
     if current_user.role == 'developer':
         managers = User.query.filter_by(role='manager').all()
     elif current_user.role == 'teamlead':
-        mentors = User.query.filter_by(role='mentor', added_by_id=current_user.id, department=current_user.department).all()
-        mentor_ids = [mentor.id for mentor in mentors] + [current_user.id]
+        mentor_ids = [m.id for m in User.query.filter_by(role='mentor', added_by_id=current_user.id)]
+        mentor_ids.append(current_user.id)
         managers = User.query.filter(User.role == 'manager', User.added_by_id.in_(mentor_ids)).all()
     elif current_user.role == 'mentor':
-        managers = User.query.filter_by(role='manager', added_by_id=current_user.id, department=current_user.department).all()
+        managers = User.query.filter_by(role='manager', added_by_id=current_user.id).all()
 
     archived_managers = []
     for manager in managers:
         instance = OnboardingInstance.query.filter_by(manager_id=manager.id).order_by(OnboardingInstance.id.desc()).first()
         if instance and instance.archived:
-            archived_managers.append((manager, instance))
+            manager.onboarding_instances = [instance]  # вручну додаємо інстанс, щоб не ламати шаблон
+            archived_managers.append(manager)
 
     return render_template('archived_managers.html', archived_managers=archived_managers)
