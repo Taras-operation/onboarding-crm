@@ -43,8 +43,7 @@
                 {% else %}
                   <span class="badge badge-ghost">—</span>
                 {% endif %}
-                <a href="{{ url_for('main.manager_results', manager_id=manager.id) }}" class="btn btn-xs btn-outline ml-2">Переглянути</a>
-              </td>
+                <<a href="{{ url_for('main.manager_results', onboarding_id=instance.id) }}" class="btn btn-xs btn-outline ml-2">Переглянути</a>
             </tr>
           {% endfor %}
         </tbody>
