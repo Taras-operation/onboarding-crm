@@ -10,6 +10,7 @@
     body {
       background-color: #f8f9fc;
     }
+    /*
     .sidebar {
       min-width: 250px;
       max-width: 250px;
@@ -21,22 +22,16 @@
       top: 0;
       left: 0;
     }
-    .main-content {
-      margin-left: 250px;
-      padding: 2rem;
-    }
     .sidebar .btn {
       text-align: left;
       width: 100%;
     }
+    */
   </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-white min-h-screen text-gray-800">
+<body class="bg-gradient-to-br from-blue-50 to-white min-h-screen text-gray-800 font-sans">
 
-  <!-- Сайдбар -->
-  <div class="sidebar">
-    {% include 'components/mentor_sidebar.html' %}
-  </div>
+  {% include 'components/mentor_sidebar.html' %}
 
   <!-- Основний контент -->
   <div class="main-content">
