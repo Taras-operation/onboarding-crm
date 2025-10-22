@@ -1,4 +1,3 @@
-<!-- templates/archived_managers.html -->
 {% extends "base.html" %}
 {% block title %}Архів менеджерів{% endblock %}
 
@@ -15,30 +14,30 @@
             <th>Імʼя</th>
             <th>Відділ</th>
             <th>Дата створення</th>
-            <th>Статус онбордингу</th>
+            <th>Прогрес</th>
             <th>Рішення</th>
           </tr>
         </thead>
         <tbody>
-          {% for manager in archived_managers %}
+          {% for manager, instance in archived_managers %}
             <tr>
               <td>{{ loop.index }}</td>
               <td>{{ manager.username }}</td>
               <td>{{ manager.department or "—" }}</td>
               <td>{{ manager.created_at.strftime('%d.%m.%Y') }}</td>
               <td>
-                {% if manager.onboarding_instances %}
-                  Пройдено {{ manager.onboarding_instances[-1].onboarding_step }}/{{ manager.onboarding_instances[-1].structure | length }}
+                {% if instance.structure %}
+                  {% set blocks = instance.structure if instance.structure is not string else instance.structure | from_json %}
+                  Пройдено {{ instance.onboarding_step }}/{{ blocks | length }}
                 {% else %}
                   —
                 {% endif %}
               </td>
               <td>
-                {% set decision = manager.onboarding_instances[-1].final_decision %}
-                {% if decision == 'approved' %}
-                  <span class="badge badge-success">Пройдено</span>
-                {% elif decision == 'rejected' %}
-                  <span class="badge badge-error">Не пройдено</span>
+                {% if instance.final_decision == 'approved' %}
+                  <span class="badge badge-success">✅ Пройдено</span>
+                {% elif instance.final_decision == 'rejected' %}
+                  <span class="badge badge-error">❌ Не пройдено</span>
                 {% else %}
                   <span class="badge badge-ghost">—</span>
                 {% endif %}
