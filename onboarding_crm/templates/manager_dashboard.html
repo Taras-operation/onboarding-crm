@@ -22,7 +22,6 @@
 
   <!-- 🔷 Основна частина -->
   <div class="ml-64 p-6 w-[calc(100%-16rem)]">
-    <!-- Центрована внутрішня обгортка -->
     <div class="max-w-4xl mx-auto space-y-6">
 
       <div class="flex justify-between items-center mb-8">
@@ -49,6 +48,13 @@
             </div>
 
           {% elif steps_meta[i].started %}
+            <a href="{{ steps_meta[i].url }}"
+               class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-3 rounded-xl shadow">
+              Перейти
+            </a>
+
+          {% elif i == 0 %}
+            <!-- Первый блок всегда доступен для перехода -->
             <a href="{{ steps_meta[i].url }}"
                class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-3 rounded-xl shadow">
               Перейти
