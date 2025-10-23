@@ -1217,7 +1217,7 @@ def manager_step(step):
 
 from sqlalchemy import and_
 
-@@bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
+@bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
 @login_required
 def manager_results(manager_id, onboarding_id):
     print("🔒 current_user:", current_user)
