@@ -181,8 +181,9 @@ def mentor_dashboard():
     # 4️⃣ Розрахунок середнього прогресу по активним
     progress_list = []
     for i in active_instances:
-        total = len(i.structure or [])
-        completed = i.onboarding_step or 0
+        structure = i.structure or []
+        total = len(structure)
+        completed = min(i.onboarding_step or 0, total)
 
         if total > 0:
             # Обчислюємо реальний % завершення
