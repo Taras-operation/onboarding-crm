@@ -1217,19 +1217,17 @@ def manager_step(step):
 
 from sqlalchemy import and_
 
-@bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
+@@bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
 @login_required
 def manager_results(manager_id, onboarding_id):
     print("🔒 current_user:", current_user)
     print("🔒 is_authenticated:", current_user.is_authenticated)
     print("🔒 current_user.role:", getattr(current_user, 'role', None))
 
-    # 🔐 Доступ лише для ролей з правом перевірки
     if current_user.role not in ['mentor', 'teamlead', 'developer']:
         flash("⛔️ Доступ заборонено", "danger")
         return redirect(url_for('main.managers_list'))
 
-    # --- Отримуємо обʼєкти ---
     manager = User.query.get(manager_id)
     instance = OnboardingInstance.query.get(onboarding_id)
 
@@ -1237,25 +1235,18 @@ def manager_results(manager_id, onboarding_id):
         flash("❌ Менеджер або онбординг не знайдено", "danger")
         return redirect(url_for('main.managers_list'))
 
-    print("📌 manager.id:", manager.id)
-    print("📌 instance.manager_id:", instance.manager_id)
-
     if instance.manager_id != manager.id:
         flash("⛔️ Онбординг не належить цьому менеджеру", "danger")
         return redirect(url_for('main.managers_list'))
 
-    # --- Парсимо структуру ---
     try:
-        if isinstance(instance.structure, str):
-            structure = json.loads(instance.structure)
-        else:
-            structure = instance.structure
+        structure = json.loads(instance.structure) if isinstance(instance.structure, str) else instance.structure
     except Exception as e:
         print("❌ JSON parsing error:", e)
         flash("❌ Помилка структури онбордингу", "danger")
         return redirect(url_for('main.managers_list'))
 
-    # --- Результати тестів (вибіркові) ---
+    # --- Тестові питання (вибіркові) ---
     choice_results = TestResult.query.filter(
         and_(
             TestResult.manager_id == manager.id,
@@ -1273,20 +1264,22 @@ def manager_results(manager_id, onboarding_id):
         )
     ).order_by(TestResult.step.asc()).all()
 
-    # --- DEBUG: вивід відкритих ---
-    print(f"📋 OPEN RESULTS ({len(open_results)}):")
+    print(f"📋 Відкритих питань: {len(open_results)}")
     for r in open_results:
-        print(f"🧪 ID={r.id} | Step={r.step} | Approved={r.approved} | Draft={r.draft} | Feedback={r.feedback}")
+        print(f"🧪 Step={r.step} | Approved={r.approved} | Draft={r.draft}")
 
-    # --- Логіка попапу ---
+    # --- Попап логіка ---
+    test_progress = instance.test_progress or {}
+    completed_blocks = [k for k, v in test_progress.items() if v.get("completed")]
     total_blocks = len(structure or [])
-    all_blocks_completed = instance.onboarding_step >= total_blocks
 
+    all_blocks_completed = len(completed_blocks) >= total_blocks
     all_open_checked = all(r.approved is not None and not r.draft for r in open_results)
 
     show_popup = all_blocks_completed and (not open_results or all_open_checked)
 
-    print(f"📊 {len(choice_results)} choice_results, {len(open_results)} open_results, popup={show_popup}")
+    print(f"📊 Blocks completed: {len(completed_blocks)}/{total_blocks}")
+    print(f"📊 Popup: {show_popup}")
 
     return render_template(
         'manager_results.html',
