@@ -928,7 +928,7 @@ def manager_dashboard():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    # 1. Отримуємо останній онбординг-інстанс
+    # 1. Последний онбординг-инстанс менеджера
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
@@ -938,7 +938,7 @@ def manager_dashboard():
 
     print(f"[manager_dashboard] use onboarding_instance id={instance.id}")
 
-    # 2. Розбір структури
+    # 2. Разбор структуры
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -955,15 +955,15 @@ def manager_dashboard():
         print(f"[manager_dashboard] ❌ JSON error: {e}")
         blocks_all = []
 
-    # 3. Вибираємо лише stage-блоки
+    # 3. Выбираем только stage-блоки
     stage_blocks = [b for b in blocks_all if b.get("type") == "stage"]
 
-    # 4. Поточний крок
+    # 4. Поточный шаг
     current_step = instance.onboarding_step or 0
     if current_step >= len(stage_blocks):
         current_step = len(stage_blocks) - 1 if stage_blocks else 0
 
-    # 5. Прогрес
+    # 5. Прогресс (dict)
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
         try:
@@ -971,30 +971,35 @@ def manager_dashboard():
         except Exception:
             progress = {}
 
-    # 🛠 Гарантуємо автозапуск першого блоку як "started"
-    if stage_blocks and '0' not in progress:
-        progress['0'] = {"started": True, "completed": False}
+    # Добавляем progress['0'] при первом запуске, но не "started"
+    if '0' not in progress and stage_blocks:
+        progress['0'] = {"started": False, "completed": False}
         instance.test_progress = progress
         db.session.commit()
 
-    # 6. Генеруємо мета-дані для кроків
+    # 6. Генерация метаданных шагов
     steps_meta = []
     for i, b in enumerate(stage_blocks):
         p = progress.get(str(i), {})
         started = bool(p.get('started', False))
         completed = bool(p.get('completed', False))
-
-        # ❗️URL веде без параметра start=1 — це означає показати інформаційний блок
         step_url = url_for('main.manager_step', step=i)
-
         steps_meta.append({
             "index": i,
-            "title": b.get("title") or f"Крок {i+1}",
+            "title": b.get("title") or f"Крок {i + 1}",
             "description": b.get("description") or "",
             "started": started,
             "completed": completed,
             "url": step_url,
         })
+
+    # 7. Доступность шагов
+    for i, meta in enumerate(steps_meta):
+        if i == 0:
+            meta["accessible"] = True  # первый шаг всегда открыт
+        else:
+            prev = steps_meta[i - 1]
+            meta["accessible"] = bool(prev.get("completed", False))
 
     return render_template(
         'manager_dashboard.html',
@@ -1002,6 +1007,7 @@ def manager_dashboard():
         steps_meta=steps_meta,
         current_step=current_step,
     )
+
 
 @bp.route('/manager_step/<int:step>', methods=['GET', 'POST'])
 @login_required
@@ -1011,16 +1017,16 @@ def manager_step(step):
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    # Берём самый свежий инстанс
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
                 .first())
     if not instance:
         return redirect(url_for('main.manager_dashboard'))
+
     print(f"[manager_step] use onboarding_instance id={instance.id}")
 
-    # --- Разбор структуры (мягко, с двойным JSON) ---
+    # --- Разбор структуры ---
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
@@ -1038,7 +1044,7 @@ def manager_step(step):
 
     block = stage_blocks[step]
 
-    # --- Прогресс по шагам (мягко) ---
+    # --- Прогресс ---
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
         try:
@@ -1048,10 +1054,10 @@ def manager_step(step):
 
     step_key = str(step)
     step_progress = progress.get(step_key, {})
-    raw_started   = bool(step_progress.get('started', False))
+    raw_started = bool(step_progress.get('started', False))
     raw_completed = bool(step_progress.get('completed', False))
 
-    # --- ПОДСТРАХОВКА 1: если уже ушли дальше, а этот не completed — закрываем его
+    # --- Подстраховка: если уже прошли дальше, а этот не завершён
     if (instance.onboarding_step or 0) > step and not raw_completed:
         prev = progress.get(step_key, {})
         prev['started'] = True
@@ -1062,7 +1068,7 @@ def manager_step(step):
         raw_started = True
         raw_completed = True
 
-    # --- Fallback по cookie: если браузер пометил шаг как начатый, а в БД ещё нет
+    # --- Cookie fallback
     cookie_started = request.cookies.get(f"step_started_{step}") == "1"
     if cookie_started and (not raw_started) and (not raw_completed):
         prev = progress.get(step_key, {})
@@ -1072,13 +1078,13 @@ def manager_step(step):
         db.session.commit()
         raw_started = True
 
-    # --- Анти-чит: тест начат в БД, но в URL нет start=1 → редиректим на тот же шаг с start=1
-    if raw_started and not raw_completed and request.args.get('start') != '1':
-        return redirect(url_for('main.manager_step', step=step, start=1), code=302)
+    # ❌ Удаляем автопереход на ?start=1 (чтобы не пропускать инфо-блок)
+    # if raw_started and not raw_completed and request.args.get('start') != '1':
+    #     return redirect(url_for('main.manager_step', step=step, start=1), code=302)
 
-    # --- ПОДСТРАХОВКА 2: явный сигнал из URL (?start=1) — пометить step как "started" (completed не трогаем)
+    # --- Явный старт по параметру
     force_start = request.args.get('start') == '1'
-    if force_start and (not raw_completed) and (not raw_started):
+    if force_start and (not raw_completed):
         prev = progress.get(step_key, {})
         prev['started'] = True
         progress[step_key] = prev
@@ -1089,7 +1095,7 @@ def manager_step(step):
     ui_started = raw_started and not raw_completed
     print(f"[manager_step GET] step={step} started={raw_started} completed={raw_completed} ui_started={ui_started}")
 
-    # --- Обработка POST (сабмит ответов теста) ---
+    # --- Обработка POST (тест)
     def process_questions(questions, answers_dict):
         correct_count = 0
         total_test_questions = 0
@@ -1132,7 +1138,6 @@ def manager_step(step):
         return correct_count, total_test_questions, open_questions_count
 
     if request.method == 'POST':
-        # если шаг уже завершён — не дублируем запись
         if raw_completed:
             return jsonify({'status': 'ok', 'correct': 0, 'total_choice': 0, 'open_questions': 0})
 
@@ -1163,8 +1168,13 @@ def manager_step(step):
             ))
             open_q_count += 1
 
-        # --- Завершаем шаг и двигаем курсор вперёд
+        # --- Завершаем шаг и открываем следующий
         progress[step_key] = {'started': True, 'completed': True}
+
+        next_step = step + 1
+        if next_step < total_steps and str(next_step) not in progress:
+            progress[str(next_step)] = {"started": False, "completed": False}
+
         instance.test_progress = progress
         instance.onboarding_step = max(instance.onboarding_step or 0, step + 1)
         current_user.onboarding_step = instance.onboarding_step
@@ -1179,7 +1189,6 @@ def manager_step(step):
             'open_questions': open_q_count
         })
 
-    # --- Рендер с анти-кэш заголовками и синхронизацией cookie ---
     html = render_template(
         'manager_step.html',
         step=step,
@@ -1193,9 +1202,6 @@ def manager_step(step):
     resp.headers['Pragma'] = 'no-cache'
     resp.headers['Expires'] = '0'
 
-    # Состояние cookie ↔ состояние БД:
-    #  - если started и не completed → cookie=1
-    #  - иначе → удаляем cookie
     if raw_started and not raw_completed:
         resp.set_cookie(f"step_started_{step}", "1", path=f"/manager_step/{step}", samesite="Lax")
     else:
