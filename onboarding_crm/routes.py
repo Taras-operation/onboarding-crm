@@ -183,12 +183,15 @@ def mentor_dashboard():
     for i in active_instances:
         total = len(i.structure or [])
         completed = i.onboarding_step or 0
+
         if total > 0:
-            progress = 100 if completed >= total else (completed / total) * 100
-            progress_list.append(progress)
+            # Обчислюємо реальний % завершення
+             progress = round((completed / total) * 100, 1)
+             progress_list.append(progress)
 
+    # Середнє значення по всіх активних
     average_progress = round(sum(progress_list) / len(progress_list), 1) if progress_list else 0
-
+    
     # 5️⃣ Рендеримо шаблон
     return render_template(
         'mentor_dashboard.html',
