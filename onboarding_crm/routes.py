@@ -205,6 +205,7 @@ def managers_list():
     if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         return redirect(url_for('main.login'))
 
+    # 🔹 1. Базовая выборка менеджеров по ролям
     if current_user.role == 'developer':
         managers = User.query.filter_by(role='manager').all()
 
@@ -234,23 +235,25 @@ def managers_list():
         managers = User.query.filter_by(
             role='manager',
             department=current_user.department
-        ).all()    
+        ).all()
 
-    # 🔻 Фільтруємо менеджерів — залишаємо лише тих, у кого останній інстанс не архівований
+    # 🔹 2. Формирование финального списка
     filtered_managers = []
     for manager in managers:
+        # Получаем последний онбординг-инстанс
         instance = (OnboardingInstance.query
                     .filter_by(manager_id=manager.id)
                     .order_by(OnboardingInstance.id.desc())
                     .first())
-        if instance and not instance.archived:
-            manager.latest_instance = instance  # зберігаємо для наступного використання
-            filtered_managers.append(manager)
-    managers = filtered_managers
 
-    # 🔢 Підрахунок етапів (беремо останній інстанс по id)
-    for manager in managers:
-        instance = manager.latest_instance  # ми вже витягнули його вище
+        # Сохраняем даже если None (для шаблона)
+        manager.latest_instance = instance
+
+        # Если онбординг существует, но в архиве — пропускаем
+        if instance and instance.archived:
+            continue
+
+        # Подсчёт количества этапов (если структура есть)
         if instance and instance.structure:
             try:
                 structure = instance.structure
@@ -258,6 +261,7 @@ def managers_list():
                     structure = json.loads(structure)
                 if isinstance(structure, str):
                     structure = json.loads(structure)
+
                 blocks = structure.get('blocks') if isinstance(structure, dict) else structure
                 total = len([b for b in blocks if b.get("type") == "stage"])
                 setattr(manager, 'total_steps_calculated', total)
@@ -265,8 +269,15 @@ def managers_list():
                 print(f"[managers_list] ❌ Error parsing structure for manager {manager.id}: {e}")
                 setattr(manager, 'total_steps_calculated', 0)
         else:
+            # Если онбординга ещё нет — ставим 0 этапов
             setattr(manager, 'total_steps_calculated', 0)
 
+        # Добавляем менеджера в финальный список
+        filtered_managers.append(manager)
+
+    managers = filtered_managers
+
+    # 🔹 3. Рендер страницы
     return render_template('managers_list.html', managers=managers)
 
 @bp.route('/manager/statistics')
