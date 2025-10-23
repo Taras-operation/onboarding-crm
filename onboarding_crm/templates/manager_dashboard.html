@@ -38,33 +38,22 @@
             {{ block.description | autolink | safe }}
           </p>
 
-          {% if steps_meta[i].completed %}
+          {% if steps_meta[i].accessible %}
             <div class="flex justify-between items-center">
               <a href="{{ steps_meta[i].url }}"
                  class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-3 rounded-xl shadow">
                 Перейти
               </a>
-              <span class="text-green-600 font-semibold text-lg">✅ Пройдено</span>
+              {% if steps_meta[i].completed %}
+                <span class="text-green-600 font-semibold text-lg">✅ Пройдено</span>
+              {% endif %}
             </div>
-
-          {% elif steps_meta[i].started %}
-            <a href="{{ steps_meta[i].url }}"
-               class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-3 rounded-xl shadow">
-              Перейти
-            </a>
-
-          {% elif i == 0 %}
-            <!-- Первый блок всегда доступен для перехода -->
-            <a href="{{ steps_meta[i].url }}"
-               class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-3 rounded-xl shadow">
-              Перейти
-            </a>
-
           {% else %}
             <button class="bg-gray-400 text-white text-lg px-6 py-3 rounded-xl cursor-not-allowed" disabled>
               Заблоковано
             </button>
           {% endif %}
+
         </div>
       {% endfor %}
 
