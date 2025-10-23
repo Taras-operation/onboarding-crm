@@ -971,11 +971,15 @@ def manager_dashboard():
         except Exception:
             progress = {}
 
-    # --- Будуємо метадані по кроках і одразу готові URL (оновлений блок)
-    steps_meta = []
-    total_steps = len(stage_blocks)
-    cursor = instance.onboarding_step or 0
+    # 🛠 Автозапуск першого блоку, якщо ще не стартував
+    if stage_blocks:
+        if '0' not in progress or not progress['0'].get('started'):
+            progress['0'] = {"started": True, "completed": False}
+            instance.test_progress = progress
+            db.session.commit()
 
+    # --- Будуємо метадані по кроках
+    steps_meta = []
     for i, b in enumerate(stage_blocks):
         p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
 
