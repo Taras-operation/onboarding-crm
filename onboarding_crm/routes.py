@@ -135,7 +135,7 @@ def mentor_dashboard():
     if current_user.role not in ['mentor', 'teamlead', 'head']:
         return redirect(url_for('main.login'))
 
-    # 1. Отримуємо список менеджерів
+    # 1️⃣ Отримуємо список менеджерів
     if current_user.role == 'mentor':
         managers = User.query.filter_by(
             role='manager',
@@ -166,18 +166,30 @@ def mentor_dashboard():
 
     manager_ids = [m.id for m in managers]
 
-    # 2. Активні онбординги — просто всі, де є структура
-    active_onboardings = OnboardingInstance.query.filter(
+    # 2️⃣ Отримуємо всі інстанси онбордингу цих менеджерів
+    instances = OnboardingInstance.query.filter(
         OnboardingInstance.manager_id.in_(manager_ids)
-    ).count()
+    ).all()
 
-    # 3. Середній прогрес
-    progresses = [
-        m.onboarding_step or 0
-        for m in managers if m.onboarding_step is not None
-    ]
-    average_progress = round(sum(progresses) / len(progresses), 1) if progresses else 0
+    # 3️⃣ Розділяємо на активні та архівні
+    active_instances = [i for i in instances if not i.archived]
+    archived_instances = [i for i in instances if i.archived]
 
+    archived_count = len(archived_instances)
+    active_onboardings = len(active_instances)
+
+    # 4️⃣ Розрахунок середнього прогресу по активним
+    progress_list = []
+    for i in active_instances:
+        total = len(i.structure or [])
+        completed = i.onboarding_step or 0
+        if total > 0:
+            progress = 100 if completed >= total else (completed / total) * 100
+            progress_list.append(progress)
+
+    average_progress = round(sum(progress_list) / len(progress_list), 1) if progress_list else 0
+
+    # 5️⃣ Рендеримо шаблон
     return render_template(
         'mentor_dashboard.html',
         managers=managers,
