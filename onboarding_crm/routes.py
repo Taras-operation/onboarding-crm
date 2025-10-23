@@ -1278,14 +1278,13 @@ def manager_results(manager_id, onboarding_id):
     for r in open_results:
         print(f"🧪 ID={r.id} | Step={r.step} | Approved={r.approved} | Draft={r.draft} | Feedback={r.feedback}")
 
-    # --- Чи показувати модалку фінального фідбеку ---
-    show_popup = False
+    # --- Логіка попапу ---
+    total_blocks = len(structure or [])
+    all_blocks_completed = instance.onboarding_step >= total_blocks
 
-    if open_results:
-        if all(r.approved is not None and not r.draft for r in open_results):
-            show_popup = True
-    else:
-        show_popup = True
+    all_open_checked = all(r.approved is not None and not r.draft for r in open_results)
+
+    show_popup = all_blocks_completed and (not open_results or all_open_checked)
 
     print(f"📊 {len(choice_results)} choice_results, {len(open_results)} open_results, popup={show_popup}")
 
