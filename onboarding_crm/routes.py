@@ -971,12 +971,15 @@ def manager_dashboard():
         except Exception:
             progress = {}
 
-    # 🛠 Автозапуск першого блоку, якщо ще не стартував
+    # 🛠 Примусово робимо перший блок started=True
     if stage_blocks:
-        if '0' not in progress or not progress['0'].get('started'):
-            progress['0'] = {"started": False, "completed": False}
-            instance.test_progress = progress
-            db.session.commit()
+        if '0' not in progress:
+            progress['0'] = {"started": True, "completed": False}
+        else:
+            progress['0']['started'] = True  # навіть якщо є — гарантуємо True
+
+        instance.test_progress = progress
+        db.session.commit()
 
     # --- Будуємо метадані по кроках
     steps_meta = []
@@ -986,9 +989,11 @@ def manager_dashboard():
         started = bool(p.get('started', False))
         completed = bool(p.get('completed', False))
 
-        # ✅ Виправлена логіка: якщо розпочато і не завершено — відкриваємо тест
-        step_url = url_for('main.manager_step', step=i, start=1) if (started and not completed) \
-                   else url_for('main.manager_step', step=i)
+        # Якщо блок активний, веде на ?start=1 (тобто тест), інакше просто інфо
+        if started and not completed:
+            step_url = url_for('main.manager_step', step=i, start=1)
+        else:
+            step_url = url_for('main.manager_step', step=i)
 
         steps_meta.append({
             "index": i,
