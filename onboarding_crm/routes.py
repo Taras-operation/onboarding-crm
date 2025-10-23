@@ -987,7 +987,7 @@ def manager_dashboard():
         completed = bool(p.get('completed', False))
 
         step_url = url_for('main.manager_step', step=i, start=1) if (started and not completed) \
-                   else url_for('main.manager_step', step=i)
+                   else url_for('main.manager_step', step=i, start=1)
 
         steps_meta.append({
             "index": i,
