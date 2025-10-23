@@ -971,7 +971,7 @@ def manager_dashboard():
         except Exception:
             progress = {}
 
-    # Добавляем progress['0'] при первом запуске, но не "started"
+    # Добавляем progress['0'] при первом запуске
     if '0' not in progress and stage_blocks:
         progress['0'] = {"started": False, "completed": False}
         instance.test_progress = progress
@@ -993,13 +993,9 @@ def manager_dashboard():
             "url": step_url,
         })
 
-    # 7. Доступность шагов
+    # 7. Доступность шагов через onboarding_step
     for i, meta in enumerate(steps_meta):
-        if i == 0:
-            meta["accessible"] = True  # первый шаг всегда открыт
-        else:
-            prev = steps_meta[i - 1]
-            meta["accessible"] = bool(prev.get("completed", False))
+        meta["accessible"] = (i <= current_step)
 
     return render_template(
         'manager_dashboard.html',
@@ -1007,7 +1003,6 @@ def manager_dashboard():
         steps_meta=steps_meta,
         current_step=current_step,
     )
-
 
 @bp.route('/manager_step/<int:step>', methods=['GET', 'POST'])
 @login_required
