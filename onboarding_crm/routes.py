@@ -928,7 +928,6 @@ def manager_dashboard():
     if current_user.role != 'manager':
         return redirect(url_for('main.login'))
 
-    # Беремо найсвіжіший інстанс онбордингу
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
                 .order_by(OnboardingInstance.id.desc())
@@ -938,32 +937,23 @@ def manager_dashboard():
 
     print(f"[manager_dashboard] use onboarding_instance id={instance.id}")
 
-    # --- Розбір структури (м'яко, з подвійним JSON) ---
+    # --- Розбір структури ---
     try:
         raw = instance.structure
         parsed = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(parsed, str):
             parsed = json.loads(parsed)
-
-        if isinstance(parsed, dict) and 'blocks' in parsed:
-            blocks_all = parsed['blocks']
-        elif isinstance(parsed, list):
-            blocks_all = parsed
-        else:
-            blocks_all = []
+        blocks_all = parsed.get('blocks') if isinstance(parsed, dict) else parsed if isinstance(parsed, list) else []
     except Exception as e:
         print(f"[manager_dashboard] ❌ JSON error: {e}")
         blocks_all = []
 
-    # Беремо тільки stage-блоки
     stage_blocks = [b for b in blocks_all if b.get("type") == "stage"]
-
-    # Поточний курсор онбордингу
     current_step = instance.onboarding_step or 0
     if current_step >= len(stage_blocks):
         current_step = len(stage_blocks) - 1 if stage_blocks else 0
 
-    # --- Прогрес по кроках (нормалізуємо до dict)
+    # Прогрес
     progress = instance.test_progress or {}
     if not isinstance(progress, dict):
         try:
@@ -971,29 +961,27 @@ def manager_dashboard():
         except Exception:
             progress = {}
 
-    # 🛠 Примусово робимо перший блок started=True
+    # Автостарт першого блоку
     if stage_blocks:
-        if '0' not in progress:
+        if '0' not in progress or not progress['0'].get('started'):
             progress['0'] = {"started": True, "completed": False}
-        else:
-            progress['0']['started'] = True  # навіть якщо є — гарантуємо True
+            instance.test_progress = progress
+            db.session.commit()
 
-        instance.test_progress = progress
-        db.session.commit()
-
-    # --- Будуємо метадані по кроках
+    # Метадані
     steps_meta = []
     for i, b in enumerate(stage_blocks):
         p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
-
         started = bool(p.get('started', False))
         completed = bool(p.get('completed', False))
 
-        # Якщо блок активний, веде на ?start=1 (тобто тест), інакше просто інфо
-        if started and not completed:
-            step_url = url_for('main.manager_step', step=i, start=1)
-        else:
+        # 👇 Правильна логіка URL
+        if completed:
             step_url = url_for('main.manager_step', step=i)
+        elif started:
+            step_url = url_for('main.manager_step', step=i)  # ⛔️ БЕЗ `start=1`
+        else:
+            step_url = "#"  # Заблоковано
 
         steps_meta.append({
             "index": i,
