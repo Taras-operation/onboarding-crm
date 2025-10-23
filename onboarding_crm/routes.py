@@ -135,7 +135,7 @@ def mentor_dashboard():
     if current_user.role not in ['mentor', 'teamlead', 'head']:
         return redirect(url_for('main.login'))
 
-    # 1️⃣ Отримуємо список менеджерів
+    # 1. Отримуємо список менеджерів
     if current_user.role == 'mentor':
         managers = User.query.filter_by(
             role='manager',
@@ -166,19 +166,19 @@ def mentor_dashboard():
 
     manager_ids = [m.id for m in managers]
 
-    # 2️⃣ Отримуємо всі інстанси онбордингу цих менеджерів
-    instances = OnboardingInstance.query.filter(
-        OnboardingInstance.manager_id.in_(manager_ids)
+    # 2. Активні інстанси онбордингу (не в архіві)
+    active_instances = OnboardingInstance.query.filter(
+        OnboardingInstance.manager_id.in_(manager_ids),
+        OnboardingInstance.archived == False
     ).all()
 
-    # 3️⃣ Розділяємо на активні та архівні
-    active_instances = [i for i in instances if not i.archived]
-    archived_instances = [i for i in instances if i.archived]
+    # 3. Архівовані інстанси
+    archived_count = OnboardingInstance.query.filter(
+        OnboardingInstance.manager_id.in_(manager_ids),
+        OnboardingInstance.archived == True
+    ).count()
 
-    archived_count = len(archived_instances)
-    active_onboardings = len(active_instances)
-
-    # 4️⃣ Розрахунок середнього прогресу по активним
+    # 4. Прогрес по кожному інстансу
     progress_list = []
     for i in active_instances:
         structure = i.structure or []
@@ -186,18 +186,15 @@ def mentor_dashboard():
         completed = min(i.onboarding_step or 0, total)
 
         if total > 0:
-            # Обчислюємо реальний % завершення
-             progress = round((completed / total) * 100, 1)
-             progress_list.append(progress)
+            percent = round((completed / total) * 100, 1)
+            progress_list.append(percent)
 
-    # Середнє значення по всіх активних
     average_progress = round(sum(progress_list) / len(progress_list), 1) if progress_list else 0
-    
-    # 5️⃣ Рендеримо шаблон
+
     return render_template(
         'mentor_dashboard.html',
         managers=managers,
-        active_onboardings=active_onboardings,
+        active_onboardings=len(active_instances),
         archived_count=archived_count,
         average_progress=average_progress
     )
