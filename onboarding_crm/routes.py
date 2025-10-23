@@ -182,6 +182,7 @@ def mentor_dashboard():
         'mentor_dashboard.html',
         managers=managers,
         active_onboardings=active_onboardings,
+        archived_count=archived_count,
         average_progress=average_progress
     )
     
