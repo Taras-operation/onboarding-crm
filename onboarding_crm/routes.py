@@ -974,7 +974,7 @@ def manager_dashboard():
     # 🛠 Автозапуск першого блоку, якщо ще не стартував
     if stage_blocks:
         if '0' not in progress or not progress['0'].get('started'):
-            progress['0'] = {"started": True, "completed": False}
+            progress['0'] = {"started": False, "completed": False}
             instance.test_progress = progress
             db.session.commit()
 
@@ -986,8 +986,9 @@ def manager_dashboard():
         started = bool(p.get('started', False))
         completed = bool(p.get('completed', False))
 
+        # ✅ Виправлена логіка: якщо розпочато і не завершено — відкриваємо тест
         step_url = url_for('main.manager_step', step=i, start=1) if (started and not completed) \
-                   else url_for('main.manager_step', step=i, start=1)
+                   else url_for('main.manager_step', step=i)
 
         steps_meta.append({
             "index": i,
