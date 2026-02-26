@@ -8,7 +8,6 @@
   <!-- Tailwind -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 
-  <!-- Стилі для drag‑handle -->
   <style>
     .drag-handle {
       user-select: none;
@@ -24,72 +23,82 @@
     .sortable-chosen { background: #f8fafc; }
   </style>
 </head>
+
 <body class="bg-gray-100 p-6">
 
-  <div class="max-w-5xl mx-auto bg-white p-6 rounded shadow">
-    <h1 class="text-2xl font-bold mb-4">Редактор онбордингу</h1>
+<div class="max-w-5xl mx-auto bg-white p-6 rounded shadow">
+  <h1 class="text-2xl font-bold mb-4">Редактор онбордингу</h1>
 
-    <form method="POST">
-      <!-- ✅ CSRF Токен -->
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <form method="POST">
+    <!-- CSRF -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-      <!-- Назва шаблону -->
-      <input
-        type="text"
-        name="name"
-        value="{{ name or '' }}"
-        placeholder="Назва шаблону"
-        class="w-full border rounded p-2 mb-4"
-        required
-      />
+    <!-- Назва шаблону -->
+    <input
+      type="text"
+      name="name"
+      value="{{ name or '' }}"
+      placeholder="Назва шаблону"
+      class="w-full border rounded p-2 mb-4"
+      required
+    />
 
-      <!-- Вибір менеджера -->
-      {% if managers %}
-      <select name="selected_manager" class="w-full border rounded p-2 mb-4">
-        <option value="template" {% if selected_manager == 'template' %}selected{% endif %}>
-          Зберегти як шаблон
-        </option>
+    <!-- ✅ ВИБІР КУДИ ЗБЕРЕГТИ (ЗАВЖДИ Є) -->
+    <label class="block mb-1 font-medium">Куди зберегти</label>
+
+    <select name="selected_manager" class="w-full border rounded p-2 mb-4">
+      <!-- Завжди доступна опція -->
+      <option value="template" {% if selected_manager = 'template' or not selected_manager %}selected{% endif %}>
+        Зберегти як шаблон
+      </option>
+
+      <!-- Якщо є менеджери -->
+      {% if managers and managers|length > 0 %}
         {% for manager in managers %}
           <option value="{{ manager.id }}" {% if selected_manager == manager.id %}selected{% endif %}>
             {{ manager.full_name or manager.username or manager.login }}
           </option>
         {% endfor %}
-      </select>
+      {% else %}
+        <!-- Якщо менеджерів нема — просто інформативний пункт -->
+        <option value="" disabled>(Немає менеджерів у відділі)</option>
       {% endif %}
+    </select>
 
-      <!-- Контейнер блоків -->
-      <div id="blocks-container" class="space-y-4"></div>
+    <!-- Контейнер блоків -->
+    <div id="blocks-container" class="space-y-4"></div>
 
-      <!-- Кнопка додавання етапу -->
-      <button
-        type="button"
-        onclick="addStage(); if (typeof autosaveTemplate==='function'){ try{ autosaveTemplate(); }catch(e){} }"
-        class="bg-blue-500 text-white px-4 py-2 rounded mt-4"
-      >
-        + Додати етап
-      </button>
+    <!-- Додати етап -->
+    <button
+      type="button"
+      onclick="addStage(); if (typeof autosaveTemplate==='function'){ try{ autosaveTemplate(); }catch(e){} }"
+      class="bg-blue-500 text-white px-4 py-2 rounded mt-4"
+    >
+      + Додати етап
+    </button>
 
-      <!-- Приховане поле зі структурою -->
-      <input type="hidden" name="structure" id="structure" />
+    <!-- Hidden JSON structure -->
+    <input type="hidden" name="structure" id="structure" />
 
-      <!-- Кнопка збереження -->
-      <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded mt-4">
-        Зберегти
-      </button>
-    </form>
-  </div>
+    <!-- Зберегти -->
+    <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded mt-4">
+      Зберегти
+    </button>
+  </form>
+</div>
 
-  <!-- Дані з сервера -->
-  <script>
-    window.templateData     = {{ structure | tojson | safe }};
-    window.onboarding_step  = {{ onboarding_step | default(0) }};
-    window.templateId       = {{ template.id if template and template.id else 'null' }};
-  </script>
+<!-- Дані з сервера -->
+<script>
+  window.templateData     = {{ structure | tojson | safe }};
+  window.onboarding_step  = {{ onboarding_step | default(0) }};
+  window.templateId       = {{ template.id if template and template.id else 'null' }};
+</script>
 
-  <!-- SortableJS -->
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-  <!-- Основний JS редактора -->
-  <script src="{{ url_for('static', filename='js/editor_blocks.js') }}"></script>
+<!-- JS редактора -->
+<script src="{{ url_for('static', filename='js/editor_blocks.js') }}"></script>
+
 </body>
 </html>

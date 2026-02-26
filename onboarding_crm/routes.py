@@ -544,7 +544,7 @@ def add_onboarding_template():
             print("❌ Ошибка парсинга structure при POST:", e)
             structure = []
 
-        selected_manager_id = request.form.get('selected_manager')
+        selected_manager_id = request.form.get('selected_manager') or 'template'
         name = request.form.get('name')
         payload = {'blocks': structure}  # ← ЕДИНЫЙ формат
 
