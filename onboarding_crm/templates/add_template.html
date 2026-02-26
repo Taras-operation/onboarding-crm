@@ -48,14 +48,14 @@
 
     <select name="selected_manager" class="w-full border rounded p-2 mb-4">
       <!-- Завжди доступна опція -->
-      <option value="template" {% if selected_manager = 'template' or not selected_manager %}selected{% endif %}>
+      <option value="template" {% if selected_manager == 'template' or not selected_manager %}selected{% endif %}>
         Зберегти як шаблон
       </option>
 
       <!-- Якщо є менеджери -->
       {% if managers and managers|length > 0 %}
         {% for manager in managers %}
-          <option value="{{ manager.id }}" {% if selected_manager == manager.id %}selected{% endif %}>
+          <option value="{{ manager.id }}" {% if selected_manager|string == manager.id|string %}selected{% endif %}>
             {{ manager.full_name or manager.username or manager.login }}
           </option>
         {% endfor %}
