@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Плани Онбордингу</title>
   <meta name="csrf-token" content="{{ csrf_token() }}">
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -11,46 +12,47 @@
       padding: 0;
       background-color: #f6f8fa;
     }
+
     .container {
       padding: 20px;
     }
+
     h1 {
       text-align: center;
       color: #333;
     }
-    .back-btn {
-      margin-bottom: 10px;
-      display: inline-block;
-      color: #007bff;
-      text-decoration: none;
-      font-size: 14px;
-    }
+
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 20px;
       margin-top: 30px;
     }
+
     .panel {
       background: #fff;
       border-radius: 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
       padding: 20px;
     }
+
     .panel-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 15px;
     }
+
     .panel-header h2 {
       margin: 0;
       font-size: 18px;
     }
+
     .panel-header .actions {
       display: flex;
       gap: 10px;
     }
+
     .btn {
       padding: 6px 12px;
       border: none;
@@ -58,47 +60,77 @@
       cursor: pointer;
       font-size: 14px;
     }
+
     .btn-primary {
       background-color: #007bff;
       color: white;
     }
+
     .btn-danger {
       background-color: #dc3545;
       color: white;
     }
+
     .btn-secondary {
       background-color: #6c757d;
       color: white;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 14px;
     }
+
     th, td {
       padding: 10px;
       text-align: center;
       border-bottom: 1px solid #dee2e6;
     }
+
     th {
       background-color: #f1f1f1;
       font-weight: bold;
     }
+
     tr:hover {
       background-color: #f9f9f9;
     }
+
+    /* 🔥 Иконки в одну линию */
+    .actions-inline {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
     .icon-btn {
       background: none;
       border: none;
       cursor: pointer;
-      margin: 0 3px;
+      padding: 2px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
     }
+
+    .icon-btn:hover {
+      transform: scale(1.1);
+    }
+
   </style>
 </head>
+
 <body>
   <div class="container">
-    <a href="{{ url_for('main.mentor_dashboard') }}" class="btn btn-secondary mb-3">⬅️ Назад</a>
+
+    <a href="{{ url_for('main.mentor_dashboard') }}" class="btn btn-secondary">⬅️ Назад</a>
+
     <h1>Плани Онбордингу</h1>
+
     <div class="grid">
 
       <!-- 🔷 Шаблони -->
@@ -106,10 +138,14 @@
         <div class="panel-header">
           <h2>Шаблони Онбордингу</h2>
           <div class="actions">
-            <button class="btn btn-primary" onclick="location.href='/onboarding/template/add'">+ Додати шаблон</button>
+            <button class="btn btn-primary"
+                    onclick="location.href='/onboarding/template/add'">
+              + Додати шаблон
+            </button>
             <input type="text" placeholder="Пошук...">
           </div>
         </div>
+
         <table>
           <thead>
             <tr>
@@ -120,6 +156,7 @@
               <th>Дії</th>
             </tr>
           </thead>
+
           <tbody>
             {% for template in templates %}
             <tr id="template-row-{{ template.id }}">
@@ -127,10 +164,27 @@
               <td>{{ template.name }}</td>
               <td>{{ template.step_count }} етапів</td>
               <td>{{ template.created_at.strftime('%d/%m/%Y') }}</td>
+
               <td>
-                <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/template/add?template_id={{ template.id }}'">✏️</button>
-                <button class="icon-btn" title="Копіювати" onclick="location.href='/onboarding/template/add?template_id={{ template.id }}&copy=1'">📄</button>
-                <button class="icon-btn text-danger" title="Видалити" onclick="confirmDeleteTemplate('{{ template.id }}', '{{ template.name }}')">🗑️</button>
+                <div class="actions-inline">
+                  <button class="icon-btn"
+                          title="Редагувати"
+                          onclick="location.href='/onboarding/template/add?template_id={{ template.id }}'">
+                    ✏️
+                  </button>
+
+                  <button class="icon-btn"
+                          title="Копіювати"
+                          onclick="location.href='/onboarding/template/add?template_id={{ template.id }}&copy=1'">
+                    📄
+                  </button>
+
+                  <button class="icon-btn"
+                          title="Видалити"
+                          onclick="confirmDeleteTemplate('{{ template.id }}', '{{ template.name }}')">
+                    🗑️
+                  </button>
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -143,10 +197,14 @@
         <div class="panel-header">
           <h2>Онбординги Менеджерів</h2>
           <div class="actions">
-            <button class="btn btn-primary" onclick="location.href='/onboarding/template/add'">+ Додати план</button>
+            <button class="btn btn-primary"
+                    onclick="location.href='/onboarding/template/add'">
+              + Додати план
+            </button>
             <input type="text" placeholder="Пошук...">
           </div>
         </div>
+
         <table>
           <thead>
             <tr>
@@ -157,6 +215,7 @@
               <th>Дії</th>
             </tr>
           </thead>
+
           <tbody>
             {% for plan in user_plans %}
             <tr id="manager-row-{{ plan.id }}">
@@ -164,73 +223,72 @@
               <td>{{ plan.name }}</td>
               <td>{{ plan.completed or 0 }}/{{ plan.total or 0 }}</td>
               <td>{{ plan.mentor or '—' }}</td>
+
               <td>
-                <button class="icon-btn" title="Редагувати" onclick="location.href='/onboarding/user/edit/{{ plan.manager_id }}'">✏️</button>
-                <button class="icon-btn text-danger" title="Видалити" onclick="confirmDeleteInstance({{ plan.onboarding_id }})">🗑️</button>
+                <div class="actions-inline">
+                  <button class="icon-btn"
+                          title="Редагувати"
+                          onclick="location.href='/onboarding/user/edit/{{ plan.manager_id }}'">
+                    ✏️
+                  </button>
+
+                  <button class="icon-btn"
+                          title="Видалити"
+                          onclick="confirmDeleteInstance({{ plan.onboarding_id }})">
+                    🗑️
+                  </button>
+                </div>
               </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+
     </div>
   </div>
 
   <script>
     function confirmDeleteInstance(onboardingId) {
       const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
       if (confirm("Ви впевнені, що хочете видалити цей онбординг?")) {
         fetch(`/onboarding/instance/delete/${onboardingId}`, {
           method: 'DELETE',
-          headers: {
-            'X-CSRFToken': csrfToken
-          }
+          headers: { 'X-CSRFToken': csrfToken }
         })
         .then(response => {
           if (response.status === 204) {
             const row = document.getElementById(`manager-row-${onboardingId}`);
-            if (row) {
-              row.remove();
-            } else {
-              location.reload();
-            }
+            if (row) row.remove();
+            else location.reload();
           } else {
             response.json().then(data => {
               alert(data.message || 'Помилка при видаленні');
             });
           }
-        })
-        .catch(error => {
-          alert('Помилка з’єднання: ' + error);
         });
       }
     }
 
     function confirmDeleteTemplate(templateId, templateName) {
       const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
       if (confirm(`Ви впевнені, що хочете видалити шаблон "${templateName}"?`)) {
         fetch(`/onboarding/template/delete/${templateId}`, {
           method: 'DELETE',
-          headers: {
-            'X-CSRFToken': csrfToken
-          }
+          headers: { 'X-CSRFToken': csrfToken }
         })
         .then(response => {
           if (response.status === 204) {
             const row = document.getElementById(`template-row-${templateId}`);
-            if (row) {
-              row.remove();
-            } else {
-              location.reload();
-            }
+            if (row) row.remove();
+            else location.reload();
           } else {
             response.json().then(data => {
               alert(data.message || 'Помилка при видаленні шаблону');
             });
           }
-        })
-        .catch(error => {
-          alert('Помилка з’єднання: ' + error);
         });
       }
     }

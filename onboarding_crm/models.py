@@ -79,6 +79,9 @@ class OnboardingTemplate(db.Model):
     structure = db.Column(db.JSON)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # ✅ ШАБЛОН ПРИВЯЗАН К ДЕПАРТАМЕНТУ
+    # default нужен, чтобы миграция/старые записи не падали
+    department = db.Column(db.String(150), nullable=False, default="product", index=True)
 
     steps = db.relationship('OnboardingStep', backref='template', cascade='all, delete-orphan', lazy=True)
 
