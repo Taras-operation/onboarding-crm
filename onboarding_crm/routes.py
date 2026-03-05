@@ -451,34 +451,38 @@ def onboarding_plans():
     if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         return redirect(url_for('main.login'))
 
-    templates = OnboardingTemplate.query.all()
+    # ✅ Templates visibility: developer sees all, others only within their department
+    templates_q = OnboardingTemplate.query
+    if current_user.role != 'developer':
+        # Prefer direct department column on template; fallback to creator's department if available
+        if hasattr(OnboardingTemplate, 'department'):
+            templates_q = templates_q.filter(OnboardingTemplate.department == current_user.department)
+        elif hasattr(OnboardingTemplate, 'created_by'):
+            templates_q = templates_q.join(User, OnboardingTemplate.created_by == User.id) \
+                                   .filter(User.department == current_user.department)
+
+    templates = templates_q.all()
     for t in templates:
         try:
             parsed = json.loads(t.structure) if isinstance(t.structure, str) else t.structure
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed)
+
             blocks = parsed.get('blocks') if isinstance(parsed, dict) else parsed
-            t.step_count = sum(1 for block in blocks if block.get('type') == 'stage')
+            blocks = blocks or []
+            t.step_count = sum(
+                1 for block in blocks
+                if isinstance(block, dict) and block.get('type') == 'stage'
+            )
         except Exception as e:
             print(f"[plans] Шаблон {t.id}: помилка JSON: {e}")
             t.step_count = 0
 
-    if current_user.role == 'mentor':
-        managers = User.query.filter_by(
-            role='manager',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-    elif current_user.role == 'teamlead':
-        mentors = User.query.filter_by(
-            role='mentor',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-        mentor_ids = [mentor.id for mentor in mentors] + [current_user.id]
-        managers = User.query.filter(
-            User.role == 'manager',
-            User.added_by_id.in_(mentor_ids),
-            User.department == current_user.department
-        ).all()
+    # ✅ Managers list (department-aware)
+    if current_user.role in ['mentor', 'teamlead']:
+        managers = _allowed_managers_for_current_user().all()
+    elif current_user.role == 'head':
+        managers = User.query.filter_by(role='manager', department=current_user.department).all()
     elif current_user.role == 'developer':
         managers = User.query.filter_by(role='manager').all()
     else:
@@ -490,13 +494,26 @@ def onboarding_plans():
                     .filter_by(manager_id=m.id)
                     .order_by(OnboardingInstance.id.desc())
                     .first())
+
         total_steps = 0
+        completed_steps = 0
+
+        if instance:
+            completed_steps = instance.onboarding_step or 0
+
         if instance and instance.structure:
             try:
                 raw = instance.structure
                 parsed = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(parsed, str):
+                    parsed = json.loads(parsed)
+
                 blocks = parsed.get('blocks') if isinstance(parsed, dict) else parsed
-                total_steps = len([b for b in blocks if b.get("type") == "stage"])
+                blocks = blocks or []
+                total_steps = sum(
+                    1 for b in blocks
+                    if isinstance(b, dict) and b.get('type') == 'stage'
+                )
             except Exception as e:
                 print(f"[plans] ❌ manager {m.id} structure error: {e}")
 
@@ -504,7 +521,7 @@ def onboarding_plans():
             'manager_id': m.id,
             'onboarding_id': instance.id if instance else None,
             'name': f"Онбординг для @{m.tg_nick or m.username}",
-            'completed': m.onboarding_step or 0,
+            'completed': completed_steps,
             'total': total_steps,
             'mentor': m.added_by.tg_nick if m.added_by else '—'
         })
