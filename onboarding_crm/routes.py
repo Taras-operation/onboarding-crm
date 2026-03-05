@@ -82,23 +82,56 @@ def developer_dashboard():
     if current_user.role != 'developer':
         return redirect(url_for('main.login'))
 
-    # --- Додавання нового користувача ---
+    # --- Create new user ---
     if request.method == 'POST':
-        tg_nick = request.form.get('tg_nick')
-        role = request.form.get('role')
-        department = request.form.get('department')
-        position = request.form.get('position')
-        username = request.form.get('username')
-        password = generate_password_hash(request.form.get('password'))
+        tg_nick = (request.form.get('tg_nick') or '').strip() or None
+        role = (request.form.get('role') or '').strip()
+        department = (request.form.get('department') or '').strip() or None
+        position = (request.form.get('position') or '').strip() or None
+        username = (request.form.get('username') or '').strip()
+        password_raw = request.form.get('password') or ''
+
+        if not role or role not in ['developer', 'head', 'teamlead', 'mentor', 'manager']:
+            flash('Некоректна роль користувача', 'danger')
+            return redirect(url_for('main.developer_dashboard'))
+
+        if not username:
+            flash('Логін (username) обов\'язковий', 'danger')
+            return redirect(url_for('main.developer_dashboard'))
+
+        if not password_raw:
+            flash('Пароль обов\'язковий', 'danger')
+            return redirect(url_for('main.developer_dashboard'))
+
+        password = generate_password_hash(password_raw)
+
+        # --- Determine added_by_id (who created the user)
         added_by_id = None
-
-        # Прив'язка до ТЛ, якщо ментор
         if role == 'mentor':
-            added_by_id = request.form.get('teamlead_id')
-        elif role == 'manager':
-            added_by_id = current_user.id  # developer або потім через dropdown
+            # mentor must be linked to a teamlead
+            tl_id = request.form.get('teamlead_id')
+            if not tl_id:
+                flash('Для ментора потрібно обрати тімліда', 'danger')
+                return redirect(url_for('main.developer_dashboard'))
+            try:
+                added_by_id = int(tl_id)
+            except Exception:
+                flash('Некоректний teamlead_id', 'danger')
+                return redirect(url_for('main.developer_dashboard'))
 
-        # 🔁 Унікальний логін, якщо такий вже існує
+        elif role == 'manager':
+            # manager can be linked to any mentor/teamlead (optional dropdown)
+            mentor_id = request.form.get('mentor_id')
+            if mentor_id:
+                try:
+                    added_by_id = int(mentor_id)
+                except Exception:
+                    flash('Некоректний mentor_id', 'danger')
+                    return redirect(url_for('main.developer_dashboard'))
+            else:
+                added_by_id = current_user.id
+
+        # --- Unique username fallback ---
         base_username = username
         counter = 1
         while User.query.filter_by(username=username).first():
@@ -112,22 +145,131 @@ def developer_dashboard():
             position=position,
             username=username,
             password=password,
-            added_by_id=int(added_by_id) if added_by_id else None
+            added_by_id=added_by_id
         )
+
         db.session.add(new_user)
         db.session.commit()
-        flash("Користувача додано", "success")
+        flash('Користувача додано', 'success')
         return redirect(url_for('main.developer_dashboard'))
 
-    # --- Дані для GET ---
+    # --- Data for GET ---
     users = User.query.order_by(User.id.desc()).all()
-    teamleads = User.query.filter_by(role='teamlead').all()
+    teamleads = User.query.filter_by(role='teamlead').order_by(User.id.desc()).all()
+    mentors = User.query.filter_by(role='mentor').order_by(User.id.desc()).all()
 
     return render_template(
         'developer_dashboard.html',
         users=users,
-        teamleads=teamleads
+        teamleads=teamleads,
+        mentors=mentors
     )
+
+
+# --- Developer user management routes ---
+@bp.route('/dashboard/developer/user/<int:user_id>/update', methods=['POST'])
+@login_required
+def developer_user_update(user_id):
+    if current_user.role != 'developer':
+        return redirect(url_for('main.login'))
+
+    user = User.query.get_or_404(user_id)
+
+    # Only update safe profile fields from the form
+    tg_nick = request.form.get('tg_nick')
+    role = request.form.get('role')
+    department = request.form.get('department')
+    position = request.form.get('position')
+    added_by_id = request.form.get('added_by_id')
+
+    if tg_nick is not None:
+        user.tg_nick = (tg_nick or '').strip() or None
+
+    if role is not None and role.strip() in ['developer', 'head', 'teamlead', 'mentor', 'manager']:
+        user.role = role.strip()
+
+    if department is not None:
+        user.department = (department or '').strip() or None
+
+    if position is not None:
+        user.position = (position or '').strip() or None
+
+    if added_by_id is not None and str(added_by_id).strip() != '':
+        try:
+            user.added_by_id = int(added_by_id)
+        except Exception:
+            flash('Некоректний added_by_id', 'danger')
+            return redirect(url_for('main.developer_dashboard'))
+
+    db.session.commit()
+    flash('Дані користувача оновлено', 'success')
+    return redirect(url_for('main.developer_dashboard'))
+
+
+@bp.route('/dashboard/developer/user/<int:user_id>/reset_password', methods=['POST'])
+@login_required
+def developer_user_reset_password(user_id):
+    if current_user.role != 'developer':
+        return redirect(url_for('main.login'))
+
+    user = User.query.get_or_404(user_id)
+    new_password = request.form.get('new_password') or ''
+    if not new_password:
+        flash('Новий пароль не може бути порожнім', 'danger')
+        return redirect(url_for('main.developer_dashboard'))
+
+    user.password = generate_password_hash(new_password)
+    db.session.commit()
+    flash('Пароль оновлено', 'success')
+    return redirect(url_for('main.developer_dashboard'))
+
+
+@bp.route('/dashboard/developer/user/<int:user_id>/delete', methods=['POST'])
+@login_required
+def developer_user_delete(user_id):
+    if current_user.role != 'developer':
+        return redirect(url_for('main.login'))
+
+    user = User.query.get_or_404(user_id)
+
+    # Don't allow deleting yourself to avoid locking out
+    if user.id == current_user.id:
+        flash('Неможливо видалити самого себе', 'danger')
+        return redirect(url_for('main.developer_dashboard'))
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        flash('Користувача видалено', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Помилка при видаленні: {str(e)}', 'danger')
+
+    return redirect(url_for('main.developer_dashboard'))
+
+
+@bp.route('/dashboard/developer/user/<int:user_id>/toggle_active', methods=['POST'])
+@login_required
+def developer_user_toggle_active(user_id):
+    """Optional: works only if User model has `is_active` column."""
+    if current_user.role != 'developer':
+        return redirect(url_for('main.login'))
+
+    user = User.query.get_or_404(user_id)
+
+    if not hasattr(user, 'is_active'):
+        flash('Поле is_active відсутнє в моделі User. Пропускаю.', 'warning')
+        return redirect(url_for('main.developer_dashboard'))
+
+    # Don't allow disabling yourself
+    if user.id == current_user.id:
+        flash('Неможливо деактивувати самого себе', 'danger')
+        return redirect(url_for('main.developer_dashboard'))
+
+    user.is_active = not bool(user.is_active)
+    db.session.commit()
+    flash('Статус користувача змінено', 'success')
+    return redirect(url_for('main.developer_dashboard'))
 
 @bp.route('/dashboard/mentor')
 @login_required

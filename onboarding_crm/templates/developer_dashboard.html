@@ -2,157 +2,488 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Кабінет Розробника</title>
-  <!-- 🔐 CSRF токен для JS-запитів -->
+
   <meta name="csrf-token" content="{{ csrf_token() }}">
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    .table thead th { position: sticky; top: 0; z-index: 1; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
 </head>
 
 <body class="bg-light">
 
-<div class="container mt-5">
-  <h2 class="mb-4">Кабінет Розробника</h2>
+<nav class="navbar navbar-expand-lg bg-white border-bottom">
+  <div class="container">
+    <span class="navbar-brand fw-semibold">Onboarding CRM</span>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <span class="text-muted small">Developer</span>
+      <a href="{{ url_for('main.logout') }}" class="btn btn-outline-primary btn-sm">Вийти</a>
+    </div>
+  </div>
+</nav>
 
-  <a href="{{ url_for('main.logout') }}" class="btn btn-outline-primary mb-4">Вийти</a>
+<div class="container py-4">
 
-  <!-- 🔽 Додати користувача -->
-  <div class="card mb-4">
-    <div class="card-header fw-bold">Додати нового користувача</div>
-    <div class="card-body">
-      <form action="{{ url_for('main.developer_dashboard') }}" method="POST">
-        <!-- ✅ Прихований CSRF токен -->
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h2 class="mb-1">Кабінет Розробника</h2>
+      <div class="text-muted">Керування користувачами системи</div>
+    </div>
+  </div>
 
-        <div class="row g-3">
-          <div class="col-md-4">
-            <input name="tg_nick" placeholder="TG нік" class="form-control" required>
+  <!-- ✅ Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category=='success' else ('danger' if category in ['danger','error'] else ('warning' if category=='warning' else 'info')) }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
-          <div class="col-md-4">
-            <select name="role" class="form-select" required>
-              <option disabled selected>🔽 Оберіть роль</option>
-              <option value="mentor">Ментор</option>
-              <option value="teamlead">Тімлід</option>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="row g-4">
+
+    <!-- ➕ Create user -->
+    <div class="col-12 col-xl-5">
+      <div class="card shadow-sm">
+        <div class="card-header fw-bold">Додати нового користувача</div>
+        <div class="card-body">
+          <form action="{{ url_for('main.developer_dashboard') }}" method="POST" class="needs-validation" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">TG нік</label>
+                <input name="tg_nick" placeholder="Напр. @taras" class="form-control">
+                <div class="form-text">Опціонально (в роуті допускається пусте значення).</div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Роль</label>
+                <select name="role" class="form-select" id="roleSelect" required>
+                  <option disabled selected value="">🔽 Оберіть роль</option>
+                  <option value="developer">Developer</option>
+                  <option value="head">Head</option>
+                  <option value="teamlead">Teamlead</option>
+                  <option value="mentor">Mentor</option>
+                  <option value="manager">Manager</option>
+                </select>
+                <div class="invalid-feedback">Оберіть роль</div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Відділ</label>
+                <input name="department" placeholder="Напр. Africa" class="form-control">
+                <div class="form-text">Опціонально, але бажано заповнювати для структури.</div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Посада</label>
+                <input type="text" name="position" id="position" placeholder="Напр. Buyer" class="form-control">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Логін</label>
+                <input name="username" placeholder="username" class="form-control" required>
+                <div class="invalid-feedback">Вкажіть логін</div>
+                <div class="form-text">Якщо такий username існує — автоматично додасться _1, _2, ...</div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Пароль</label>
+                <input name="password" type="password" placeholder="••••••••" class="form-control" required>
+                <div class="invalid-feedback">Вкажіть пароль</div>
+              </div>
+
+              <!-- 🔁 Teamlead for mentor -->
+              <div class="col-12" id="teamlead-select" style="display:none;">
+                <div class="border rounded p-3 bg-light">
+                  <div class="fw-semibold mb-2">Привʼязка Mentor → Teamlead (обов’язково)</div>
+                  <label for="teamlead_id" class="form-label">Тімлід</label>
+                  <select name="teamlead_id" id="teamlead_id" class="form-select">
+                    <option value="">Оберіть ТЛ</option>
+                    {% for tl in teamleads %}
+                      <option value="{{ tl.id }}">{{ tl.tg_nick or tl.username }} ({{ tl.department or '—' }})</option>
+                    {% endfor %}
+                  </select>
+                  <div class="form-text">Показується тільки якщо роль = Mentor. Без вибору ТЛ — створення не пройде (валідація в роуті).</div>
+                </div>
+              </div>
+
+              <!-- 🔁 Mentor for manager -->
+              <div class="col-12" id="mentor-select" style="display:none;">
+                <div class="border rounded p-3 bg-light">
+                  <div class="fw-semibold mb-2">Привʼязка Manager → Mentor/Teamlead (опціонально)</div>
+                  <label for="mentor_id" class="form-label">Mentor/Teamlead (added_by_id)</label>
+                  <select name="mentor_id" id="mentor_id" class="form-select">
+                    <option value="">Не обирати (прив’яже до поточного developer)</option>
+                    {% for m in mentors %}
+                      <option value="{{ m.id }}">{{ m.tg_nick or m.username }} ({{ m.department or '—' }})</option>
+                    {% endfor %}
+                    {% for tl in teamleads %}
+                      <option value="{{ tl.id }}">{{ tl.tg_nick or tl.username }} ({{ tl.department or '—' }}) [TL]</option>
+                    {% endfor %}
+                  </select>
+                  <div class="form-text">Показується тільки якщо роль = Manager.</div>
+                </div>
+              </div>
+
+            </div>
+
+            <button type="submit" class="btn btn-success mt-3 w-100">Зберегти</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="alert alert-secondary mt-3 small mb-0">
+        Порада: домовся про єдиний формат департаментів (наприклад: <span class="fw-semibold">Africa</span>, <span class="fw-semibold">Product</span>, <span class="fw-semibold">LATAM</span>).
+      </div>
+    </div>
+
+    <!-- 👥 Users table -->
+    <div class="col-12 col-xl-7">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div class="fw-bold">Усі користувачі</div>
+          <div class="d-flex gap-2 align-items-center">
+            <input id="userSearch" class="form-control form-control-sm" style="max-width: 260px;" placeholder="Пошук: TG / логін / департамент">
+            <select id="roleFilter" class="form-select form-select-sm" style="max-width: 180px;">
+              <option value="">Усі ролі</option>
+              <option value="mentor">Mentor</option>
+              <option value="teamlead">Teamlead</option>
               <option value="head">Head</option>
-              <option value="manager">Менеджер</option>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <input name="department" placeholder="Відділ" class="form-control" required>
-          </div>
-
-          <div class="col-md-4">
-            <label for="position" class="form-label">Посада</label>
-            <input type="text" name="position" id="position" class="form-control" required>
-          </div>
-          <div class="col-md-4">
-            <input name="username" placeholder="Логін" class="form-control" required>
-          </div>
-          <div class="col-md-4">
-            <input name="password" type="password" placeholder="Пароль" class="form-control" required>
-          </div>
-
-          <!-- 🔁 Тімлід для ментора -->
-          <div class="col-md-4" id="teamlead-select" style="display: none;">
-            <label for="teamlead_id" class="form-label">Тімлід</label>
-            <select name="teamlead_id" id="teamlead_id" class="form-select">
-              <option value="">Оберіть ТЛ</option>
-              {% for tl in teamleads %}
-                <option value="{{ tl.id }}">{{ tl.tg_nick }} ({{ tl.department }})</option>
-              {% endfor %}
+              <option value="manager">Manager</option>
+              <option value="developer">Developer</option>
             </select>
           </div>
         </div>
 
-        <button type="submit" class="btn btn-success mt-3">Зберегти</button>
-      </form>
-    </div>
-  </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="usersTable">
+              <thead class="table-light">
+                <tr>
+                  <th class="text-nowrap">ID</th>
+                  <th class="text-nowrap">TG нік</th>
+                  <th class="text-nowrap">Логін</th>
+                  <th class="text-nowrap">Відділ</th>
+                  <th class="text-nowrap">Роль</th>
+                  <th class="text-nowrap">Статус</th>
+                  <th class="text-nowrap">added_by</th>
+                  <th class="text-nowrap text-end">Дії</th>
+                </tr>
+              </thead>
 
-  <!-- 📋 Список користувачів -->
-  <div class="card mt-4">
-    <div class="card-header fw-bold">Усі користувачі</div>
-    <div class="card-body">
-      <table class="table align-middle">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>TG нік</th>
-            <th>Логін</th>
-            <th>Відділ</th>
-            <th>Роль</th>
-            <th>Статус</th>
-            <th>Дія</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for user in users %}
-            <tr id="user-row-{{ user.id }}">
-              <td>{{ user.id }}</td>
-              <td>{{ user.tg_nick }}</td>
-              <td>{{ user.username }}</td>
-              <td>{{ user.department }}</td>
-              <td>{{ user.role }}</td>
-              <td>{{ user.onboarding_status or '—' }}</td>
-              <td>
-                {% if user.role != 'developer' %}
-                  <button class="btn btn-sm btn-outline-danger" onclick="deleteUser({{ user.id }})">
-                    🗑️
-                  </button>
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+              <tbody>
+                {% for user in users %}
+                  <tr id="user-row-{{ user.id }}"
+                      data-role="{{ user.role }}"
+                      data-search="{{ ((user.tg_nick or '') ~ ' ' ~ (user.username or '') ~ ' ' ~ (user.department or '') ~ ' ' ~ (user.role or '')) | lower }}">
+                    <td class="mono">{{ user.id }}</td>
+                    <td class="text-nowrap">{{ user.tg_nick or '—' }}</td>
+                    <td class="text-nowrap mono">{{ user.username }}</td>
+                    <td class="text-nowrap">
+                      <span class="badge text-bg-light border">{{ user.department or '—' }}</span>
+                    </td>
+
+                    <td class="text-nowrap">
+                      {% set r = (user.role or '') %}
+                      {% if r == 'developer' %}
+                        <span class="badge text-bg-dark">developer</span>
+                      {% elif r == 'teamlead' %}
+                        <span class="badge text-bg-primary">teamlead</span>
+                      {% elif r == 'mentor' %}
+                        <span class="badge text-bg-info">mentor</span>
+                      {% elif r == 'head' %}
+                        <span class="badge text-bg-warning">head</span>
+                      {% elif r == 'manager' %}
+                        <span class="badge text-bg-success">manager</span>
+                      {% else %}
+                        <span class="badge text-bg-secondary">{{ r }}</span>
+                      {% endif %}
+                    </td>
+
+                    <td class="text-nowrap">{{ user.onboarding_status or '—' }}</td>
+
+                    <td class="text-nowrap">
+                      {% if user.added_by_id %}
+                        <span class="mono">#{{ user.added_by_id }}</span>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+
+                    <td class="text-end text-nowrap">
+                      <!-- Edit -->
+                      <button class="btn btn-sm btn-outline-secondary"
+                              onclick="openEditModal(
+                                {{ user.id }},
+                                '{{ (user.tg_nick or '')|e }}',
+                                '{{ (user.department or '')|e }}',
+                                '{{ (user.position or '')|e }}',
+                                '{{ (user.role or '')|e }}',
+                                '{{ (user.added_by_id or '')|e }}'
+                              )">
+                        ✏️
+                      </button>
+
+                      <!-- Reset password -->
+                      <button class="btn btn-sm btn-outline-warning"
+                              onclick="openResetModal({{ user.id }}, '{{ (user.tg_nick or user.username)|e }}')">
+                        🔑
+                      </button>
+
+                      <!-- Toggle active -->
+                      <form action="{{ url_for('main.developer_user_toggle_active', user_id=user.id) }}" method="POST" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-primary"
+                                {% if user.id == current_user.id %}disabled{% endif %}
+                                title="Toggle active (працює якщо в моделі є is_active)">
+                          🔁
+                        </button>
+                      </form>
+
+                      <!-- Delete -->
+                      {% if user.role != 'developer' %}
+                        <form action="{{ url_for('main.developer_user_delete', user_id=user.id) }}" method="POST" class="d-inline">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <button type="submit"
+                                  class="btn btn-sm btn-outline-danger"
+                                  {% if user.id == current_user.id %}disabled{% endif %}
+                                  onclick="return confirm('Видалити користувача: {{ (user.tg_nick or user.username) | e }}?')">
+                            🗑️
+                          </button>
+                        </form>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card-footer small text-muted d-flex justify-content-between align-items-center">
+          <span>Всього: <span class="fw-semibold">{{ users|length }}</span></span>
+          <span id="visibleCount" class="text-muted"></span>
+        </div>
+      </div>
+
+      <div class="alert alert-info mt-3 small mb-0">
+        Тут: create / edit / reset password / delete / toggle active. Далі додамо керування онбординг-шаблонами та шаринг між департаментами.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ✅ Edit user modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST" id="editUserForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Редагування користувача</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">TG нік</label>
+              <input class="form-control" name="tg_nick" id="edit_tg_nick" placeholder="@nick">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Роль</label>
+              <select class="form-select" name="role" id="edit_role">
+                <option value="developer">Developer</option>
+                <option value="head">Head</option>
+                <option value="teamlead">Teamlead</option>
+                <option value="mentor">Mentor</option>
+                <option value="manager">Manager</option>
+              </select>
+              <div class="form-text">Роут прийме тільки валідні ролі.</div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Відділ</label>
+              <input class="form-control" name="department" id="edit_department" placeholder="Africa / Product ...">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Посада</label>
+              <input class="form-control" name="position" id="edit_position" placeholder="Buyer / Manager ...">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">added_by_id (до кого прив’язаний)</label>
+              <input class="form-control mono" name="added_by_id" id="edit_added_by_id" placeholder="Напр. 12">
+              <div class="form-text">Якщо лишиш пустим — роут не змінює added_by_id. Якщо введеш — спробує привести до int.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Скасувати</button>
+          <button type="submit" class="btn btn-primary">Зберегти зміни</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
 
-<!-- JS -->
+<!-- ✅ Reset password modal -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" id="resetPasswordForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Скинути пароль</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-2 text-muted small" id="resetPasswordLabel"></div>
+
+          <label class="form-label">Новий пароль</label>
+          <input class="form-control" type="password" name="new_password" placeholder="••••••••" required>
+          <div class="form-text">Порожній пароль роут не прийме.</div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Скасувати</button>
+          <button type="submit" class="btn btn-warning">Оновити пароль</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-  // 🔐 Отримати CSRF токен із <meta>
-  function getCsrfToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-  }
-
-  // 🗑️ Видалення користувача
-  function deleteUser(userId) {
-    if (!confirm("Ви впевнені, що хочете видалити цього користувача?")) return;
-
-    fetch(`/onboarding/user/delete/${userId}`, {
-      method: 'DELETE',
-      headers: {
-        'X-CSRFToken': getCsrfToken()
-      }
+  // ✅ Bootstrap validation
+  (function () {
+    'use strict'
+    const forms = document.querySelectorAll('.needs-validation')
+    Array.from(forms).forEach(form => {
+      form.addEventListener('submit', event => {
+        if (!form.checkValidity()) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+        form.classList.add('was-validated')
+      }, false)
     })
-    .then(res => {
-      if (res.ok) {
-        document.getElementById(`user-row-${userId}`)?.remove();
-      } else {
-        return res.json().then(data => {
-          alert(data.message || "Помилка при видаленні користувача");
-        });
-      }
-    })
-    .catch(err => {
-      console.error("Помилка при запиті:", err);
-      alert("Сталася помилка під час видалення користувача");
-    });
-  }
+  })();
 
-  // 🔁 Показати ТЛ лише при виборі "mentor"
-  document.querySelector('select[name="role"]').addEventListener('change', function () {
-    const selectedRole = this.value;
-    const teamleadSelect = document.getElementById('teamlead-select');
+  // Role-based extra fields (Create user)
+  const roleSelect = document.getElementById('roleSelect');
+  const teamleadWrap = document.getElementById('teamlead-select');
+  const teamleadId = document.getElementById('teamlead_id');
 
+  const mentorWrap = document.getElementById('mentor-select');
+  const mentorId = document.getElementById('mentor_id');
+
+  function syncRoleVisibility() {
+    const selectedRole = (roleSelect?.value || '').toLowerCase();
+
+    // Mentor => require TL
     if (selectedRole === 'mentor') {
-      teamleadSelect.style.display = 'block';
-      document.getElementById('teamlead_id').required = true;
+      teamleadWrap.style.display = 'block';
+      teamleadId.required = true;
     } else {
-      teamleadSelect.style.display = 'none';
-      document.getElementById('teamlead_id').required = false;
+      teamleadWrap.style.display = 'none';
+      teamleadId.required = false;
+      teamleadId.value = '';
     }
-  });
+
+    // Manager => optional mentor_id
+    if (selectedRole === 'manager') {
+      mentorWrap.style.display = 'block';
+    } else {
+      mentorWrap.style.display = 'none';
+      mentorId.value = '';
+    }
+  }
+  roleSelect?.addEventListener('change', syncRoleVisibility);
+  syncRoleVisibility();
+
+  // Search & filter
+  const userSearch = document.getElementById('userSearch');
+  const roleFilter = document.getElementById('roleFilter');
+  const table = document.getElementById('usersTable');
+
+  function applyFilters() {
+    const q = (userSearch?.value || '').trim().toLowerCase();
+    const role = (roleFilter?.value || '').trim().toLowerCase();
+
+    const rows = table?.querySelectorAll('tbody tr') || [];
+    rows.forEach(tr => {
+      const hay = (tr.getAttribute('data-search') || '');
+      const r = (tr.getAttribute('data-role') || '').toLowerCase();
+
+      const okQ = !q || hay.includes(q);
+      const okR = !role || r === role;
+
+      tr.style.display = (okQ && okR) ? '' : 'none';
+    });
+
+    updateVisibleCount();
+  }
+
+  function updateVisibleCount() {
+    const rows = table?.querySelectorAll('tbody tr') || [];
+    let visible = 0;
+    rows.forEach(tr => { if (tr.style.display !== 'none') visible += 1; });
+    const el = document.getElementById('visibleCount');
+    if (el) el.textContent = visible ? `Показано: ${visible}` : '';
+  }
+
+  userSearch?.addEventListener('input', applyFilters);
+  roleFilter?.addEventListener('change', applyFilters);
+  applyFilters();
+
+  // Modals
+  const editModalEl = document.getElementById('editUserModal');
+  const editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
+
+  const resetModalEl = document.getElementById('resetPasswordModal');
+  const resetModal = resetModalEl ? new bootstrap.Modal(resetModalEl) : null;
+
+  function openEditModal(userId, tgNick, department, position, role, addedById) {
+    const form = document.getElementById('editUserForm');
+    form.action = `/dashboard/developer/user/${userId}/update`;
+
+    document.getElementById('edit_tg_nick').value = tgNick || '';
+    document.getElementById('edit_department').value = department || '';
+    document.getElementById('edit_position').value = position || '';
+    document.getElementById('edit_role').value = (role || '').toLowerCase() || 'manager';
+    document.getElementById('edit_added_by_id').value = addedById || '';
+
+    editModal?.show();
+  }
+
+  function openResetModal(userId, label) {
+    const form = document.getElementById('resetPasswordForm');
+    form.action = `/dashboard/developer/user/${userId}/reset_password`;
+    document.getElementById('resetPasswordLabel').innerText = `Користувач: ${label}`;
+    resetModal?.show();
+  }
 </script>
 
 </body>
