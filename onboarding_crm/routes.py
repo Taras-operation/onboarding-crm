@@ -551,6 +551,7 @@ def add_onboarding_template():
       то делаем UPDATE существующего шаблона вместо создания копии.
     - Если выбран конкретный менеджер: апдейтим его последний OnboardingInstance
       (если он есть), а не создаём новый. Прогресс пользователя не сбрасываем.
+    - ✅ Templates now saved with department to avoid cross-department visibility.
     """
     # 📌 POST — сохранение нового или обновление существующего
     if request.method == 'POST':
@@ -585,13 +586,19 @@ def add_onboarding_template():
                 if tpl:
                     tpl.name = name
                     tpl.structure = payload
+                    # ✅ FIX: если департамент пустой — проставляем текущий
+                    if not getattr(tpl, 'department', None):
+                        tpl.department = current_user.department
                     db.session.commit()
                     return redirect(url_for('main.onboarding_plans'))
+
             # Иначе создаём новый шаблон
             new_template = OnboardingTemplate(
                 name=name,
                 structure=payload,
-                created_by=current_user.id
+                created_by=current_user.id,
+                # ✅ FIX: всегда сохраняем department
+                department=current_user.department
             )
             db.session.add(new_template)
             db.session.commit()
@@ -649,6 +656,8 @@ def add_onboarding_template():
         template = OnboardingTemplate.query.get_or_404(int(template_id))
         try:
             parsed = template.structure if not isinstance(template.structure, str) else json.loads(template.structure)
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed)
             structure = parsed.get('blocks', []) if isinstance(parsed, dict) else parsed
         except Exception as e:
             print("❌ JSON load error при GET:", e)
@@ -658,7 +667,9 @@ def add_onboarding_template():
             new_template = OnboardingTemplate(
                 name=f"{template.name} (копія)",
                 structure={'blocks': structure},
-                created_by=current_user.id
+                created_by=current_user.id,
+                # ✅ FIX: копируем department из оригинала
+                department=template.department
             )
             db.session.add(new_template)
             db.session.commit()
