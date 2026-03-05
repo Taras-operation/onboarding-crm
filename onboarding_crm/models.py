@@ -3,13 +3,14 @@ from flask_login import UserMixin
 from datetime import datetime
 import json
 from sqlalchemy.dialects.postgresql import JSONB  # ✅ для test_progress
+from sqlalchemy import text  # ✅ для server_default
 
 # ─────────────────────────────────────────────
 # 🔹 Модель користувача (менеджер, ментор, ТЛ)
 # ─────────────────────────────────────────────
 class User(db.Model, UserMixin):
     __tablename__ = 'user'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     tg_nick = db.Column(db.String(150))
     department = db.Column(db.String(150))
@@ -73,17 +74,29 @@ class User(db.Model, UserMixin):
 # ─────────────────────────────────────────────
 class OnboardingTemplate(db.Model):
     __tablename__ = 'onboarding_template'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     structure = db.Column(db.JSON)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # ✅ ШАБЛОН ПРИВЯЗАН К ДЕПАРТАМЕНТУ
-    # default нужен, чтобы миграция/старые записи не падали
-    department = db.Column(db.String(150), nullable=False, default="product", index=True)
 
-    steps = db.relationship('OnboardingStep', backref='template', cascade='all, delete-orphan', lazy=True)
+    # ✅ ШАБЛОН ПРИВЯЗАН К ДЕПАРТАМЕНТУ
+    # default — для ORM (Python), server_default — для самой БД (SQL)
+    department = db.Column(
+        db.String(150),
+        nullable=False,
+        default="product",
+        server_default=text("'product'"),
+        index=True
+    )
+
+    steps = db.relationship(
+        'OnboardingStep',
+        backref='template',
+        cascade='all, delete-orphan',
+        lazy=True
+    )
 
 
 # ─────────────────────────────────────────────
@@ -91,7 +104,7 @@ class OnboardingTemplate(db.Model):
 # ─────────────────────────────────────────────
 class OnboardingStep(db.Model):
     __tablename__ = 'onboarding_step'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     template_id = db.Column(db.Integer, db.ForeignKey('onboarding_template.id', ondelete='CASCADE'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
@@ -107,7 +120,7 @@ class OnboardingStep(db.Model):
 # ─────────────────────────────────────────────
 class OnboardingTest(db.Model):
     __tablename__ = 'onboarding_test'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     step_id = db.Column(db.Integer, db.ForeignKey('onboarding_step.id', ondelete='CASCADE'), nullable=False)
     question = db.Column(db.String(255), nullable=False)
@@ -120,7 +133,7 @@ class OnboardingTest(db.Model):
 # ────────────────────────────────────────────
 class OnboardingInstance(db.Model):
     __tablename__ = 'onboarding_instance'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
@@ -172,9 +185,9 @@ class TestResult(db.Model):
 
     # ✅ Нове поле: оцінено як зараховано/не зараховано
     approved = db.Column(db.Boolean, nullable=True)
-    
+
     # ✅ Нове поле: зберегти як чорнетку
-    draft = db.Column(db.Boolean, default=True) 
+    draft = db.Column(db.Boolean, default=True)
 
     step = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
