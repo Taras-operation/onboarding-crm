@@ -3,13 +3,11 @@ let blockCounter = 0;
 // ===== Helpers: lock completed blocks (read-only) =====
 function lockBlock(blockDiv) {
   blockDiv.classList.add('locked', 'opacity-75');
-  // Disable all inputs & buttons inside (except the global delete is also disabled)
   blockDiv.querySelectorAll('input, textarea, select, button').forEach(el => {
-    // keep the drag handle visible but non-interactive for cursor clarity
     if (el.classList.contains('drag-handle')) return;
     el.disabled = true;
   });
-  // Visual badge
+
   if (!blockDiv.querySelector('.lock-badge')) {
     const badge = document.createElement('div');
     badge.className = 'lock-badge absolute top-2 left-10 text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded';
@@ -28,21 +26,47 @@ function unlockBlock(blockDiv) {
   if (badge) badge.remove();
 }
 
+// ===== Helpers: empty checks =====
+function isMeaningfulText(value) {
+  return (value || '').toString().trim() !== '';
+}
+
+function isEmptyStageData(data = {}) {
+  const hasTitle = isMeaningfulText(data.title);
+  const hasDescription = isMeaningfulText(data.description);
+  const hasSubblocks = Array.isArray(data.subblocks) && data.subblocks.some(
+    s => isMeaningfulText(s?.title) || isMeaningfulText(s?.description)
+  );
+  const hasTests = Array.isArray(data?.test?.questions) && data.test.questions.some(q => {
+    const hasQuestion = isMeaningfulText(q?.question);
+    const hasAnswers = Array.isArray(q?.answers) && q.answers.some(a => isMeaningfulText(a?.value));
+    return hasQuestion || hasAnswers;
+  });
+  const hasOpenQuestions = Array.isArray(data.open_questions) && data.open_questions.some(
+    q => isMeaningfulText(q?.question)
+  );
+
+  return !(hasTitle || hasDescription || hasSubblocks || hasTests || hasOpenQuestions);
+}
+
 // 🔄 Перенумерация блоков
 function renumberBlocks() {
   const blocks = document.querySelectorAll('#blocks-container > .block');
   blocks.forEach((blockDiv, i) => {
     const titleEl = blockDiv.querySelector('h3');
     if (titleEl) titleEl.innerText = `Блок №${i + 1}`;
+
     blockDiv.querySelectorAll('input, textarea, select').forEach(input => {
       if (input.name && input.name.includes('blocks')) {
         input.name = input.name.replace(/blocks\[\d+\]/, `blocks[${i}]`);
       }
     });
+
     renumberSubblocks(blockDiv, i);
     renumberTests(blockDiv, i);
     renumberOpenQuestions(blockDiv, i);
   });
+
   blockCounter = blocks.length;
 }
 
@@ -152,6 +176,11 @@ function deleteOpenQuestion(btn) {
 }
 
 function addStage(data = {}, index = null) {
+  // ✅ Не рендерим пустой блок из сохранённой структуры
+  if (index !== null && isEmptyStageData(data)) {
+    return;
+  }
+
   const container = document.getElementById('blocks-container');
   const blockIndex = index !== null ? index : blockCounter++;
 
@@ -177,17 +206,30 @@ function addStage(data = {}, index = null) {
 
   container.appendChild(block);
 
-  // Загружаем сабблоки
-  (data.subblocks || []).forEach((sub, i) => addSubblock(block.querySelector('.subblocks'), blockIndex, i, sub));
+  (data.subblocks || []).forEach((sub, i) => {
+    if (isMeaningfulText(sub?.title) || isMeaningfulText(sub?.description)) {
+      addSubblock(block.querySelector('.subblocks'), blockIndex, i, sub);
+    }
+  });
 
-  // Загружаем тесты
-  (data.test?.questions || []).forEach((test, i) => addTest(block.querySelector('.tests'), blockIndex, i, test));
+  (data.test?.questions || []).forEach((test, i) => {
+    const hasQuestion = isMeaningfulText(test?.question);
+    const hasAnswers = Array.isArray(test?.answers) && test.answers.some(a => isMeaningfulText(a?.value));
+    if (hasQuestion || hasAnswers) {
+      addTest(block.querySelector('.tests'), blockIndex, i, test);
+    }
+  });
 
-  // Загружаем открытые вопросы
-  (data.open_questions || []).forEach((q, i) => addOpenQuestion(block.querySelector('.open-questions'), blockIndex, i, q));
+  (data.open_questions || []).forEach((q, i) => {
+    if (isMeaningfulText(q?.question)) {
+      addOpenQuestion(block.querySelector('.open-questions'), blockIndex, i, q);
+    }
+  });
 
-  // Apply locking based on initial onboarding_step only once (do not change on reorder)
-  const os = typeof window.onboarding_step === 'number' ? window.onboarding_step : parseInt(window.onboarding_step || '0', 10);
+  const os = typeof window.onboarding_step === 'number'
+    ? window.onboarding_step
+    : parseInt(window.onboarding_step || '0', 10);
+
   if (!isNaN(os) && blockIndex < os) {
     lockBlock(block);
   }
@@ -196,7 +238,10 @@ function addStage(data = {}, index = null) {
 }
 
 function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
-  const container = typeof parentEl === 'object' && parentEl.classList && parentEl.classList.contains('subblocks') ? parentEl : parentEl.previousElementSibling;
+  const container = typeof parentEl === 'object' && parentEl.classList && parentEl.classList.contains('subblocks')
+    ? parentEl
+    : parentEl.previousElementSibling;
+
   const idx = subIndex !== null ? subIndex : container.querySelectorAll('.subblock').length;
 
   const div = document.createElement('div');
@@ -210,7 +255,10 @@ function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
 }
 
 function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
-  const container = typeof parentEl === 'object' && parentEl.classList && parentEl.classList.contains('tests') ? parentEl : parentEl.previousElementSibling;
+  const container = typeof parentEl === 'object' && parentEl.classList && parentEl.classList.contains('tests')
+    ? parentEl
+    : parentEl.previousElementSibling;
+
   const idx = testIndex !== null ? testIndex : container.querySelectorAll('.test').length;
 
   const div = document.createElement('div');
@@ -223,7 +271,6 @@ function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
   `;
   container.appendChild(div);
 
-  // Автодобавляем 2 ответа по умолчанию
   if (!data.answers || data.answers.length === 0) {
     addAnswer(div.querySelector('.answers'), blockIndex, idx, 0);
     addAnswer(div.querySelector('.answers'), blockIndex, idx, 1);
@@ -233,7 +280,10 @@ function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
 }
 
 function addAnswer(parentEl, blockIndex, testIndex, answerIndex = null, data = {}) {
-  const container = typeof parentEl === 'object' && parentEl.classList && parentEl.classList.contains('answers') ? parentEl : parentEl.previousElementSibling;
+  const container = typeof parentEl === 'object' && parentEl.classList && parentEl.classList.contains('answers')
+    ? parentEl
+    : parentEl.previousElementSibling;
+
   const idx = answerIndex !== null ? answerIndex : container.querySelectorAll('.answer').length;
 
   const div = document.createElement('div');
@@ -248,7 +298,10 @@ function addAnswer(parentEl, blockIndex, testIndex, answerIndex = null, data = {
 
 // 🆕 Открытый вопрос
 function addOpenQuestion(parentEl, blockIndex, qIndex = null, data = {}) {
-  const container = typeof parentEl === 'object' && parentEl.classList && parentEl.classList.contains('open-questions') ? parentEl : parentEl.previousElementSibling;
+  const container = typeof parentEl === 'object' && parentEl.classList && parentEl.classList.contains('open-questions')
+    ? parentEl
+    : parentEl.previousElementSibling;
+
   const idx = qIndex !== null ? qIndex : container.querySelectorAll('.open-question').length;
 
   const div = document.createElement('div');
@@ -262,6 +315,7 @@ function addOpenQuestion(parentEl, blockIndex, qIndex = null, data = {}) {
 
 function parseStructure() {
   const blocks = [];
+
   document.querySelectorAll('.block').forEach((blockDiv) => {
     const block = {
       type: 'stage',
@@ -273,10 +327,12 @@ function parseStructure() {
     };
 
     blockDiv.querySelectorAll('.subblock').forEach((subDiv) => {
-      block.subblocks.push({
-        title: subDiv.querySelector('[name$="[title]"]')?.value || '',
-        description: subDiv.querySelector('[name$="[description]"]')?.value || ''
-      });
+      const title = subDiv.querySelector('[name$="[title]"]')?.value || '';
+      const description = subDiv.querySelector('[name$="[description]"]')?.value || '';
+
+      if (isMeaningfulText(title) || isMeaningfulText(description)) {
+        block.subblocks.push({ title, description });
+      }
     });
 
     blockDiv.querySelectorAll('.test').forEach((testDiv) => {
@@ -287,21 +343,37 @@ function parseStructure() {
       testDiv.querySelectorAll('.answer').forEach((aDiv) => {
         const value = aDiv.querySelector('[name$="[value]"]')?.value || '';
         const correct = aDiv.querySelector('[name$="[correct]"]')?.checked || false;
-        if (value.trim()) answers.push({ value, correct });
+        if (isMeaningfulText(value)) {
+          answers.push({ value, correct });
+        }
       });
 
-      if (question) {
-        block.test.questions.push({ question, multiple: false, answers });
+      if (isMeaningfulText(question) || answers.length > 0) {
+        block.test.questions.push({
+          question,
+          multiple: false,
+          answers
+        });
       }
     });
 
     blockDiv.querySelectorAll('.open-question').forEach((qDiv) => {
-      block.open_questions.push({
-        question: qDiv.querySelector('[name$="[question]"]')?.value || ''
-      });
+      const question = qDiv.querySelector('[name$="[question]"]')?.value || '';
+      if (isMeaningfulText(question)) {
+        block.open_questions.push({ question });
+      }
     });
 
-    blocks.push(block);
+    const hasTitle = isMeaningfulText(block.title);
+    const hasDescription = isMeaningfulText(block.description);
+    const hasSubblocks = block.subblocks.length > 0;
+    const hasTests = block.test.questions.length > 0;
+    const hasOpenQuestions = block.open_questions.length > 0;
+
+    // ✅ Главное исправление: пустой блок не сохраняем
+    if (hasTitle || hasDescription || hasSubblocks || hasTests || hasOpenQuestions) {
+      blocks.push(block);
+    }
   });
 
   return { blocks };
@@ -309,15 +381,16 @@ function parseStructure() {
 
 // ===== Initialize =====
 window.addEventListener('DOMContentLoaded', () => {
-  // Render initial blocks
   if (window.templateData && Array.isArray(window.templateData)) {
-    window.templateData.forEach((block, i) => addStage(block, i));
+    window.templateData.forEach((block, i) => {
+      if (!isEmptyStageData(block)) {
+        addStage(block, i);
+      }
+    });
   }
 
-  // Sortable for blocks container (only unlocked blocks are draggable)
   const container = document.getElementById('blocks-container');
   if (container && typeof Sortable !== 'undefined') {
-    // eslint-disable-next-line no-undef
     new Sortable(container, {
       handle: '.drag-handle',
       draggable: '.block:not(.locked)',

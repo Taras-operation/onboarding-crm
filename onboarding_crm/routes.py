@@ -82,8 +82,20 @@ def developer_dashboard():
     if current_user.role != 'developer':
         return redirect(url_for('main.login'))
 
+    # --- Tabs (single route UI) ---
+    tab = (request.args.get('tab') or 'overview').strip()
+    view = (request.args.get('view') or '').strip()
+
+    # sensible defaults for Users section
+    if tab == 'users' and view not in ['all', 'add']:
+        view = 'all'
+
     # --- Create new user ---
     if request.method == 'POST':
+        # allow POST to control where we redirect back
+        tab = (request.form.get('tab') or tab or 'users').strip()
+        view = (request.form.get('view') or view or 'add').strip()
+
         tg_nick = (request.form.get('tg_nick') or '').strip() or None
         role = (request.form.get('role') or '').strip()
         department = (request.form.get('department') or '').strip() or None
@@ -93,15 +105,15 @@ def developer_dashboard():
 
         if not role or role not in ['developer', 'head', 'teamlead', 'mentor', 'manager']:
             flash('Некоректна роль користувача', 'danger')
-            return redirect(url_for('main.developer_dashboard'))
+            return redirect(url_for('main.developer_dashboard', tab='users', view='add'))
 
         if not username:
             flash('Логін (username) обов\'язковий', 'danger')
-            return redirect(url_for('main.developer_dashboard'))
+            return redirect(url_for('main.developer_dashboard', tab='users', view='add'))
 
         if not password_raw:
             flash('Пароль обов\'язковий', 'danger')
-            return redirect(url_for('main.developer_dashboard'))
+            return redirect(url_for('main.developer_dashboard', tab='users', view='add'))
 
         password = generate_password_hash(password_raw)
 
@@ -112,12 +124,12 @@ def developer_dashboard():
             tl_id = request.form.get('teamlead_id')
             if not tl_id:
                 flash('Для ментора потрібно обрати тімліда', 'danger')
-                return redirect(url_for('main.developer_dashboard'))
+                return redirect(url_for('main.developer_dashboard', tab='users', view='add'))
             try:
                 added_by_id = int(tl_id)
             except Exception:
                 flash('Некоректний teamlead_id', 'danger')
-                return redirect(url_for('main.developer_dashboard'))
+                return redirect(url_for('main.developer_dashboard', tab='users', view='add'))
 
         elif role == 'manager':
             # manager can be linked to any mentor/teamlead (optional dropdown)
@@ -127,7 +139,7 @@ def developer_dashboard():
                     added_by_id = int(mentor_id)
                 except Exception:
                     flash('Некоректний mentor_id', 'danger')
-                    return redirect(url_for('main.developer_dashboard'))
+                    return redirect(url_for('main.developer_dashboard', tab='users', view='add'))
             else:
                 added_by_id = current_user.id
 
@@ -151,7 +163,9 @@ def developer_dashboard():
         db.session.add(new_user)
         db.session.commit()
         flash('Користувача додано', 'success')
-        return redirect(url_for('main.developer_dashboard'))
+
+        # after add -> usually go to list
+        return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
     # --- Data for GET ---
     users = User.query.order_by(User.id.desc()).all()
@@ -162,7 +176,9 @@ def developer_dashboard():
         'developer_dashboard.html',
         users=users,
         teamleads=teamleads,
-        mentors=mentors
+        mentors=mentors,
+        tab=tab,
+        view=view
     )
 
 
@@ -199,11 +215,11 @@ def developer_user_update(user_id):
             user.added_by_id = int(added_by_id)
         except Exception:
             flash('Некоректний added_by_id', 'danger')
-            return redirect(url_for('main.developer_dashboard'))
+            return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
     db.session.commit()
     flash('Дані користувача оновлено', 'success')
-    return redirect(url_for('main.developer_dashboard'))
+    return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
 
 @bp.route('/dashboard/developer/user/<int:user_id>/reset_password', methods=['POST'])
@@ -216,12 +232,12 @@ def developer_user_reset_password(user_id):
     new_password = request.form.get('new_password') or ''
     if not new_password:
         flash('Новий пароль не може бути порожнім', 'danger')
-        return redirect(url_for('main.developer_dashboard'))
+        return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
     user.password = generate_password_hash(new_password)
     db.session.commit()
     flash('Пароль оновлено', 'success')
-    return redirect(url_for('main.developer_dashboard'))
+    return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
 
 @bp.route('/dashboard/developer/user/<int:user_id>/delete', methods=['POST'])
@@ -235,7 +251,7 @@ def developer_user_delete(user_id):
     # Don't allow deleting yourself to avoid locking out
     if user.id == current_user.id:
         flash('Неможливо видалити самого себе', 'danger')
-        return redirect(url_for('main.developer_dashboard'))
+        return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
     try:
         db.session.delete(user)
@@ -245,7 +261,7 @@ def developer_user_delete(user_id):
         db.session.rollback()
         flash(f'Помилка при видаленні: {str(e)}', 'danger')
 
-    return redirect(url_for('main.developer_dashboard'))
+    return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
 
 @bp.route('/dashboard/developer/user/<int:user_id>/toggle_active', methods=['POST'])
@@ -259,17 +275,17 @@ def developer_user_toggle_active(user_id):
 
     if not hasattr(user, 'is_active'):
         flash('Поле is_active відсутнє в моделі User. Пропускаю.', 'warning')
-        return redirect(url_for('main.developer_dashboard'))
+        return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
     # Don't allow disabling yourself
     if user.id == current_user.id:
         flash('Неможливо деактивувати самого себе', 'danger')
-        return redirect(url_for('main.developer_dashboard'))
+        return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
     user.is_active = not bool(user.is_active)
     db.session.commit()
     flash('Статус користувача змінено', 'success')
-    return redirect(url_for('main.developer_dashboard'))
+    return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
 @bp.route('/dashboard/mentor')
 @login_required
