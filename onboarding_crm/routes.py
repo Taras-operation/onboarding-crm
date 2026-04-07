@@ -1049,7 +1049,7 @@ def save_onboarding():
         db.session.commit()
         return {'message': 'Шаблон збережено'}, 200
 
-@bp.route('/onboarding/template/delete/<int:id>', methods=['DELETE'])
+@bp.route('/onboarding/template/delete/<int:id>', methods=['POST', 'DELETE'])
 @login_required
 def delete_onboarding_template(id):
     template = OnboardingTemplate.query.get_or_404(id)
