@@ -3,179 +3,629 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Кабінет Розробника</title>
+  <title>Developer Admin Panel</title>
 
   <meta name="csrf-token" content="{{ csrf_token() }}">
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+
   <style>
-    .table thead th { position: sticky; top: 0; z-index: 1; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    :root {
+      --sidebar-width: 270px;
+      --sidebar-bg: #111827;
+      --sidebar-text: #d1d5db;
+      --sidebar-active: #2563eb;
+      --sidebar-hover: rgba(255,255,255,.08);
+      --page-bg: #f3f4f6;
+      --card-border: #e5e7eb;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background: var(--page-bg);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--sidebar-bg);
+      color: white;
+      padding: 20px 16px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .sidebar-subtitle {
+      color: #9ca3af;
+      font-size: .9rem;
+      margin-bottom: 20px;
+    }
+
+    .sidebar-section-title {
+      color: #9ca3af;
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin: 18px 10px 8px;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--sidebar-text);
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: 12px;
+      margin-bottom: 6px;
+      transition: .15s ease;
+      font-weight: 500;
+    }
+
+    .sidebar-link:hover {
+      background: var(--sidebar-hover);
+      color: white;
+    }
+
+    .sidebar-link.active {
+      background: var(--sidebar-active);
+      color: white;
+    }
+
+    .sidebar-sublink {
+      display: block;
+      color: #cbd5e1;
+      text-decoration: none;
+      padding: 8px 12px 8px 28px;
+      border-radius: 10px;
+      margin-bottom: 4px;
+      font-size: .95rem;
+    }
+
+    .sidebar-sublink:hover {
+      background: var(--sidebar-hover);
+      color: white;
+    }
+
+    .sidebar-sublink.active {
+      background: rgba(37, 99, 235, .25);
+      color: white;
+    }
+
+    .sidebar-footer {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+
+    .main-content {
+      flex: 1;
+      min-width: 0;
+      padding: 24px;
+    }
+
+    .topbar {
+      background: white;
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 16px 18px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.03);
+    }
+
+    .content-card {
+      background: white;
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.03);
+    }
+
+    .stat-card {
+      background: white;
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 18px;
+      height: 100%;
+      box-shadow: 0 2px 10px rgba(0,0,0,.03);
+    }
+
+    .stat-label {
+      color: #6b7280;
+      font-size: .92rem;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f8fafc;
+    }
+
+    .section-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .placeholder-box {
+      border: 2px dashed #d1d5db;
+      border-radius: 16px;
+      padding: 28px;
+      background: #fafafa;
+      color: #6b7280;
+    }
+
+    .nav-pills-soft .nav-link {
+      border-radius: 12px;
+      color: #374151;
+    }
+
+    .nav-pills-soft .nav-link.active {
+      background: #111827;
+      color: #fff;
+    }
+
+    @media (max-width: 991.98px) {
+      .app-shell {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+      }
+
+      .main-content {
+        padding: 16px;
+      }
+    }
   </style>
 </head>
+<body>
 
-<body class="bg-light">
+<div class="app-shell">
 
-<nav class="navbar navbar-expand-lg bg-white border-bottom">
-  <div class="container">
-    <span class="navbar-brand fw-semibold">Onboarding CRM</span>
-    <div class="ms-auto d-flex align-items-center gap-2">
-      <span class="text-muted small">Developer</span>
-      <a href="{{ url_for('main.logout') }}" class="btn btn-outline-primary btn-sm">Вийти</a>
-    </div>
-  </div>
-</nav>
+  <aside class="sidebar">
+    <div class="sidebar-brand">Onboarding CRM</div>
+    <div class="sidebar-subtitle">Developer Admin Panel</div>
 
-<div class="container py-4">
+    <div class="sidebar-section-title">Навігація</div>
 
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <div>
-      <h2 class="mb-1">Кабінет Розробника</h2>
-      <div class="text-muted">Керування користувачами системи</div>
-    </div>
-  </div>
+    <a href="{{ url_for('main.developer_dashboard', tab='overview') }}"
+       class="sidebar-link {% if tab == 'overview' %}active{% endif %}">
+      <span>📊 Overview</span>
+    </a>
 
-  <!-- ✅ Flash messages -->
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="mb-3">
-        {% for category, message in messages %}
-          <div class="alert alert-{{ 'success' if category=='success' else ('danger' if category in ['danger','error'] else ('warning' if category=='warning' else 'info')) }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      </div>
+    <a href="{{ url_for('main.developer_dashboard', tab='users', view='all') }}"
+       class="sidebar-link {% if tab == 'users' %}active{% endif %}">
+      <span>👥 Users</span>
+    </a>
+
+    {% if tab == 'users' %}
+      <a href="{{ url_for('main.developer_dashboard', tab='users', view='all') }}"
+         class="sidebar-sublink {% if view == 'all' %}active{% endif %}">
+        Усі користувачі
+      </a>
+      <a href="{{ url_for('main.developer_dashboard', tab='users', view='add') }}"
+         class="sidebar-sublink {% if view == 'add' %}active{% endif %}">
+        Додати користувача
+      </a>
     {% endif %}
-  {% endwith %}
 
-  <div class="row g-4">
+    <a href="{{ url_for('main.developer_dashboard', tab='templates') }}"
+       class="sidebar-link {% if tab == 'templates' %}active{% endif %}">
+      <span>🧩 Templates</span>
+    </a>
 
-    <!-- ➕ Create user -->
-    <div class="col-12 col-xl-5">
-      <div class="card shadow-sm">
-        <div class="card-header fw-bold">Додати нового користувача</div>
-        <div class="card-body">
-          <form action="{{ url_for('main.developer_dashboard') }}" method="POST" class="needs-validation" novalidate>
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <a href="{{ url_for('main.developer_dashboard', tab='instances') }}"
+       class="sidebar-link {% if tab == 'instances' %}active{% endif %}">
+      <span>📁 Instances</span>
+    </a>
 
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label">TG нік</label>
-                <input name="tg_nick" placeholder="Напр. @taras" class="form-control">
-                <div class="form-text">Опціонально (в роуті допускається пусте значення).</div>
-              </div>
+    <a href="{{ url_for('main.developer_dashboard', tab='departments') }}"
+       class="sidebar-link {% if tab == 'departments' %}active{% endif %}">
+      <span>🏢 Departments</span>
+    </a>
 
-              <div class="col-md-6">
-                <label class="form-label">Роль</label>
-                <select name="role" class="form-select" id="roleSelect" required>
-                  <option disabled selected value="">🔽 Оберіть роль</option>
-                  <option value="developer">Developer</option>
-                  <option value="head">Head</option>
-                  <option value="teamlead">Teamlead</option>
-                  <option value="mentor">Mentor</option>
-                  <option value="manager">Manager</option>
-                </select>
-                <div class="invalid-feedback">Оберіть роль</div>
-              </div>
+    <div class="sidebar-footer">
+      <div class="small text-secondary mb-2">Роль: Developer</div>
+      <a href="{{ url_for('main.logout') }}" class="btn btn-outline-light btn-sm w-100">Вийти</a>
+    </div>
+  </aside>
 
-              <div class="col-md-6">
-                <label class="form-label">Відділ</label>
-                <input name="department" placeholder="Напр. Africa" class="form-control">
-                <div class="form-text">Опціонально, але бажано заповнювати для структури.</div>
-              </div>
+  <main class="main-content">
 
-              <div class="col-md-6">
-                <label class="form-label">Посада</label>
-                <input type="text" name="position" id="position" placeholder="Напр. Buyer" class="form-control">
-              </div>
+    <div class="topbar d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <h2 class="mb-1">
+          {% if tab == 'overview' %}
+            Overview
+          {% elif tab == 'users' %}
+            Users Management
+          {% elif tab == 'templates' %}
+            Templates
+          {% elif tab == 'instances' %}
+            Instances
+          {% elif tab == 'departments' %}
+            Departments
+          {% else %}
+            Developer Admin Panel
+          {% endif %}
+        </h2>
+        <div class="text-muted">
+          {% if tab == 'overview' %}
+            Загальна сводка по системі
+          {% elif tab == 'users' %}
+            Керування ролями, доступами та обліковими записами
+          {% elif tab == 'templates' %}
+            Розділ під onboarding templates
+          {% elif tab == 'instances' %}
+            Розділ під onboarding instances
+          {% elif tab == 'departments' %}
+            Розділ під структуру департаментів
+          {% else %}
+            Панель адміністратора CRM
+          {% endif %}
+        </div>
+      </div>
+    </div>
 
-              <div class="col-md-6">
-                <label class="form-label">Логін</label>
-                <input name="username" placeholder="username" class="form-control" required>
-                <div class="invalid-feedback">Вкажіть логін</div>
-                <div class="form-text">Якщо такий username існує — автоматично додасться _1, _2, ...</div>
-              </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category=='success' else ('danger' if category in ['danger','error'] else ('warning' if category=='warning' else 'info')) }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
 
-              <div class="col-md-6">
-                <label class="form-label">Пароль</label>
-                <input name="password" type="password" placeholder="••••••••" class="form-control" required>
-                <div class="invalid-feedback">Вкажіть пароль</div>
-              </div>
+    {% if tab == 'overview' %}
+      {% set total_users = users|length %}
+      {% set developer_count = users|selectattr('role', 'equalto', 'developer')|list|length %}
+      {% set head_count = users|selectattr('role', 'equalto', 'head')|list|length %}
+      {% set teamlead_count = users|selectattr('role', 'equalto', 'teamlead')|list|length %}
+      {% set mentor_count = users|selectattr('role', 'equalto', 'mentor')|list|length %}
+      {% set manager_count = users|selectattr('role', 'equalto', 'manager')|list|length %}
 
-              <!-- 🔁 Teamlead for mentor -->
-              <div class="col-12" id="teamlead-select" style="display:none;">
-                <div class="border rounded p-3 bg-light">
-                  <div class="fw-semibold mb-2">Привʼязка Mentor → Teamlead (обов’язково)</div>
-                  <label for="teamlead_id" class="form-label">Тімлід</label>
-                  <select name="teamlead_id" id="teamlead_id" class="form-select">
-                    <option value="">Оберіть ТЛ</option>
-                    {% for tl in teamleads %}
-                      <option value="{{ tl.id }}">{{ tl.tg_nick or tl.username }} ({{ tl.department or '—' }})</option>
-                    {% endfor %}
-                  </select>
-                  <div class="form-text">Показується тільки якщо роль = Mentor. Без вибору ТЛ — створення не пройде (валідація в роуті).</div>
-                </div>
-              </div>
+      {% set ns = namespace(active_count=0, inactive_count=0, department_names=[]) %}
+      {% for user in users %}
+        {% if user.department and user.department not in ns.department_names %}
+          {% set _ = ns.department_names.append(user.department) %}
+        {% endif %}
 
-              <!-- 🔁 Mentor for manager -->
-              <div class="col-12" id="mentor-select" style="display:none;">
-                <div class="border rounded p-3 bg-light">
-                  <div class="fw-semibold mb-2">Привʼязка Manager → Mentor/Teamlead (опціонально)</div>
-                  <label for="mentor_id" class="form-label">Mentor/Teamlead (added_by_id)</label>
-                  <select name="mentor_id" id="mentor_id" class="form-select">
-                    <option value="">Не обирати (прив’яже до поточного developer)</option>
-                    {% for m in mentors %}
-                      <option value="{{ m.id }}">{{ m.tg_nick or m.username }} ({{ m.department or '—' }})</option>
-                    {% endfor %}
-                    {% for tl in teamleads %}
-                      <option value="{{ tl.id }}">{{ tl.tg_nick or tl.username }} ({{ tl.department or '—' }}) [TL]</option>
-                    {% endfor %}
-                  </select>
-                  <div class="form-text">Показується тільки якщо роль = Manager.</div>
-                </div>
-              </div>
+        {% if user.is_active is defined %}
+          {% if user.is_active %}
+            {% set ns.active_count = ns.active_count + 1 %}
+          {% else %}
+            {% set ns.inactive_count = ns.inactive_count + 1 %}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
 
+      <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="stat-label">Всього користувачів</div>
+            <div class="stat-value">{{ total_users }}</div>
+          </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="stat-label">Managers</div>
+            <div class="stat-value">{{ manager_count }}</div>
+          </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="stat-label">Mentors / Teamleads</div>
+            <div class="stat-value">{{ mentor_count + teamlead_count }}</div>
+          </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="stat-label">Departments</div>
+            <div class="stat-value">{{ ns.department_names|length }}</div>
+          </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="stat-label">Developers</div>
+            <div class="stat-value">{{ developer_count }}</div>
+          </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="stat-label">Heads</div>
+            <div class="stat-value">{{ head_count }}</div>
+          </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="stat-label">Teamleads</div>
+            <div class="stat-value">{{ teamlead_count }}</div>
+          </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="stat-card">
+            <div class="stat-label">Mentors</div>
+            <div class="stat-value">{{ mentor_count }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-12 col-xl-8">
+          <div class="content-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+              <h5 class="mb-0">Швидкі дії</h5>
             </div>
 
-            <button type="submit" class="btn btn-success mt-3 w-100">Зберегти</button>
-          </form>
-        </div>
-      </div>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <a href="{{ url_for('main.developer_dashboard', tab='users', view='add') }}" class="btn btn-primary w-100 py-3">
+                  ➕ Додати користувача
+                </a>
+              </div>
+              <div class="col-md-4">
+                <a href="{{ url_for('main.developer_dashboard', tab='users', view='all') }}" class="btn btn-outline-dark w-100 py-3">
+                  👥 Відкрити users
+                </a>
+              </div>
+              <div class="col-md-4">
+                <a href="{{ url_for('main.developer_dashboard', tab='templates') }}" class="btn btn-outline-secondary w-100 py-3">
+                  🧩 Відкрити templates
+                </a>
+              </div>
+            </div>
 
-      <div class="alert alert-secondary mt-3 small mb-0">
-        Порада: домовся про єдиний формат департаментів (наприклад: <span class="fw-semibold">Africa</span>, <span class="fw-semibold">Product</span>, <span class="fw-semibold">LATAM</span>).
-      </div>
-    </div>
+            <hr class="my-4">
 
-    <!-- 👥 Users table -->
-    <div class="col-12 col-xl-7">
-      <div class="card shadow-sm">
-        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-          <div class="fw-bold">Усі користувачі</div>
-          <div class="d-flex gap-2 align-items-center">
-            <input id="userSearch" class="form-control form-control-sm" style="max-width: 260px;" placeholder="Пошук: TG / логін / департамент">
-            <select id="roleFilter" class="form-select form-select-sm" style="max-width: 180px;">
-              <option value="">Усі ролі</option>
-              <option value="mentor">Mentor</option>
-              <option value="teamlead">Teamlead</option>
-              <option value="head">Head</option>
-              <option value="manager">Manager</option>
-              <option value="developer">Developer</option>
-            </select>
+            <div class="small text-muted">
+              Це стартова панель розробника. Тут можна швидко перейти до users management, а далі розширити templates / instances / departments без зміни базового layout.
+            </div>
           </div>
         </div>
 
-        <div class="card-body p-0">
+        <div class="col-12 col-xl-4">
+          <div class="content-card p-4 h-100">
+            <h5 class="mb-3">Статус системи</h5>
+
+            <div class="d-flex justify-content-between mb-2">
+              <span class="text-muted">Active users</span>
+              <strong>
+                {% if ns.active_count or ns.inactive_count %}
+                  {{ ns.active_count }}
+                {% else %}
+                  —
+                {% endif %}
+              </strong>
+            </div>
+
+            <div class="d-flex justify-content-between mb-2">
+              <span class="text-muted">Inactive users</span>
+              <strong>
+                {% if ns.active_count or ns.inactive_count %}
+                  {{ ns.inactive_count }}
+                {% else %}
+                  —
+                {% endif %}
+              </strong>
+            </div>
+
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">Unique departments</span>
+              <strong>{{ ns.department_names|length }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if tab == 'users' %}
+      <div class="mb-3">
+        <ul class="nav nav-pills nav-pills-soft gap-2">
+          <li class="nav-item">
+            <a class="nav-link {% if view == 'all' %}active{% endif %}"
+               href="{{ url_for('main.developer_dashboard', tab='users', view='all') }}">
+              Усі користувачі
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if view == 'add' %}active{% endif %}"
+               href="{{ url_for('main.developer_dashboard', tab='users', view='add') }}">
+              Додати користувача
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      {% if view == 'add' %}
+        <div class="row g-4">
+          <div class="col-12 col-xl-8">
+            <div class="content-card">
+              <div class="p-4 border-bottom">
+                <h5 class="mb-1">Додати нового користувача</h5>
+                <div class="text-muted small">Створення користувача з урахуванням ролі, департаменту та привʼязки</div>
+              </div>
+
+              <div class="p-4">
+                <form action="{{ url_for('main.developer_dashboard') }}" method="POST" class="needs-validation" novalidate>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="tab" value="users">
+                  <input type="hidden" name="view" value="add">
+
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label">TG нік</label>
+                      <input name="tg_nick" placeholder="Напр. @taras" class="form-control">
+                      <div class="form-text">Опціонально.</div>
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label">Роль</label>
+                      <select name="role" class="form-select" id="roleSelect" required>
+                        <option disabled selected value="">🔽 Оберіть роль</option>
+                        <option value="developer">Developer</option>
+                        <option value="head">Head</option>
+                        <option value="teamlead">Teamlead</option>
+                        <option value="mentor">Mentor</option>
+                        <option value="manager">Manager</option>
+                      </select>
+                      <div class="invalid-feedback">Оберіть роль</div>
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label">Відділ</label>
+                      <input name="department" placeholder="Напр. Africa" class="form-control">
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label">Посада</label>
+                      <input type="text" name="position" placeholder="Напр. Buyer" class="form-control">
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label">Логін</label>
+                      <input name="username" placeholder="username" class="form-control" required>
+                      <div class="invalid-feedback">Вкажіть логін</div>
+                      <div class="form-text">Якщо username вже існує — автоматично отримає суфікс `_1`, `_2`...</div>
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label">Пароль</label>
+                      <input name="password" type="password" placeholder="••••••••" class="form-control" required>
+                      <div class="invalid-feedback">Вкажіть пароль</div>
+                    </div>
+
+                    <div class="col-12" id="teamlead-select" style="display:none;">
+                      <div class="border rounded-4 p-3 bg-light">
+                        <div class="fw-semibold mb-2">Привʼязка Mentor → Teamlead</div>
+                        <label for="teamlead_id" class="form-label">Тімлід</label>
+                        <select name="teamlead_id" id="teamlead_id" class="form-select">
+                          <option value="">Оберіть ТЛ</option>
+                          {% for tl in teamleads %}
+                            <option value="{{ tl.id }}">{{ tl.tg_nick or tl.username }} ({{ tl.department or '—' }})</option>
+                          {% endfor %}
+                        </select>
+                        <div class="form-text">Обов’язково для ролі Mentor.</div>
+                      </div>
+                    </div>
+
+                    <div class="col-12" id="mentor-select" style="display:none;">
+                      <div class="border rounded-4 p-3 bg-light">
+                        <div class="fw-semibold mb-2">Привʼязка Manager → Mentor / Teamlead</div>
+                        <label for="mentor_id" class="form-label">Mentor / Teamlead</label>
+                        <select name="mentor_id" id="mentor_id" class="form-select">
+                          <option value="">Не обирати (прив’язати до поточного developer)</option>
+                          {% for m in mentors %}
+                            <option value="{{ m.id }}">{{ m.tg_nick or m.username }} ({{ m.department or '—' }})</option>
+                          {% endfor %}
+                          {% for tl in teamleads %}
+                            <option value="{{ tl.id }}">{{ tl.tg_nick or tl.username }} ({{ tl.department or '—' }}) [TL]</option>
+                          {% endfor %}
+                        </select>
+                        <div class="form-text">Опціонально для ролі Manager.</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-success">Зберегти</button>
+                    <a href="{{ url_for('main.developer_dashboard', tab='users', view='all') }}" class="btn btn-outline-secondary">Скасувати</a>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-xl-4">
+            <div class="content-card p-4">
+              <h6 class="mb-3">Підказки</h6>
+              <div class="small text-muted mb-2">• Дотримуйся єдиного неймінгу департаментів.</div>
+              <div class="small text-muted mb-2">• Для Mentor обов’язково вибирай Teamlead.</div>
+              <div class="small text-muted mb-2">• Для Manager прив’язка може бути до Mentor / TL або до поточного developer.</div>
+              <div class="small text-muted">• Username у системі має бути унікальним.</div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if view == 'all' %}
+        <div class="content-card">
+          <div class="p-4 border-bottom">
+            <div class="section-toolbar">
+              <div>
+                <h5 class="mb-1">Усі користувачі</h5>
+                <div class="text-muted small">Пошук, фільтрація та швидкі дії по користувачах</div>
+              </div>
+
+              <div class="d-flex flex-wrap gap-2">
+                <input id="userSearch" class="form-control" style="min-width: 240px;" placeholder="Пошук: TG / логін / департамент / посада">
+                <select id="roleFilter" class="form-select" style="min-width: 180px;">
+                  <option value="">Усі ролі</option>
+                  <option value="mentor">Mentor</option>
+                  <option value="teamlead">Teamlead</option>
+                  <option value="head">Head</option>
+                  <option value="manager">Manager</option>
+                  <option value="developer">Developer</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" id="usersTable">
-              <thead class="table-light">
+              <thead>
                 <tr>
                   <th class="text-nowrap">ID</th>
                   <th class="text-nowrap">TG нік</th>
                   <th class="text-nowrap">Логін</th>
                   <th class="text-nowrap">Відділ</th>
+                  <th class="text-nowrap">Посада</th>
                   <th class="text-nowrap">Роль</th>
+                  <th class="text-nowrap">Активність</th>
                   <th class="text-nowrap">Статус</th>
                   <th class="text-nowrap">added_by</th>
                   <th class="text-nowrap text-end">Дії</th>
@@ -184,15 +634,18 @@
 
               <tbody>
                 {% for user in users %}
-                  <tr id="user-row-{{ user.id }}"
-                      data-role="{{ user.role }}"
-                      data-search="{{ ((user.tg_nick or '') ~ ' ' ~ (user.username or '') ~ ' ' ~ (user.department or '') ~ ' ' ~ (user.role or '')) | lower }}">
+                  <tr
+                    id="user-row-{{ user.id }}"
+                    data-role="{{ user.role }}"
+                    data-search="{{ ((user.tg_nick or '') ~ ' ' ~ (user.username or '') ~ ' ' ~ (user.department or '') ~ ' ' ~ (user.position or '') ~ ' ' ~ (user.role or '')) | lower }}"
+                  >
                     <td class="mono">{{ user.id }}</td>
                     <td class="text-nowrap">{{ user.tg_nick or '—' }}</td>
                     <td class="text-nowrap mono">{{ user.username }}</td>
                     <td class="text-nowrap">
                       <span class="badge text-bg-light border">{{ user.department or '—' }}</span>
                     </td>
+                    <td class="text-nowrap">{{ user.position or '—' }}</td>
 
                     <td class="text-nowrap">
                       {% set r = (user.role or '') %}
@@ -211,6 +664,18 @@
                       {% endif %}
                     </td>
 
+                    <td class="text-nowrap">
+                      {% if user.is_active is defined %}
+                        {% if user.is_active %}
+                          <span class="badge text-bg-success">active</span>
+                        {% else %}
+                          <span class="badge text-bg-secondary">inactive</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+
                     <td class="text-nowrap">{{ user.onboarding_status or '—' }}</td>
 
                     <td class="text-nowrap">
@@ -222,36 +687,38 @@
                     </td>
 
                     <td class="text-end text-nowrap">
-                      <!-- Edit -->
-                      <button class="btn btn-sm btn-outline-secondary"
-                              onclick="openEditModal(
-                                {{ user.id }},
-                                '{{ (user.tg_nick or '')|e }}',
-                                '{{ (user.department or '')|e }}',
-                                '{{ (user.position or '')|e }}',
-                                '{{ (user.role or '')|e }}',
-                                '{{ (user.added_by_id or '')|e }}'
-                              )">
+                      <button
+                        class="btn btn-sm btn-outline-secondary"
+                        onclick="openEditModal(
+                          {{ user.id }},
+                          '{{ (user.tg_nick or '')|e }}',
+                          '{{ (user.department or '')|e }}',
+                          '{{ (user.position or '')|e }}',
+                          '{{ (user.role or '')|e }}',
+                          '{{ (user.added_by_id or '')|e }}'
+                        )"
+                        title="Редагувати"
+                      >
                         ✏️
                       </button>
 
-                      <!-- Reset password -->
-                      <button class="btn btn-sm btn-outline-warning"
-                              onclick="openResetModal({{ user.id }}, '{{ (user.tg_nick or user.username)|e }}')">
+                      <button
+                        class="btn btn-sm btn-outline-warning"
+                        onclick="openResetModal({{ user.id }}, '{{ (user.tg_nick or user.username)|e }}')"
+                        title="Скинути пароль"
+                      >
                         🔑
                       </button>
 
-                      <!-- Toggle active -->
                       <form action="{{ url_for('main.developer_user_toggle_active', user_id=user.id) }}" method="POST" class="d-inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button class="btn btn-sm btn-outline-primary"
                                 {% if user.id == current_user.id %}disabled{% endif %}
-                                title="Toggle active (працює якщо в моделі є is_active)">
+                                title="Toggle active">
                           🔁
                         </button>
                       </form>
 
-                      <!-- Delete -->
                       {% if user.role != 'developer' %}
                         <form action="{{ url_for('main.developer_user_delete', user_id=user.id) }}" method="POST" class="d-inline">
                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -263,7 +730,7 @@
                           </button>
                         </form>
                       {% else %}
-                        <span class="text-muted">—</span>
+                        <span class="text-muted ms-1">—</span>
                       {% endif %}
                     </td>
                   </tr>
@@ -271,23 +738,48 @@
               </tbody>
             </table>
           </div>
-        </div>
 
-        <div class="card-footer small text-muted d-flex justify-content-between align-items-center">
-          <span>Всього: <span class="fw-semibold">{{ users|length }}</span></span>
-          <span id="visibleCount" class="text-muted"></span>
+          <div class="p-3 border-top d-flex justify-content-between align-items-center small text-muted">
+            <span>Всього: <span class="fw-semibold">{{ users|length }}</span></span>
+            <span id="visibleCount"></span>
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+
+    {% if tab == 'templates' %}
+      <div class="content-card p-4">
+        <h5 class="mb-3">Templates</h5>
+        <div class="placeholder-box">
+          Тут буде розділ керування onboarding templates:
+          список шаблонів, створення, редагування, дублювання, шаринг між департаментами, контроль використання.
         </div>
       </div>
+    {% endif %}
 
-      <div class="alert alert-info mt-3 small mb-0">
-        Тут: create / edit / reset password / delete / toggle active. Далі додамо керування онбординг-шаблонами та шаринг між департаментами.
+    {% if tab == 'instances' %}
+      <div class="content-card p-4">
+        <h5 class="mb-3">Instances</h5>
+        <div class="placeholder-box">
+          Тут буде розділ onboarding instances:
+          manager, template, progress, status, хто призначив, дати створення, швидкі дії.
+        </div>
       </div>
-    </div>
+    {% endif %}
 
-  </div>
+    {% if tab == 'departments' %}
+      <div class="content-card p-4">
+        <h5 class="mb-3">Departments</h5>
+        <div class="placeholder-box">
+          Тут буде розділ департаментів:
+          унікальні департаменти, кількість users, mentors, TL, managers, майбутня нормалізація структури.
+        </div>
+      </div>
+    {% endif %}
+
+  </main>
 </div>
 
-<!-- ✅ Edit user modal -->
 <div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -315,7 +807,6 @@
                 <option value="mentor">Mentor</option>
                 <option value="manager">Manager</option>
               </select>
-              <div class="form-text">Роут прийме тільки валідні ролі.</div>
             </div>
 
             <div class="col-md-6">
@@ -329,9 +820,9 @@
             </div>
 
             <div class="col-12">
-              <label class="form-label">added_by_id (до кого прив’язаний)</label>
+              <label class="form-label">added_by_id</label>
               <input class="form-control mono" name="added_by_id" id="edit_added_by_id" placeholder="Напр. 12">
-              <div class="form-text">Якщо лишиш пустим — роут не змінює added_by_id. Якщо введеш — спробує привести до int.</div>
+              <div class="form-text">Поки що залишив як у твоїй поточній логіці. Наступним кроком краще замінити це поле на безпечний select.</div>
             </div>
           </div>
         </div>
@@ -345,7 +836,6 @@
   </div>
 </div>
 
-<!-- ✅ Reset password modal -->
 <div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -376,65 +866,72 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-  // ✅ Bootstrap validation
   (function () {
-    'use strict'
-    const forms = document.querySelectorAll('.needs-validation')
+    'use strict';
+    const forms = document.querySelectorAll('.needs-validation');
     Array.from(forms).forEach(form => {
       form.addEventListener('submit', event => {
         if (!form.checkValidity()) {
-          event.preventDefault()
-          event.stopPropagation()
+          event.preventDefault();
+          event.stopPropagation();
         }
-        form.classList.add('was-validated')
-      }, false)
-    })
+        form.classList.add('was-validated');
+      }, false);
+    });
   })();
 
-  // Role-based extra fields (Create user)
   const roleSelect = document.getElementById('roleSelect');
   const teamleadWrap = document.getElementById('teamlead-select');
   const teamleadId = document.getElementById('teamlead_id');
-
   const mentorWrap = document.getElementById('mentor-select');
   const mentorId = document.getElementById('mentor_id');
 
   function syncRoleVisibility() {
     const selectedRole = (roleSelect?.value || '').toLowerCase();
 
-    // Mentor => require TL
     if (selectedRole === 'mentor') {
-      teamleadWrap.style.display = 'block';
-      teamleadId.required = true;
+      if (teamleadWrap) teamleadWrap.style.display = 'block';
+      if (teamleadId) teamleadId.required = true;
     } else {
-      teamleadWrap.style.display = 'none';
-      teamleadId.required = false;
-      teamleadId.value = '';
+      if (teamleadWrap) teamleadWrap.style.display = 'none';
+      if (teamleadId) {
+        teamleadId.required = false;
+        teamleadId.value = '';
+      }
     }
 
-    // Manager => optional mentor_id
     if (selectedRole === 'manager') {
-      mentorWrap.style.display = 'block';
+      if (mentorWrap) mentorWrap.style.display = 'block';
     } else {
-      mentorWrap.style.display = 'none';
-      mentorId.value = '';
+      if (mentorWrap) mentorWrap.style.display = 'none';
+      if (mentorId) mentorId.value = '';
     }
   }
+
   roleSelect?.addEventListener('change', syncRoleVisibility);
   syncRoleVisibility();
 
-  // Search & filter
   const userSearch = document.getElementById('userSearch');
   const roleFilter = document.getElementById('roleFilter');
   const table = document.getElementById('usersTable');
 
+  function updateVisibleCount() {
+    const rows = table?.querySelectorAll('tbody tr') || [];
+    let visible = 0;
+    rows.forEach(tr => {
+      if (tr.style.display !== 'none') visible += 1;
+    });
+    const el = document.getElementById('visibleCount');
+    if (el) el.textContent = visible ? `Показано: ${visible}` : '';
+  }
+
   function applyFilters() {
     const q = (userSearch?.value || '').trim().toLowerCase();
     const role = (roleFilter?.value || '').trim().toLowerCase();
-
     const rows = table?.querySelectorAll('tbody tr') || [];
+
     rows.forEach(tr => {
-      const hay = (tr.getAttribute('data-search') || '');
+      const hay = (tr.getAttribute('data-search') || '').toLowerCase();
       const r = (tr.getAttribute('data-role') || '').toLowerCase();
 
       const okQ = !q || hay.includes(q);
@@ -446,19 +943,10 @@
     updateVisibleCount();
   }
 
-  function updateVisibleCount() {
-    const rows = table?.querySelectorAll('tbody tr') || [];
-    let visible = 0;
-    rows.forEach(tr => { if (tr.style.display !== 'none') visible += 1; });
-    const el = document.getElementById('visibleCount');
-    if (el) el.textContent = visible ? `Показано: ${visible}` : '';
-  }
-
   userSearch?.addEventListener('input', applyFilters);
   roleFilter?.addEventListener('change', applyFilters);
   applyFilters();
 
-  // Modals
   const editModalEl = document.getElementById('editUserModal');
   const editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
 
