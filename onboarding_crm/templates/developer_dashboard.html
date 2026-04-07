@@ -818,7 +818,7 @@
                             ✏️
                           </a>
 
-                          <form action="{{ url_for('main.onboarding_template_delete', template_id=template.id) }}" method="POST" class="d-inline">
+                          <form action="{{ url_for('main.delete_onboarding_template', id=template.id) }}" method="POST" class="d-inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit"
                                     class="btn btn-sm btn-outline-danger"
