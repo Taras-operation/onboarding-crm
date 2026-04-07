@@ -748,11 +748,103 @@
     {% endif %}
 
     {% if tab == 'templates' %}
-      <div class="content-card p-4">
-        <h5 class="mb-3">Templates</h5>
-        <div class="placeholder-box">
-          Тут буде розділ керування onboarding templates:
-          список шаблонів, створення, редагування, дублювання, шаринг між департаментами, контроль використання.
+      {% set templates_list = templates if templates is defined else [] %}
+
+      <div class="row g-4">
+        <div class="col-12">
+          <div class="content-card">
+            <div class="p-4 border-bottom">
+              <div class="section-toolbar">
+                <div>
+                  <h5 class="mb-1">Templates</h5>
+                  <div class="text-muted small">Список onboarding templates, їх структура та використання</div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                  <a href="{{ url_for('main.onboarding_editor') }}" class="btn btn-primary">
+                    ➕ Створити шаблон
+                  </a>
+                  <a href="{{ url_for('main.onboarding_plans') }}" class="btn btn-outline-secondary">
+                    📋 Відкрити плани
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {% if templates_list %}
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th class="text-nowrap">ID</th>
+                      <th class="text-nowrap">Назва</th>
+                      <th class="text-nowrap">Департамент</th>
+                      <th class="text-nowrap">Створив</th>
+                      <th class="text-nowrap">Структура</th>
+                      <th class="text-nowrap text-end">Дії</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for template in templates_list %}
+                      {% set block_count = 0 %}
+                      {% if template.structure %}
+                        {% if template.structure.blocks is defined %}
+                          {% set block_count = template.structure.blocks|length %}
+                        {% elif template.structure is iterable and template.structure is not string %}
+                          {% set block_count = template.structure|length %}
+                        {% endif %}
+                      {% endif %}
+
+                      <tr>
+                        <td class="mono">{{ template.id }}</td>
+                        <td class="fw-semibold">{{ template.name or 'Без назви' }}</td>
+                        <td>
+                          <span class="badge text-bg-light border">{{ template.department or '—' }}</span>
+                        </td>
+                        <td>
+                          {% if template.creator is defined and template.creator %}
+                            {{ template.creator.tg_nick or template.creator.username or ('#' ~ template.created_by) }}
+                          {% elif template.created_by %}
+                            <span class="mono">#{{ template.created_by }}</span>
+                          {% else %}
+                            <span class="text-muted">—</span>
+                          {% endif %}
+                        </td>
+                        <td>
+                          <span class="badge text-bg-secondary">Блоків: {{ block_count }}</span>
+                        </td>
+                        <td class="text-end text-nowrap">
+                          <a href="{{ url_for('main.onboarding_template_add', template_id=template.id) }}" class="btn btn-sm btn-outline-secondary">
+                            ✏️
+                          </a>
+
+                          <form action="{{ url_for('main.onboarding_template_delete', template_id=template.id) }}" method="POST" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                    class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Видалити шаблон: {{ (template.name or 'Без назви')|e }}?')">
+                              🗑️
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="p-3 border-top d-flex justify-content-between align-items-center small text-muted">
+                <span>Всього шаблонів: <span class="fw-semibold">{{ templates_list|length }}</span></span>
+                <span>Керування шаблонами доступне з dev admin panel</span>
+              </div>
+            {% else %}
+              <div class="p-4">
+                <div class="placeholder-box">
+                  Поки що список шаблонів не переданий у шаблон. Після підключення `templates` з бекенду тут з’явиться таблиця з onboarding templates.
+                </div>
+              </div>
+            {% endif %}
+          </div>
         </div>
       </div>
     {% endif %}

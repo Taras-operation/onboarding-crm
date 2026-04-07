@@ -171,12 +171,14 @@ def developer_dashboard():
     users = User.query.order_by(User.id.desc()).all()
     teamleads = User.query.filter_by(role='teamlead').order_by(User.id.desc()).all()
     mentors = User.query.filter_by(role='mentor').order_by(User.id.desc()).all()
+    templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
 
     return render_template(
         'developer_dashboard.html',
         users=users,
         teamleads=teamleads,
         mentors=mentors,
+        templates=templates,
         tab=tab,
         view=view
     )
