@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_template_sharing_fields'
-down_revision = '295ce02943bf'
+down_revision = 'ca45cb293b26'
 branch_labels = None
 depends_on = None
 
