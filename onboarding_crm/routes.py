@@ -13,6 +13,7 @@ import copy
 bp = Blueprint('main', __name__)
 
 # --- Helper: allowed managers for current user (department-aware)
+
 def _allowed_managers_for_current_user():
     """
     Returns a SQLAlchemy query for managers the current user is allowed to see/select.
@@ -48,6 +49,53 @@ def _allowed_managers_for_current_user():
         return User.query.filter_by(role='manager')
 
     return User.query.filter(False)
+
+
+def _visible_templates_for_current_user():
+    """
+    Returns onboarding templates visible to the current user.
+    Rules:
+    - developer -> all templates
+    - owner department -> visible
+    - created_by current user -> visible
+    - is_global -> visible
+    - current user's department in shared_departments -> visible
+    """
+    templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
+
+    if not current_user.is_authenticated:
+        return []
+
+    if current_user.role == 'developer':
+        return templates
+
+    visible = []
+    user_department = (current_user.department or '').strip()
+
+    for template in templates:
+        template_department = (getattr(template, 'department', None) or '').strip()
+        shared_departments = getattr(template, 'shared_departments', None) or []
+
+        if not isinstance(shared_departments, list):
+            shared_departments = []
+
+        if getattr(template, 'created_by', None) == current_user.id:
+            visible.append(template)
+            continue
+
+        if template_department and user_department and template_department == user_department:
+            visible.append(template)
+            continue
+
+        if bool(getattr(template, 'is_global', False)):
+            visible.append(template)
+            continue
+
+        if user_department and user_department in shared_departments:
+            visible.append(template)
+            continue
+
+    return visible
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -612,17 +660,8 @@ def onboarding_plans():
     if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
         return redirect(url_for('main.login'))
 
-    # ✅ Templates visibility: developer sees all, others only within their department
-    templates_q = OnboardingTemplate.query
-    if current_user.role != 'developer':
-        # Prefer direct department column on template; fallback to creator's department if available
-        if hasattr(OnboardingTemplate, 'department'):
-            templates_q = templates_q.filter(OnboardingTemplate.department == current_user.department)
-        elif hasattr(OnboardingTemplate, 'created_by'):
-            templates_q = templates_q.join(User, OnboardingTemplate.created_by == User.id) \
-                                   .filter(User.department == current_user.department)
-
-    templates = templates_q.all()
+    # ✅ Templates visibility: own department + own created + shared + global
+    templates = _visible_templates_for_current_user()
     for t in templates:
         try:
             parsed = json.loads(t.structure) if isinstance(t.structure, str) else t.structure
