@@ -8,6 +8,7 @@ from onboarding_crm.utils import parse_nested_structure
 import json
 import random
 import re
+import copy
 
 bp = Blueprint('main', __name__)
 
@@ -68,7 +69,7 @@ def login():
 
 @bp.route("/")
 def index():
-    return redirect(url_for('main.login'))  
+    return redirect(url_for('main.login'))
 
 @bp.route('/logout')
 @login_required
@@ -358,7 +359,7 @@ def mentor_dashboard():
         archived_count=archived_count,
         average_progress=average_progress
     )
-    
+
 @bp.route('/managers/list')
 @login_required
 def managers_list():
@@ -1058,6 +1059,62 @@ def delete_onboarding_template(id):
     db.session.delete(template)
     db.session.commit()
     return '', 204
+
+
+@bp.route('/onboarding/template/<int:id>/share', methods=['POST'])
+@login_required
+def share_onboarding_template(id):
+    if current_user.role != 'developer':
+        return redirect(url_for('main.login'))
+
+    template = OnboardingTemplate.query.get_or_404(id)
+
+    is_global = request.form.get('is_global') == 'on'
+    shared_departments = [d.strip() for d in request.form.getlist('shared_departments') if d and d.strip()]
+    shared_departments = list(dict.fromkeys(shared_departments))
+
+    if hasattr(template, 'is_global'):
+        template.is_global = bool(is_global)
+
+    if hasattr(template, 'shared_departments'):
+        template.shared_departments = [] if is_global else shared_departments
+    else:
+        flash('Поле shared_departments відсутнє в моделі OnboardingTemplate', 'warning')
+        return redirect(url_for('main.developer_dashboard', tab='templates'))
+
+    db.session.commit()
+    flash('Доступи до шаблону оновлено', 'success')
+    return redirect(url_for('main.developer_dashboard', tab='templates'))
+
+
+@bp.route('/onboarding/template/<int:id>/duplicate', methods=['POST'])
+@login_required
+def duplicate_onboarding_template(id):
+    template = OnboardingTemplate.query.get_or_404(id)
+
+    structure_copy = copy.deepcopy(template.structure) if template.structure is not None else None
+
+    new_template = OnboardingTemplate(
+        name=f"{template.name or 'Template'} (Copy)",
+        structure=structure_copy,
+        department=getattr(current_user, 'department', None),
+        created_by=current_user.id
+    )
+
+    if hasattr(new_template, 'is_global'):
+        new_template.is_global = False
+    if hasattr(new_template, 'shared_departments'):
+        new_template.shared_departments = []
+    if hasattr(new_template, 'is_copy'):
+        new_template.is_copy = True
+    if hasattr(new_template, 'source_template_id'):
+        new_template.source_template_id = template.id
+
+    db.session.add(new_template)
+    db.session.commit()
+
+    flash('Шаблон дубльовано', 'success')
+    return redirect(url_for('main.developer_dashboard', tab='templates'))
 
 @bp.route('/onboarding/user/delete/<int:id>', methods=['DELETE'])
 @login_required

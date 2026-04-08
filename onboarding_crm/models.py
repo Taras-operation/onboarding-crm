@@ -91,6 +91,16 @@ class OnboardingTemplate(db.Model):
         index=True
     )
 
+    # 🔹 ШЕРИНГ ШАБЛОНОВ
+    is_global = db.Column(db.Boolean, default=False)
+
+    # список департаментов (JSON)
+    shared_departments = db.Column(db.JSON, default=list)
+
+    # 🔹 ДУБЛИКАТЫ
+    is_copy = db.Column(db.Boolean, default=False)
+    source_template_id = db.Column(db.Integer, nullable=True)
+
     steps = db.relationship(
         'OnboardingStep',
         backref='template',

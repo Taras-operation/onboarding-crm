@@ -780,6 +780,7 @@
                       <th class="text-nowrap">Назва</th>
                       <th class="text-nowrap">Департамент</th>
                       <th class="text-nowrap">Створив</th>
+                      <th class="text-nowrap">Доступ</th>
                       <th class="text-nowrap">Структура</th>
                       <th class="text-nowrap text-end">Дії</th>
                     </tr>
@@ -810,13 +811,52 @@
                             <span class="text-muted">—</span>
                           {% endif %}
                         </td>
+                        <td class="text-nowrap">
+                          {% set shared_departments = template.shared_departments if template.shared_departments is defined and template.shared_departments else [] %}
+                          {% if template.is_global is defined and template.is_global %}
+                            <span class="badge text-bg-success">Global</span>
+                          {% elif shared_departments %}
+                            <span class="badge text-bg-info text-dark">Shared: {{ shared_departments|join(', ') }}</span>
+                          {% else %}
+                            <span class="badge text-bg-secondary">Private</span>
+                          {% endif %}
+                        </td>
                         <td>
                           <span class="badge text-bg-secondary">Блоків: {{ block_count }}</span>
+                          {% if template.is_copy is defined and template.is_copy %}
+                            <span class="badge text-bg-light border ms-1">Copy</span>
+                          {% endif %}
+                          {% if template.source_template_id is defined and template.source_template_id %}
+                            <span class="badge text-bg-light border ms-1">Source #{{ template.source_template_id }}</span>
+                          {% endif %}
                         </td>
                         <td class="text-end text-nowrap">
-                          <a href="{{ url_for('main.add_onboarding_template', template_id=template.id) }}" class="btn btn-sm btn-outline-secondary">
+                          <a href="{{ url_for('main.add_onboarding_template', template_id=template.id) }}"
+                             class="btn btn-sm btn-outline-secondary"
+                             title="Редагувати">
                             ✏️
                           </a>
+
+                          <form action="{{ url_for('main.duplicate_onboarding_template', id=template.id) }}" method="POST" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-dark" title="Дублювати шаблон">
+                              📄
+                            </button>
+                          </form>
+
+                          {% if current_user.role == 'developer' %}
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    title="Поділитись шаблоном"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#shareTemplateModal"
+                                    data-template-id="{{ template.id }}"
+                                    data-template-name="{{ (template.name or 'Без назви')|e }}"
+                                    data-template-global="{{ 1 if (template.is_global is defined and template.is_global) else 0 }}"
+                                    data-template-shared="{{ (template.shared_departments if template.shared_departments is defined and template.shared_departments else [])|join(',') }}">
+                              📤
+                            </button>
+                          {% endif %}
 
                           <form action="{{ url_for('main.delete_onboarding_template', id=template.id) }}" method="POST" class="d-inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -848,6 +888,63 @@
         </div>
       </div>
     {% endif %}
+
+    <div class="modal fade" id="shareTemplateModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="POST" id="shareTemplateForm" action="">
+            <div class="modal-header">
+              <h5 class="modal-title">Налаштувати доступ до шаблону</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mb-3 text-muted small" id="shareTemplateLabel"></div>
+
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" role="switch" id="share_is_global" name="is_global">
+                <label class="form-check-label" for="share_is_global">Зробити шаблон глобальним</label>
+              </div>
+
+              {% set department_options = namespace(items=[]) %}
+              {% for user in users %}
+                {% if user.department and user.department not in department_options.items %}
+                  {% set _ = department_options.items.append(user.department) %}
+                {% endif %}
+              {% endfor %}
+
+              <label class="form-label">Поділитись з департаментами</label>
+              <div class="border rounded-3 p-3 bg-light" style="max-height: 220px; overflow-y: auto;">
+                {% if department_options.items %}
+                  {% for department_name in department_options.items|sort %}
+                    <div class="form-check mb-2">
+                      <input class="form-check-input share-department-checkbox"
+                             type="checkbox"
+                             name="shared_departments"
+                             value="{{ department_name }}"
+                             id="share_department_{{ loop.index }}">
+                      <label class="form-check-label" for="share_department_{{ loop.index }}">
+                        {{ department_name }}
+                      </label>
+                    </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="text-muted small">Поки що немає департаментів для шерингу.</div>
+                {% endif %}
+              </div>
+
+              <div class="form-text mt-2">Тільки developer може змінювати доступи. Інші ролі можуть користуватись шаблоном або дублювати його.</div>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Скасувати</button>
+              <button type="submit" class="btn btn-primary">Зберегти доступи</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 
     {% if tab == 'instances' %}
       <div class="content-card p-4">
@@ -1044,6 +1141,7 @@
 
   const resetModalEl = document.getElementById('resetPasswordModal');
   const resetModal = resetModalEl ? new bootstrap.Modal(resetModalEl) : null;
+  const shareTemplateModalEl = document.getElementById('shareTemplateModal');
 
   function openEditModal(userId, tgNick, department, position, role, addedById) {
     const form = document.getElementById('editUserForm');
@@ -1064,6 +1162,45 @@
     document.getElementById('resetPasswordLabel').innerText = `Користувач: ${label}`;
     resetModal?.show();
   }
+
+  function syncShareDepartmentsState() {
+    const globalToggle = document.getElementById('share_is_global');
+    const checkboxes = document.querySelectorAll('.share-department-checkbox');
+    const disabled = !!globalToggle?.checked;
+
+    checkboxes.forEach(cb => {
+      cb.disabled = disabled;
+      if (disabled) cb.checked = false;
+    });
+  }
+
+  shareTemplateModalEl?.addEventListener('show.bs.modal', event => {
+    const button = event.relatedTarget;
+    if (!button) return;
+
+    const templateId = button.getAttribute('data-template-id') || '';
+    const templateName = button.getAttribute('data-template-name') || '';
+    const isGlobal = button.getAttribute('data-template-global') === '1';
+    const sharedRaw = button.getAttribute('data-template-shared') || '';
+    const sharedList = sharedRaw ? sharedRaw.split(',').map(v => v.trim()).filter(Boolean) : [];
+
+    const form = document.getElementById('shareTemplateForm');
+    const label = document.getElementById('shareTemplateLabel');
+    const globalToggle = document.getElementById('share_is_global');
+    const checkboxes = document.querySelectorAll('.share-department-checkbox');
+
+    if (form) form.action = `/onboarding/template/${templateId}/share`;
+    if (label) label.innerText = `Шаблон: ${templateName}`;
+    if (globalToggle) globalToggle.checked = isGlobal;
+
+    checkboxes.forEach(cb => {
+      cb.checked = sharedList.includes(cb.value);
+    });
+
+    syncShareDepartmentsState();
+  });
+
+  document.getElementById('share_is_global')?.addEventListener('change', syncShareDepartmentsState);
 </script>
 
 </body>
