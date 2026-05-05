@@ -14,6 +14,7 @@ def create_app():
     app = Flask(__name__)
     app.jinja_env.cache = {}
     app.config['SECRET_KEY'] = 'secret-key-goes-here'
+    app.config['WTF_CSRF_TIME_LIMIT'] = None
 
     # 📌 2. Конфіг БД
     db_url = os.getenv("DATABASE_URL")
