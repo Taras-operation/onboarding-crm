@@ -93,11 +93,41 @@
     const form = document.querySelector('form');
     const blocksContainer = document.getElementById('blocks-container');
 
+    let blocksHtml = '';
+
+    if (blocksContainer) {
+      const clone = blocksContainer.cloneNode(true);
+
+      clone.querySelectorAll('input, textarea, select').forEach(el => {
+        if (el.tagName === 'TEXTAREA') {
+          el.textContent = el.value;
+        } else if (el.tagName === 'SELECT') {
+          Array.from(el.options).forEach(option => {
+            if (option.value === el.value) {
+              option.setAttribute('selected', 'selected');
+            } else {
+              option.removeAttribute('selected');
+            }
+          });
+        } else if (el.type === 'checkbox' || el.type === 'radio') {
+          if (el.checked) {
+            el.setAttribute('checked', 'checked');
+          } else {
+            el.removeAttribute('checked');
+          }
+        } else {
+          el.setAttribute('value', el.value);
+        }
+      });
+
+      blocksHtml = clone.innerHTML;
+    }
+
     return {
       savedAt: new Date().toISOString(),
       name: form?.querySelector('[name="name"]')?.value || '',
       selected_manager: form?.querySelector('[name="selected_manager"]')?.value || '',
-      blocks_html: blocksContainer?.innerHTML || ''
+      blocks_html: blocksHtml
     };
   }
 
