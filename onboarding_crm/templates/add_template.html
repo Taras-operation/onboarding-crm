@@ -129,6 +129,14 @@
   }
 
   function restoreDraftIfNeeded() {
+    const wasSubmitted = sessionStorage.getItem(`${AUTOSAVE_KEY}_submitted`);
+
+    if (wasSubmitted === '1') {
+      localStorage.removeItem(AUTOSAVE_KEY);
+      sessionStorage.removeItem(`${AUTOSAVE_KEY}_submitted`);
+      return;
+    }
+
     const raw = localStorage.getItem(AUTOSAVE_KEY);
     if (!raw) return;
 
@@ -193,7 +201,10 @@
 
   document.querySelector('form')?.addEventListener('submit', function () {
     isSubmitting = true;
-    autosaveTemplate();
+
+    // Якщо користувач свідомо натиснув "Зберегти",
+    // при наступному відкритті сторінки стару чернетку треба прибрати.
+    sessionStorage.setItem(`${AUTOSAVE_KEY}_submitted`, '1');
   });
 </script>
 
