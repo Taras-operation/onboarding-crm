@@ -58,17 +58,33 @@ function reinitRichEditorsFromDOM() {
 
   document.querySelectorAll('.rich-editor-wrapper').forEach(wrapper => {
     const hiddenInput = wrapper.querySelector('.rich-hidden');
-    const editorEl = wrapper.querySelector('.rich-editor');
+    const oldEditorEl = wrapper.querySelector('.rich-editor');
 
-    if (!hiddenInput || !editorEl) return;
+    if (!hiddenInput || !oldEditorEl) return;
 
-    // Якщо редактор вже ініціалізований — пропускаємо
-    if (editorEl.classList.contains('ql-container')) return;
+    const existingHtml =
+      hiddenInput.value ||
+      oldEditorEl.querySelector('.ql-editor')?.innerHTML ||
+      oldEditorEl.innerHTML ||
+      '';
+
+    // Autosave може відновити "мертвий" Quill DOM без JS-обробників.
+    // Тому видаляємо старий toolbar/container і створюємо editor заново.
+    wrapper.querySelectorAll('.ql-toolbar').forEach(toolbar => toolbar.remove());
+
+    const freshEditor = document.createElement('div');
+    freshEditor.className = 'rich-editor bg-white';
+    freshEditor.setAttribute(
+      'data-placeholder',
+      oldEditorEl.getAttribute('data-placeholder') || 'Опис...'
+    );
+
+    oldEditorEl.replaceWith(freshEditor);
 
     initRichEditor(
-      editorEl,
+      freshEditor,
       hiddenInput,
-      hiddenInput.value || ''
+      existingHtml
     );
   });
 }
