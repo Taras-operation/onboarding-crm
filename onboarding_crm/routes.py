@@ -10,6 +10,13 @@ import random
 import re
 import copy
 
+import html
+
+try:
+    import bleach
+except ImportError:
+    bleach = None
+
 bp = Blueprint('main', __name__)
 
 # --- Helper: allowed managers for current user (department-aware)
@@ -97,6 +104,72 @@ def _visible_templates_for_current_user():
 
     return visible
 
+
+def _sanitize_rich_text_html(value):
+    """Allow safe Quill HTML formatting, links and lists; strip dangerous HTML."""
+    if not value:
+        return ''
+
+    value = str(value)
+
+    if bleach is None:
+        # Fallback: safe, but formatting will be escaped if bleach is not installed.
+        return html.escape(value)
+
+    allowed_tags = [
+        'p', 'br', 'strong', 'b', 'em', 'i', 'u',
+        'h1', 'h2', 'h3',
+        'ol', 'ul', 'li',
+        'a', 'span', 'blockquote', 'pre', 'code'
+    ]
+    allowed_attrs = {
+        'a': ['href', 'title', 'target', 'rel'],
+        'span': ['class'],
+        'p': ['class'],
+        'ol': ['class'],
+        'ul': ['class'],
+        'li': ['class'],
+    }
+    allowed_protocols = ['http', 'https', 'mailto', 'tel']
+
+    cleaned = bleach.clean(
+        value,
+        tags=allowed_tags,
+        attributes=allowed_attrs,
+        protocols=allowed_protocols,
+        strip=True
+    )
+
+    # Link safety: external links should not get window.opener access.
+    cleaned = bleach.linkify(
+        cleaned,
+        callbacks=[bleach.callbacks.nofollow, bleach.callbacks.target_blank]
+    )
+
+    return cleaned
+
+
+def _sanitize_onboarding_structure(blocks):
+    """Sanitize rich-text descriptions inside onboarding blocks/subblocks."""
+    if isinstance(blocks, dict) and 'blocks' in blocks:
+        blocks = blocks.get('blocks') or []
+
+    if not isinstance(blocks, list):
+        return []
+
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+
+        block['description'] = _sanitize_rich_text_html(block.get('description'))
+
+        subblocks = block.get('subblocks') or []
+        if isinstance(subblocks, list):
+            for subblock in subblocks:
+                if isinstance(subblock, dict):
+                    subblock['description'] = _sanitize_rich_text_html(subblock.get('description'))
+
+    return blocks
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -762,6 +835,8 @@ def add_onboarding_template():
             print("❌ Ошибка парсинга structure при POST:", e)
             structure = []
 
+        structure = _sanitize_onboarding_structure(structure)
+
         selected_manager_id = request.form.get('selected_manager') or 'template'
         name = request.form.get('name')
         payload = {'blocks': structure}  # ← ЕДИНЫЙ формат
@@ -954,6 +1029,8 @@ def edit_onboarding(manager_id):
         except Exception as e:
             flash(f"❌ Помилка парсингу нової структури: {e}", "danger")
             return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
+
+        new_blocks = _sanitize_onboarding_structure(new_blocks)
 
         # --- СЕРВЕРНАЯ ВАЛИДАЦИЯ: запрещаем менять / удалять / сдвигать залоченные шаги
         for idx in sorted(list(locked_indices)):

@@ -1,5 +1,58 @@
 let blockCounter = 0;
 
+const richEditors = new Map();
+
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = value || '';
+  return div.innerHTML;
+}
+
+function initRichEditor(editorEl, hiddenInput, initialValue = '') {
+  if (!editorEl || !hiddenInput) return;
+
+  if (typeof Quill === 'undefined') {
+    hiddenInput.value = initialValue || '';
+    return;
+  }
+
+  const quill = new Quill(editorEl, {
+    theme: 'snow',
+    placeholder: editorEl.getAttribute('data-placeholder') || 'Опис...',
+    modules: {
+      toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link'],
+        ['clean']
+      ]
+    }
+  });
+
+  quill.root.innerHTML = initialValue || '';
+  hiddenInput.value = quill.root.innerHTML;
+  richEditors.set(hiddenInput.name, quill);
+
+  quill.on('text-change', () => {
+    hiddenInput.value = quill.root.innerHTML;
+
+    if (typeof window.autosaveTemplate === 'function') {
+      clearTimeout(window.__richAutosaveTimer);
+      window.__richAutosaveTimer = setTimeout(() => {
+        try { window.autosaveTemplate(); } catch (_) {}
+      }, 800);
+    }
+  });
+}
+
+function syncRichEditors() {
+  richEditors.forEach((quill, inputName) => {
+    const input = document.querySelector(`[name="${inputName}"]`);
+    if (input) input.value = quill.root.innerHTML;
+  });
+}
+
 // ===== Helpers: lock completed blocks (read-only) =====
 function lockBlock(blockDiv) {
   blockDiv.classList.add('locked', 'opacity-75');
@@ -14,6 +67,10 @@ function lockBlock(blockDiv) {
     badge.innerText = '🔒 Пройдено — редагування заблоковано';
     blockDiv.appendChild(badge);
   }
+  blockDiv.querySelectorAll('.rich-hidden').forEach(input => {
+    const quill = richEditors.get(input.name);
+    if (quill) quill.enable(false);
+  });
 }
 
 function unlockBlock(blockDiv) {
@@ -24,6 +81,10 @@ function unlockBlock(blockDiv) {
   });
   const badge = blockDiv.querySelector('.lock-badge');
   if (badge) badge.remove();
+  blockDiv.querySelectorAll('.rich-hidden').forEach(input => {
+    const quill = richEditors.get(input.name);
+    if (quill) quill.enable(true);
+  });
 }
 
 // ===== Helpers: empty checks =====
@@ -192,7 +253,10 @@ function addStage(data = {}, index = null) {
     <button type="button" class="absolute top-2 right-2 text-red-500 hover:text-red-700 text-xl" onclick="deleteBlock(this)">✖</button>
     <h3 class="text-lg font-bold mb-2 pl-6">Блок №${blockIndex + 1}</h3>
     <input type="text" name="blocks[${blockIndex}][title]" placeholder="Заголовок етапу" class="w-full border rounded p-2 mb-2" value="${data.title || ''}" />
-    <textarea name="blocks[${blockIndex}][description]" placeholder="Опис етапу" class="w-full border rounded p-2 mb-2">${data.description || ''}</textarea>
+    <div class="rich-editor-wrapper mb-2">
+      <input type="hidden" class="rich-hidden" name="blocks[${blockIndex}][description]" value="${escapeHtml(data.description || '')}" />
+      <div class="rich-editor bg-white" data-placeholder="Опис етапу"></div>
+    </div>
 
     <div class="subblocks mb-2"></div>
     <button type="button" onclick="addSubblock(this, ${blockIndex})" class="add-sub bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm mb-2">+ Сабблок</button>
@@ -205,6 +269,12 @@ function addStage(data = {}, index = null) {
   `;
 
   container.appendChild(block);
+
+  initRichEditor(
+    block.querySelector('.rich-editor-wrapper .rich-editor'),
+    block.querySelector('.rich-editor-wrapper .rich-hidden'),
+    data.description || ''
+  );
 
   (data.subblocks || []).forEach((sub, i) => {
     if (isMeaningfulText(sub?.title) || isMeaningfulText(sub?.description)) {
@@ -249,9 +319,17 @@ function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
   div.innerHTML = `
     <button type="button" class="absolute top-1 right-2 text-red-500 hover:text-red-700 text-xl" onclick="deleteSubblock(this)">✖</button>
     <input type="text" name="blocks[${blockIndex}][subblocks][${idx}][title]" placeholder="Назва сабблоку" class="w-full mb-1 p-1 border rounded" value="${data.title || ''}" />
-    <textarea name="blocks[${blockIndex}][subblocks][${idx}][description]" placeholder="Опис сабблоку" class="w-full p-1 border rounded">${data.description || ''}</textarea>
+    <div class="rich-editor-wrapper">
+      <input type="hidden" class="rich-hidden" name="blocks[${blockIndex}][subblocks][${idx}][description]" value="${escapeHtml(data.description || '')}" />
+      <div class="rich-editor bg-white" data-placeholder="Опис сабблоку"></div>
+    </div>
   `;
   container.appendChild(div);
+  initRichEditor(
+    div.querySelector('.rich-editor-wrapper .rich-editor'),
+    div.querySelector('.rich-editor-wrapper .rich-hidden'),
+    data.description || ''
+  );
 }
 
 function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
@@ -314,6 +392,7 @@ function addOpenQuestion(parentEl, blockIndex, qIndex = null, data = {}) {
 }
 
 function parseStructure() {
+  syncRichEditors();
   const blocks = [];
 
   document.querySelectorAll('.block').forEach((blockDiv) => {
