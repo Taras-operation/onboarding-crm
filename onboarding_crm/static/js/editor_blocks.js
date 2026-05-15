@@ -30,7 +30,7 @@ function initRichEditor(editorEl, hiddenInput, initialValue = '') {
     }
   });
 
-  quill.root.innerHTML = initialValue || '';
+  quill.clipboard.dangerouslyPasteHTML(initialValue || '');
   hiddenInput.value = quill.root.innerHTML;
   richEditors.set(hiddenInput.name, quill);
 
