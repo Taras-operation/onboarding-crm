@@ -53,6 +53,26 @@ function syncRichEditors() {
   });
 }
 
+function reinitRichEditorsFromDOM() {
+  richEditors.clear();
+
+  document.querySelectorAll('.rich-editor-wrapper').forEach(wrapper => {
+    const hiddenInput = wrapper.querySelector('.rich-hidden');
+    const editorEl = wrapper.querySelector('.rich-editor');
+
+    if (!hiddenInput || !editorEl) return;
+
+    // Якщо редактор вже ініціалізований — пропускаємо
+    if (editorEl.classList.contains('ql-container')) return;
+
+    initRichEditor(
+      editorEl,
+      hiddenInput,
+      hiddenInput.value || ''
+    );
+  });
+}
+
 // ===== Helpers: lock completed blocks (read-only) =====
 function lockBlock(blockDiv) {
   blockDiv.classList.add('locked', 'opacity-75');
@@ -467,6 +487,9 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Повторна ініціалізація rich editors після restore draft
+  window.reinitRichEditorsFromDOM = reinitRichEditorsFromDOM;
 
   const container = document.getElementById('blocks-container');
   if (container && typeof Sortable !== 'undefined') {

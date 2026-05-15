@@ -219,6 +219,14 @@
 
     if (blocksContainer) {
       blocksContainer.innerHTML = draft.blocks_html;
+
+      // Після відновлення чернетки потрібно заново
+      // ініціалізувати всі Quill editor, інакше toolbar буде неактивний.
+      setTimeout(() => {
+        if (typeof reinitRichEditorsFromDOM === 'function') {
+          reinitRichEditorsFromDOM();
+        }
+      }, 100);
     }
 
     showAutosaveStatus('Чернетку відновлено');
