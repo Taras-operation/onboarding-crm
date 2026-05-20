@@ -32,6 +32,7 @@ function initRichEditor(editorEl, hiddenInput, initialValue = '') {
 
   quill.clipboard.dangerouslyPasteHTML(initialValue || '');
   hiddenInput.value = quill.root.innerHTML;
+  editorEl.__quill = quill;
   richEditors.set(hiddenInput.name, quill);
 
   quill.on('text-change', () => {
@@ -50,6 +51,20 @@ function syncRichEditors() {
   richEditors.forEach((quill, inputName) => {
     const input = document.querySelector(`[name="${inputName}"]`);
     if (input) input.value = quill.root.innerHTML;
+  });
+}
+
+function rebuildRichEditorsMap() {
+  richEditors.clear();
+
+  document.querySelectorAll('.rich-editor-wrapper').forEach(wrapper => {
+    const hiddenInput = wrapper.querySelector('.rich-hidden');
+    const editorEl = wrapper.querySelector('.rich-editor');
+    const quill = editorEl?.__quill;
+
+    if (hiddenInput && quill) {
+      richEditors.set(hiddenInput.name, quill);
+    }
   });
 }
 
@@ -165,6 +180,7 @@ function renumberBlocks() {
   });
 
   blockCounter = blocks.length;
+  rebuildRichEditorsMap();
 }
 
 // 🔄 Перенумерация сабблоков
@@ -272,6 +288,164 @@ function deleteOpenQuestion(btn) {
   renumberOpenQuestions(blockDiv);
 }
 
+// 🔀 Compact reorder mode for large templates
+function getBlockTitleForReorder(blockDiv, index) {
+  const title = blockDiv.querySelector('[name^="blocks"][name$="[title]"]')?.value?.trim();
+  return title || `Блок №${index + 1}`;
+}
+
+function ensureReorderModal() {
+  if (document.getElementById('reorderBlocksModal')) return;
+
+  const modal = document.createElement('div');
+  modal.id = 'reorderBlocksModal';
+  modal.className = 'fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50 p-4';
+  modal.innerHTML = `
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b px-5 py-4">
+        <div>
+          <h2 class="text-xl font-bold">Змінити порядок блоків</h2>
+          <p class="text-sm text-gray-500 mt-1">Перетягни блоки у компактному списку або використовуй ↑ ↓</p>
+        </div>
+        <button type="button" class="text-gray-500 hover:text-gray-800 text-2xl" onclick="closeReorderModal()">×</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto">
+        <div id="reorderBlocksList" class="space-y-2"></div>
+      </div>
+
+      <div class="border-t px-5 py-4 flex justify-end gap-2">
+        <button type="button" class="px-4 py-2 rounded border bg-white hover:bg-gray-50" onclick="closeReorderModal()">Скасувати</button>
+        <button type="button" class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onclick="applyReorderBlocks()">Зберегти порядок</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+}
+
+function openReorderModal() {
+  syncRichEditors();
+  ensureReorderModal();
+  renderReorderList();
+
+  const modal = document.getElementById('reorderBlocksModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeReorderModal() {
+  const modal = document.getElementById('reorderBlocksModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+function renderReorderList() {
+  const list = document.getElementById('reorderBlocksList');
+  if (!list) return;
+
+  const blocks = Array.from(document.querySelectorAll('#blocks-container > .block'));
+
+  if (!blocks.length) {
+    list.innerHTML = '<div class="text-gray-500 text-sm border rounded p-4 bg-gray-50">Поки що немає блоків для сортування.</div>';
+    return;
+  }
+
+  list.innerHTML = blocks.map((block, index) => {
+    const title = escapeHtml(getBlockTitleForReorder(block, index));
+    const locked = block.classList.contains('locked');
+    const subCount = block.querySelectorAll('.subblock').length;
+    const testCount = block.querySelectorAll('.test').length;
+    const openCount = block.querySelectorAll('.open-question').length;
+
+    return `
+      <div class="reorder-item border rounded-lg bg-gray-50 p-3 flex items-center gap-3 ${locked ? 'opacity-60' : ''}"
+           data-block-id="${block.dataset.reorderId}"
+           data-locked="${locked ? '1' : '0'}">
+        <div class="reorder-handle cursor-move text-gray-400 text-xl" title="Перетягнути">⋮⋮</div>
+        <div class="w-10 h-10 rounded bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0">${index + 1}</div>
+        <div class="min-w-0 flex-1">
+          <div class="font-semibold truncate">${title}</div>
+          <div class="text-xs text-gray-500 mt-1">
+            Сабблоків: ${subCount} · Тестів: ${testCount} · Відкритих питань: ${openCount}${locked ? ' · 🔒 Locked' : ''}
+          </div>
+        </div>
+        <div class="flex gap-1 shrink-0">
+          <button type="button" class="px-2 py-1 text-sm border rounded bg-white hover:bg-gray-100" onclick="moveReorderItem(this, -1)">↑</button>
+          <button type="button" class="px-2 py-1 text-sm border rounded bg-white hover:bg-gray-100" onclick="moveReorderItem(this, 1)">↓</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (typeof Sortable !== 'undefined') {
+    new Sortable(list, {
+      handle: '.reorder-handle',
+      animation: 150,
+      draggable: '.reorder-item[data-locked="0"]'
+    });
+  }
+}
+
+function moveReorderItem(button, direction) {
+  const item = button.closest('.reorder-item');
+  const list = document.getElementById('reorderBlocksList');
+  if (!item || !list || item.dataset.locked === '1') return;
+
+  const sibling = direction < 0 ? item.previousElementSibling : item.nextElementSibling;
+  if (!sibling || sibling.dataset.locked === '1') return;
+
+  if (direction < 0) {
+    list.insertBefore(item, sibling);
+  } else {
+    list.insertBefore(sibling, item);
+  }
+}
+
+function applyReorderBlocks() {
+  const list = document.getElementById('reorderBlocksList');
+  const container = document.getElementById('blocks-container');
+  if (!list || !container) return;
+
+  const ids = Array.from(list.querySelectorAll('.reorder-item')).map(item => item.dataset.blockId);
+  const blockMap = new Map();
+
+  Array.from(container.querySelectorAll(':scope > .block')).forEach(block => {
+    blockMap.set(block.dataset.reorderId, block);
+  });
+
+  ids.forEach(id => {
+    const block = blockMap.get(id);
+    if (block) container.appendChild(block);
+  });
+
+  renumberBlocks();
+
+  if (typeof window.autosaveTemplate === 'function') {
+    try { window.autosaveTemplate(); } catch (_) {}
+  }
+
+  closeReorderModal();
+}
+
+function injectReorderButton() {
+  const addStageButton = Array.from(document.querySelectorAll('button')).find(btn =>
+    (btn.textContent || '').includes('Додати етап')
+  );
+
+  if (!addStageButton || document.getElementById('openReorderBlocksBtn')) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'openReorderBlocksBtn';
+  button.className = 'bg-indigo-500 text-white px-4 py-2 rounded mt-4 ml-2';
+  button.textContent = '🔀 Змінити порядок';
+  button.addEventListener('click', openReorderModal);
+
+  addStageButton.insertAdjacentElement('afterend', button);
+}
+
 function addStage(data = {}, index = null) {
   // ✅ Не рендерим пустой блок из сохранённой структуры
   if (index !== null && isEmptyStageData(data)) {
@@ -283,6 +457,7 @@ function addStage(data = {}, index = null) {
 
   const block = document.createElement('div');
   block.className = 'block bg-white p-4 rounded shadow mb-4 border relative';
+  block.dataset.reorderId = `block-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   block.innerHTML = `
     <div class="drag-handle cursor-move absolute left-2 top-2 text-gray-400" title="Перетягніть, щоб змінити порядок">⋮⋮</div>
@@ -506,6 +681,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Повторна ініціалізація rich editors після restore draft
   window.reinitRichEditorsFromDOM = reinitRichEditorsFromDOM;
+  injectReorderButton();
 
   const container = document.getElementById('blocks-container');
   if (container && typeof Sortable !== 'undefined') {
@@ -532,4 +708,8 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addTest = addTest;
   window.addAnswer = addAnswer;
   window.addOpenQuestion = addOpenQuestion;
+  window.openReorderModal = openReorderModal;
+  window.closeReorderModal = closeReorderModal;
+  window.applyReorderBlocks = applyReorderBlocks;
+  window.moveReorderItem = moveReorderItem;
 });
