@@ -301,7 +301,7 @@ function ensureReorderModal() {
   modal.id = 'reorderBlocksModal';
   modal.className = 'fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50 p-4';
   modal.innerHTML = `
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden">
       <div class="flex items-center justify-between border-b px-5 py-4">
         <div>
           <h2 class="text-xl font-bold">Змінити порядок блоків</h2>
@@ -310,7 +310,7 @@ function ensureReorderModal() {
         <button type="button" class="text-gray-500 hover:text-gray-800 text-2xl" onclick="closeReorderModal()">×</button>
       </div>
 
-      <div class="p-5 overflow-y-auto">
+      <div class="p-5 overflow-y-auto flex-1 min-h-0">
         <div id="reorderBlocksList" class="space-y-2"></div>
       </div>
 
