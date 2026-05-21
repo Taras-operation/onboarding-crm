@@ -34,6 +34,7 @@ function initRichEditor(editorEl, hiddenInput, initialValue = '') {
   hiddenInput.value = quill.root.innerHTML;
   editorEl.__quill = quill;
   richEditors.set(hiddenInput.name, quill);
+  injectAttachmentToolbarButton(editorEl);
 
   quill.on('text-change', () => {
     hiddenInput.value = quill.root.innerHTML;
@@ -45,6 +46,25 @@ function initRichEditor(editorEl, hiddenInput, initialValue = '') {
       }, 800);
     }
   });
+}
+
+function injectAttachmentToolbarButton(editorEl) {
+  const wrapper = editorEl?.closest('.rich-editor-wrapper');
+  const toolbar = wrapper?.querySelector('.ql-toolbar');
+  if (!wrapper || !toolbar || toolbar.querySelector('.ql-attachment')) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ql-attachment';
+  button.title = 'Додати файл';
+  button.innerHTML = '📎';
+
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    wrapper.querySelector('.attachment-file-input')?.click();
+  });
+
+  toolbar.appendChild(button);
 }
 
 function syncRichEditors() {
@@ -157,14 +177,17 @@ function renderAttachmentItem(attachment = {}) {
 }
 
 function renderAttachmentsList(scopeEl, attachments = []) {
+  const panel = scopeEl?.querySelector('.attachments-panel');
   const list = scopeEl?.querySelector('.attachments-list');
-  if (!list) return;
+  if (!panel || !list) return;
 
   if (!Array.isArray(attachments) || !attachments.length) {
-    list.innerHTML = '<div class="text-xs text-gray-500">Файли ще не додані</div>';
+    panel.classList.add('hidden');
+    list.innerHTML = '';
     return;
   }
 
+  panel.classList.remove('hidden');
   list.innerHTML = attachments.map(att => renderAttachmentItem(att)).join('');
 }
 
@@ -189,7 +212,7 @@ async function uploadAttachment(input) {
   if (!scopeEl || !file) return;
 
   const status = scopeEl.querySelector('.attachments-status');
-  const uploadButton = scopeEl.querySelector('.attachment-upload-btn');
+  const uploadButton = scopeEl.querySelector('.ql-attachment');
 
   try {
     if (status) status.textContent = 'Завантаження файлу...';
@@ -608,17 +631,9 @@ function addStage(data = {}, index = null) {
     <div class="rich-editor-wrapper mb-3 border rounded overflow-hidden bg-gray-50">
       <input type="hidden" class="rich-hidden" name="blocks[${blockIndex}][description]" value="${escapeHtml(data.description || '')}" />
       <div class="rich-editor bg-white" data-placeholder="Опис етапу"></div>
-      <div class="attachments-panel border-t bg-gray-50 p-3">
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div>
-            <div class="font-semibold text-sm">📎 Файли до тексту</div>
-            <div class="text-xs text-gray-500">Картинки, PDF, документи, таблиці, архіви</div>
-          </div>
-          <label class="attachment-upload-btn bg-gray-800 text-white px-3 py-1 rounded text-sm cursor-pointer hover:bg-gray-700">
-            + Додати файл
-            <input type="file" class="hidden" onchange="uploadAttachment(this)" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" />
-          </label>
-        </div>
+      <div class="attachments-panel border-t bg-gray-50 p-3 hidden">
+        <input type="file" class="attachment-file-input hidden" onchange="uploadAttachment(this)" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" />
+        <div class="flex items-center gap-2 text-sm font-semibold mb-2">📎 Прикріплені файли</div>
         <div class="attachments-list space-y-2"></div>
         <div class="attachments-status text-xs text-gray-500 mt-2"></div>
       </div>
@@ -689,17 +704,9 @@ function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
     <div class="rich-editor-wrapper border rounded overflow-hidden bg-gray-50">
       <input type="hidden" class="rich-hidden" name="blocks[${blockIndex}][subblocks][${idx}][description]" value="${escapeHtml(data.description || '')}" />
       <div class="rich-editor bg-white" data-placeholder="Опис сабблоку"></div>
-      <div class="attachments-panel border-t bg-gray-50 p-3">
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div>
-            <div class="font-semibold text-sm">📎 Файли до сабблоку</div>
-            <div class="text-xs text-gray-500">Картинки, PDF, документи, таблиці, архіви</div>
-          </div>
-          <label class="attachment-upload-btn bg-gray-800 text-white px-3 py-1 rounded text-sm cursor-pointer hover:bg-gray-700">
-            + Додати файл
-            <input type="file" class="hidden" onchange="uploadAttachment(this)" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" />
-          </label>
-        </div>
+      <div class="attachments-panel border-t bg-gray-50 p-3 hidden">
+        <input type="file" class="attachment-file-input hidden" onchange="uploadAttachment(this)" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" />
+        <div class="flex items-center gap-2 text-sm font-semibold mb-2">📎 Прикріплені файли</div>
         <div class="attachments-list space-y-2"></div>
         <div class="attachments-status text-xs text-gray-500 mt-2"></div>
       </div>
