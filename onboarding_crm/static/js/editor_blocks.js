@@ -156,8 +156,8 @@ function renderAttachmentItem(attachment = {}) {
   `;
 }
 
-function renderAttachmentsList(blockDiv, attachments = []) {
-  const list = blockDiv.querySelector('.attachments-list');
+function renderAttachmentsList(scopeEl, attachments = []) {
+  const list = scopeEl?.querySelector('.attachments-list');
   if (!list) return;
 
   if (!Array.isArray(attachments) || !attachments.length) {
@@ -168,8 +168,8 @@ function renderAttachmentsList(blockDiv, attachments = []) {
   list.innerHTML = attachments.map(att => renderAttachmentItem(att)).join('');
 }
 
-function getBlockAttachments(blockDiv) {
-  return Array.from(blockDiv.querySelectorAll('.attachment-item')).map(item => {
+function getScopeAttachments(scopeEl) {
+  return Array.from(scopeEl?.querySelectorAll('.attachment-item') || []).map(item => {
     try {
       return JSON.parse(item.getAttribute('data-attachment') || '{}');
     } catch (_) {
@@ -178,13 +178,18 @@ function getBlockAttachments(blockDiv) {
   }).filter(Boolean);
 }
 
-async function uploadAttachment(input) {
-  const blockDiv = input.closest('.block');
-  const file = input.files?.[0];
-  if (!blockDiv || !file) return;
+function getBlockAttachments(blockDiv) {
+  const mainEditorWrapper = blockDiv?.querySelector(':scope > .rich-editor-wrapper');
+  return getScopeAttachments(mainEditorWrapper);
+}
 
-  const status = blockDiv.querySelector('.attachments-status');
-  const uploadButton = blockDiv.querySelector('.attachment-upload-btn');
+async function uploadAttachment(input) {
+  const scopeEl = input.closest('.rich-editor-wrapper');
+  const file = input.files?.[0];
+  if (!scopeEl || !file) return;
+
+  const status = scopeEl.querySelector('.attachments-status');
+  const uploadButton = scopeEl.querySelector('.attachment-upload-btn');
 
   try {
     if (status) status.textContent = 'Завантаження файлу...';
@@ -207,9 +212,9 @@ async function uploadAttachment(input) {
       throw new Error(result.message || 'Помилка завантаження файлу');
     }
 
-    const attachments = getBlockAttachments(blockDiv);
+    const attachments = getScopeAttachments(scopeEl);
     attachments.push(result.attachment);
-    renderAttachmentsList(blockDiv, attachments);
+    renderAttachmentsList(scopeEl, attachments);
 
     if (typeof window.autosaveTemplate === 'function') {
       try { window.autosaveTemplate(); } catch (_) {}
@@ -227,11 +232,11 @@ async function uploadAttachment(input) {
 }
 
 function deleteAttachment(button) {
-  const blockDiv = button.closest('.block');
+  const scopeEl = button.closest('.rich-editor-wrapper');
   button.closest('.attachment-item')?.remove();
 
-  if (blockDiv && getBlockAttachments(blockDiv).length === 0) {
-    renderAttachmentsList(blockDiv, []);
+  if (scopeEl && getScopeAttachments(scopeEl).length === 0) {
+    renderAttachmentsList(scopeEl, []);
   }
 
   if (typeof window.autosaveTemplate === 'function') {
@@ -282,7 +287,7 @@ function isEmptyStageData(data = {}) {
   const hasTitle = isMeaningfulText(data.title);
   const hasDescription = isMeaningfulText(data.description);
   const hasSubblocks = Array.isArray(data.subblocks) && data.subblocks.some(
-    s => isMeaningfulText(s?.title) || isMeaningfulText(s?.description)
+    s => isMeaningfulText(s?.title) || isMeaningfulText(s?.description) || (Array.isArray(s?.attachments) && s.attachments.length > 0)
   );
   const hasTests = Array.isArray(data?.test?.questions) && data.test.questions.some(q => {
     const hasQuestion = isMeaningfulText(q?.question);
@@ -600,24 +605,23 @@ function addStage(data = {}, index = null) {
     <button type="button" class="absolute top-2 right-2 text-red-500 hover:text-red-700 text-xl" onclick="deleteBlock(this)">✖</button>
     <h3 class="text-lg font-bold mb-2 pl-6">Блок №${blockIndex + 1}</h3>
     <input type="text" name="blocks[${blockIndex}][title]" placeholder="Заголовок етапу" class="w-full border rounded p-2 mb-2" value="${data.title || ''}" />
-    <div class="rich-editor-wrapper mb-2">
+    <div class="rich-editor-wrapper mb-3 border rounded overflow-hidden bg-gray-50">
       <input type="hidden" class="rich-hidden" name="blocks[${blockIndex}][description]" value="${escapeHtml(data.description || '')}" />
       <div class="rich-editor bg-white" data-placeholder="Опис етапу"></div>
-    </div>
-
-    <div class="attachments-section border rounded bg-gray-50 p-3 mb-3">
-      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-        <div>
-          <div class="font-semibold text-sm">📎 Файли блоку</div>
-          <div class="text-xs text-gray-500">Картинки, PDF, документи, таблиці, архіви</div>
+      <div class="attachments-panel border-t bg-gray-50 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div>
+            <div class="font-semibold text-sm">📎 Файли до тексту</div>
+            <div class="text-xs text-gray-500">Картинки, PDF, документи, таблиці, архіви</div>
+          </div>
+          <label class="attachment-upload-btn bg-gray-800 text-white px-3 py-1 rounded text-sm cursor-pointer hover:bg-gray-700">
+            + Додати файл
+            <input type="file" class="hidden" onchange="uploadAttachment(this)" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" />
+          </label>
         </div>
-        <label class="attachment-upload-btn bg-gray-800 text-white px-3 py-1 rounded text-sm cursor-pointer hover:bg-gray-700">
-          + Додати файл
-          <input type="file" class="hidden" onchange="uploadAttachment(this)" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" />
-        </label>
+        <div class="attachments-list space-y-2"></div>
+        <div class="attachments-status text-xs text-gray-500 mt-2"></div>
       </div>
-      <div class="attachments-list space-y-2"></div>
-      <div class="attachments-status text-xs text-gray-500 mt-2"></div>
     </div>
 
     <div class="subblocks mb-2"></div>
@@ -637,7 +641,7 @@ function addStage(data = {}, index = null) {
     block.querySelector('.rich-editor-wrapper .rich-hidden'),
     data.description || ''
   );
-  renderAttachmentsList(block, data.attachments || []);
+  renderAttachmentsList(block.querySelector(':scope > .rich-editor-wrapper'), data.attachments || []);
 
   (data.subblocks || []).forEach((sub, i) => {
     if (isMeaningfulText(sub?.title) || isMeaningfulText(sub?.description)) {
@@ -682,9 +686,23 @@ function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
   div.innerHTML = `
     <button type="button" class="absolute top-1 right-2 text-red-500 hover:text-red-700 text-xl" onclick="deleteSubblock(this)">✖</button>
     <input type="text" name="blocks[${blockIndex}][subblocks][${idx}][title]" placeholder="Назва сабблоку" class="w-full mb-1 p-1 border rounded" value="${data.title || ''}" />
-    <div class="rich-editor-wrapper">
+    <div class="rich-editor-wrapper border rounded overflow-hidden bg-gray-50">
       <input type="hidden" class="rich-hidden" name="blocks[${blockIndex}][subblocks][${idx}][description]" value="${escapeHtml(data.description || '')}" />
       <div class="rich-editor bg-white" data-placeholder="Опис сабблоку"></div>
+      <div class="attachments-panel border-t bg-gray-50 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div>
+            <div class="font-semibold text-sm">📎 Файли до сабблоку</div>
+            <div class="text-xs text-gray-500">Картинки, PDF, документи, таблиці, архіви</div>
+          </div>
+          <label class="attachment-upload-btn bg-gray-800 text-white px-3 py-1 rounded text-sm cursor-pointer hover:bg-gray-700">
+            + Додати файл
+            <input type="file" class="hidden" onchange="uploadAttachment(this)" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" />
+          </label>
+        </div>
+        <div class="attachments-list space-y-2"></div>
+        <div class="attachments-status text-xs text-gray-500 mt-2"></div>
+      </div>
     </div>
   `;
   container.appendChild(div);
@@ -693,6 +711,7 @@ function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
     div.querySelector('.rich-editor-wrapper .rich-hidden'),
     data.description || ''
   );
+  renderAttachmentsList(div.querySelector('.rich-editor-wrapper'), data.attachments || []);
 }
 
 function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
@@ -772,9 +791,10 @@ function parseStructure() {
     blockDiv.querySelectorAll('.subblock').forEach((subDiv) => {
       const title = subDiv.querySelector('[name$="[title]"]')?.value || '';
       const description = subDiv.querySelector('[name$="[description]"]')?.value || '';
+      const attachments = getScopeAttachments(subDiv.querySelector('.rich-editor-wrapper'));
 
-      if (isMeaningfulText(title) || isMeaningfulText(description)) {
-        block.subblocks.push({ title, description });
+      if (isMeaningfulText(title) || isMeaningfulText(description) || attachments.length > 0) {
+        block.subblocks.push({ title, description, attachments });
       }
     });
 

@@ -159,6 +159,32 @@
           <div class="rich-content text-sm mb-3">
             {{ sub.description | safe }}
           </div>
+
+          {% if sub.attachments %}
+            <div class="block-attachments">
+              <div class="block-attachments-title">📎 Файли до сабблоку</div>
+              <div class="attachment-grid">
+                {% for file in sub.attachments %}
+                  <div class="attachment-card">
+                    {% if file.kind == 'image' %}
+                      <a href="{{ file.url }}" target="_blank" rel="noopener">
+                        <img src="{{ file.url }}" alt="{{ file.name }}" class="attachment-preview">
+                      </a>
+                    {% else %}
+                      <div class="attachment-icon">{{ '📕' if file.kind == 'pdf' else '📄' }}</div>
+                    {% endif %}
+                    <div>
+                      <a href="{{ file.url }}" target="_blank" rel="noopener">{{ file.name or 'Файл' }}</a>
+                      <div class="attachment-meta">
+                        {{ file.type or 'file' }}{% if file.size %} · {{ (file.size / 1024 / 1024) | round(2) }} MB{% endif %}
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
           {% if not test_completed %}
           <label class="inline-flex items-center mb-3">
             <input type="checkbox"
