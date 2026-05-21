@@ -53,10 +53,14 @@ function injectAttachmentToolbarButton(editorEl) {
   const toolbar = wrapper?.querySelector('.ql-toolbar');
   if (!wrapper || !toolbar || toolbar.querySelector('.ql-attachment')) return;
 
+  const group = document.createElement('span');
+  group.className = 'ql-formats';
+
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'ql-attachment';
   button.title = 'Додати файл';
+  button.setAttribute('aria-label', 'Додати файл');
   button.innerHTML = '📎';
 
   button.addEventListener('click', (event) => {
@@ -64,7 +68,8 @@ function injectAttachmentToolbarButton(editorEl) {
     wrapper.querySelector('.attachment-file-input')?.click();
   });
 
-  toolbar.appendChild(button);
+  group.appendChild(button);
+  toolbar.appendChild(group);
 }
 
 function syncRichEditors() {
