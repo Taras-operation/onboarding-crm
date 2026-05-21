@@ -837,7 +837,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Повторна ініціалізація rich editors після restore draft
   window.reinitRichEditorsFromDOM = reinitRichEditorsFromDOM;
-  injectReorderButton();
 
   const container = document.getElementById('blocks-container');
   if (container && typeof Sortable !== 'undefined') {
