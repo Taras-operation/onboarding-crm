@@ -35,15 +35,74 @@
     .ql-container.ql-snow {
       border-radius: 0 0 0.375rem 0.375rem;
     }
+    .editor-shell {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 1.25rem;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    .editor-sidebar {
+      position: sticky;
+      top: 1.5rem;
+      align-self: start;
+      max-height: calc(100vh - 3rem);
+      overflow: hidden;
+    }
+    .editor-sidebar-list {
+      max-height: calc(100vh - 250px);
+      overflow-y: auto;
+    }
+    .editor-nav-item.active {
+      background: #dbeafe;
+      border-color: #3b82f6;
+      color: #1d4ed8;
+    }
+    @media (max-width: 1024px) {
+      .editor-shell {
+        display: block;
+      }
+      .editor-sidebar {
+        position: static;
+        max-height: none;
+        margin-bottom: 1rem;
+      }
+      .editor-sidebar-list {
+        max-height: 260px;
+      }
+    }
   </style>
 </head>
 
 <body class="bg-gray-100 p-6">
 
-<div class="max-w-5xl mx-auto bg-white p-6 rounded shadow">
+<div class="editor-shell">
+  <aside class="editor-sidebar bg-white p-4 rounded shadow border">
+    <div class="mb-4">
+      <div class="text-sm text-gray-500">Навігація</div>
+      <h2 class="text-lg font-bold">Блоки шаблону</h2>
+    </div>
+
+    <div class="grid gap-2 mb-4">
+      <button type="button" id="sidebarSaveBtn" class="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded text-sm font-medium">
+        💾 Зберегти
+      </button>
+      <button type="button" id="sidebarReorderBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-2 rounded text-sm font-medium">
+        🔀 Змінити порядок
+      </button>
+      <button type="button" id="sidebarAddBlockBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded text-sm font-medium">
+        + Додати етап
+      </button>
+    </div>
+
+    <div class="text-xs text-gray-500 mb-2">Швидкий перехід</div>
+    <div id="blockNavigatorList" class="editor-sidebar-list space-y-2"></div>
+  </aside>
+
+  <div class="bg-white p-6 rounded shadow min-w-0">
   <h1 class="text-2xl font-bold mb-4">Редактор онбордингу</h1>
 
-  <form method="POST">
+  <form method="POST" id="onboardingEditorForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <input
@@ -89,6 +148,7 @@
       Зберегти
     </button>
   </form>
+  </div>
 </div>
 
 <script>
@@ -104,6 +164,135 @@
 <script>
   const AUTOSAVE_KEY = `onboarding_template_draft_${window.templateId || 'new'}`;
   let isSubmitting = false;
+
+  function getEditorBlocks() {
+    return Array.from(document.querySelectorAll('#blocks-container > .block'));
+  }
+
+  function getBlockTitle(block, index) {
+    const titleInput = block.querySelector('[name^="blocks"][name$="[title]"]');
+    const value = titleInput?.value?.trim();
+    return value || `Блок №${index + 1}`;
+  }
+
+  function buildBlockNavigator() {
+    const list = document.getElementById('blockNavigatorList');
+    if (!list) return;
+
+    const blocks = getEditorBlocks();
+
+    if (!blocks.length) {
+      list.innerHTML = '<div class="text-sm text-gray-500 bg-gray-50 border rounded p-3">Поки що немає блоків</div>';
+      return;
+    }
+
+    list.innerHTML = blocks.map((block, index) => {
+      if (!block.id) block.id = `editor-block-${index + 1}`;
+
+      const title = getBlockTitle(block, index)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+      const subCount = block.querySelectorAll('.subblock').length;
+      const testCount = block.querySelectorAll('.test').length;
+      const openCount = block.querySelectorAll('.open-question').length;
+
+      return `
+        <button type="button"
+                class="editor-nav-item w-full text-left border rounded p-2 bg-gray-50 hover:bg-blue-50 transition"
+                data-target="${block.id}">
+          <div class="flex gap-2 items-start">
+            <span class="shrink-0 w-7 h-7 rounded bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold">${index + 1}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-semibold truncate">${title}</span>
+              <span class="block text-xs text-gray-500 mt-1">Саб: ${subCount} · Тести: ${testCount} · Відкр: ${openCount}</span>
+            </span>
+          </div>
+        </button>
+      `;
+    }).join('');
+  }
+
+  function scrollToEditorBlock(blockId) {
+    const block = document.getElementById(blockId);
+    if (!block) return;
+
+    block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    block.classList.add('ring-2', 'ring-blue-400');
+
+    setTimeout(() => {
+      block.classList.remove('ring-2', 'ring-blue-400');
+    }, 1200);
+  }
+
+  function highlightActiveNavigatorItem() {
+    const items = Array.from(document.querySelectorAll('.editor-nav-item'));
+    const blocks = getEditorBlocks();
+    if (!items.length || !blocks.length) return;
+
+    let activeId = blocks[0].id;
+    const offset = 140;
+
+    blocks.forEach(block => {
+      const rect = block.getBoundingClientRect();
+      if (rect.top <= offset) {
+        activeId = block.id;
+      }
+    });
+
+    items.forEach(item => {
+      item.classList.toggle('active', item.dataset.target === activeId);
+    });
+  }
+
+  function initEditorSidebar() {
+    buildBlockNavigator();
+
+    document.getElementById('blockNavigatorList')?.addEventListener('click', event => {
+      const item = event.target.closest('.editor-nav-item');
+      if (!item) return;
+      scrollToEditorBlock(item.dataset.target);
+    });
+
+    document.getElementById('sidebarSaveBtn')?.addEventListener('click', () => {
+      document.getElementById('onboardingEditorForm')?.requestSubmit();
+    });
+
+    document.getElementById('sidebarReorderBtn')?.addEventListener('click', () => {
+      if (typeof openReorderModal === 'function') openReorderModal();
+    });
+
+    document.getElementById('sidebarAddBlockBtn')?.addEventListener('click', () => {
+      if (typeof addStage === 'function') {
+        addStage();
+        buildBlockNavigator();
+        if (typeof autosaveTemplate === 'function') {
+          try { autosaveTemplate(); } catch (_) {}
+        }
+      }
+    });
+
+    document.addEventListener('input', event => {
+      if (event.target.matches('[name^="blocks"][name$="[title]"]')) {
+        clearTimeout(window.__blockNavigatorTimer);
+        window.__blockNavigatorTimer = setTimeout(buildBlockNavigator, 300);
+      }
+    });
+
+    const blocksContainer = document.getElementById('blocks-container');
+    if (blocksContainer) {
+      const observer = new MutationObserver(() => {
+        clearTimeout(window.__blockNavigatorTimer);
+        window.__blockNavigatorTimer = setTimeout(buildBlockNavigator, 150);
+      });
+      observer.observe(blocksContainer, { childList: true, subtree: true });
+    }
+
+    window.addEventListener('scroll', highlightActiveNavigatorItem, { passive: true });
+    setInterval(buildBlockNavigator, 3000);
+  }
 
   function getDraftPayload() {
     const form = document.querySelector('form');
@@ -233,7 +422,10 @@
   }
 
   window.addEventListener('load', () => {
-    setTimeout(restoreDraftIfNeeded, 800);
+    setTimeout(() => {
+      restoreDraftIfNeeded();
+      initEditorSidebar();
+    }, 800);
   });
 
   document.addEventListener('input', () => {

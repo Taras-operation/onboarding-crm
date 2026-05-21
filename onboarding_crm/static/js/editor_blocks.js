@@ -104,6 +104,141 @@ function reinitRichEditorsFromDOM() {
   });
 }
 
+// ===== Attachments helpers =====
+function formatFileSize(bytes = 0) {
+  const size = Number(bytes || 0);
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getCsrfToken() {
+  return document.querySelector('[name="csrf_token"]')?.value ||
+         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+         '';
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/"/g, '&quot;');
+}
+
+function renderAttachmentItem(attachment = {}) {
+  const name = escapeHtml(attachment.name || 'Файл');
+  const url = escapeAttr(attachment.url || '#');
+  const kind = attachment.kind || 'file';
+  const size = attachment.size ? formatFileSize(attachment.size) : '';
+
+  if (kind === 'image') {
+    return `
+      <div class="attachment-item border rounded bg-white p-2 flex gap-3 items-start" data-attachment='${escapeAttr(JSON.stringify(attachment))}'>
+        <a href="${url}" target="_blank" rel="noopener" class="shrink-0">
+          <img src="${url}" alt="${name}" class="w-20 h-20 object-cover rounded border" />
+        </a>
+        <div class="min-w-0 flex-1">
+          <a href="${url}" target="_blank" rel="noopener" class="text-sm font-medium text-blue-600 hover:underline break-all">${name}</a>
+          <div class="text-xs text-gray-500 mt-1">${size}</div>
+        </div>
+        <button type="button" class="text-red-500 hover:text-red-700 text-xl" onclick="deleteAttachment(this)">×</button>
+      </div>
+    `;
+  }
+
+  const icon = kind === 'pdf' ? '📕' : '📄';
+  return `
+    <div class="attachment-item border rounded bg-white p-2 flex gap-3 items-center" data-attachment='${escapeAttr(JSON.stringify(attachment))}'>
+      <div class="text-2xl shrink-0">${icon}</div>
+      <div class="min-w-0 flex-1">
+        <a href="${url}" target="_blank" rel="noopener" class="text-sm font-medium text-blue-600 hover:underline break-all">${name}</a>
+        <div class="text-xs text-gray-500 mt-1">${size}</div>
+      </div>
+      <button type="button" class="text-red-500 hover:text-red-700 text-xl" onclick="deleteAttachment(this)">×</button>
+    </div>
+  `;
+}
+
+function renderAttachmentsList(blockDiv, attachments = []) {
+  const list = blockDiv.querySelector('.attachments-list');
+  if (!list) return;
+
+  if (!Array.isArray(attachments) || !attachments.length) {
+    list.innerHTML = '<div class="text-xs text-gray-500">Файли ще не додані</div>';
+    return;
+  }
+
+  list.innerHTML = attachments.map(att => renderAttachmentItem(att)).join('');
+}
+
+function getBlockAttachments(blockDiv) {
+  return Array.from(blockDiv.querySelectorAll('.attachment-item')).map(item => {
+    try {
+      return JSON.parse(item.getAttribute('data-attachment') || '{}');
+    } catch (_) {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+async function uploadAttachment(input) {
+  const blockDiv = input.closest('.block');
+  const file = input.files?.[0];
+  if (!blockDiv || !file) return;
+
+  const status = blockDiv.querySelector('.attachments-status');
+  const uploadButton = blockDiv.querySelector('.attachment-upload-btn');
+
+  try {
+    if (status) status.textContent = 'Завантаження файлу...';
+    if (uploadButton) uploadButton.disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/onboarding/attachment/upload', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || 'Помилка завантаження файлу');
+    }
+
+    const attachments = getBlockAttachments(blockDiv);
+    attachments.push(result.attachment);
+    renderAttachmentsList(blockDiv, attachments);
+
+    if (typeof window.autosaveTemplate === 'function') {
+      try { window.autosaveTemplate(); } catch (_) {}
+    }
+
+    if (status) status.textContent = 'Файл додано';
+  } catch (error) {
+    alert(error.message || 'Не вдалося завантажити файл');
+    if (status) status.textContent = '';
+  } finally {
+    input.value = '';
+    if (uploadButton) uploadButton.disabled = false;
+    setTimeout(() => { if (status) status.textContent = ''; }, 2500);
+  }
+}
+
+function deleteAttachment(button) {
+  const blockDiv = button.closest('.block');
+  button.closest('.attachment-item')?.remove();
+
+  if (blockDiv && getBlockAttachments(blockDiv).length === 0) {
+    renderAttachmentsList(blockDiv, []);
+  }
+
+  if (typeof window.autosaveTemplate === 'function') {
+    try { window.autosaveTemplate(); } catch (_) {}
+  }
+}
+
 // ===== Helpers: lock completed blocks (read-only) =====
 function lockBlock(blockDiv) {
   blockDiv.classList.add('locked', 'opacity-75');
@@ -157,8 +292,9 @@ function isEmptyStageData(data = {}) {
   const hasOpenQuestions = Array.isArray(data.open_questions) && data.open_questions.some(
     q => isMeaningfulText(q?.question)
   );
+  const hasAttachments = Array.isArray(data.attachments) && data.attachments.length > 0;
 
-  return !(hasTitle || hasDescription || hasSubblocks || hasTests || hasOpenQuestions);
+  return !(hasTitle || hasDescription || hasSubblocks || hasTests || hasOpenQuestions || hasAttachments);
 }
 
 // 🔄 Перенумерация блоков
@@ -469,6 +605,21 @@ function addStage(data = {}, index = null) {
       <div class="rich-editor bg-white" data-placeholder="Опис етапу"></div>
     </div>
 
+    <div class="attachments-section border rounded bg-gray-50 p-3 mb-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <div>
+          <div class="font-semibold text-sm">📎 Файли блоку</div>
+          <div class="text-xs text-gray-500">Картинки, PDF, документи, таблиці, архіви</div>
+        </div>
+        <label class="attachment-upload-btn bg-gray-800 text-white px-3 py-1 rounded text-sm cursor-pointer hover:bg-gray-700">
+          + Додати файл
+          <input type="file" class="hidden" onchange="uploadAttachment(this)" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" />
+        </label>
+      </div>
+      <div class="attachments-list space-y-2"></div>
+      <div class="attachments-status text-xs text-gray-500 mt-2"></div>
+    </div>
+
     <div class="subblocks mb-2"></div>
     <button type="button" onclick="addSubblock(this, ${blockIndex})" class="add-sub bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm mb-2">+ Сабблок</button>
 
@@ -486,6 +637,7 @@ function addStage(data = {}, index = null) {
     block.querySelector('.rich-editor-wrapper .rich-hidden'),
     data.description || ''
   );
+  renderAttachmentsList(block, data.attachments || []);
 
   (data.subblocks || []).forEach((sub, i) => {
     if (isMeaningfulText(sub?.title) || isMeaningfulText(sub?.description)) {
@@ -613,7 +765,8 @@ function parseStructure() {
       description: blockDiv.querySelector('[name^="blocks"][name$="[description]"]')?.value || '',
       subblocks: [],
       test: { questions: [] },
-      open_questions: []
+      open_questions: [],
+      attachments: []
     };
 
     blockDiv.querySelectorAll('.subblock').forEach((subDiv) => {
@@ -654,14 +807,17 @@ function parseStructure() {
       }
     });
 
+    block.attachments = getBlockAttachments(blockDiv);
+
     const hasTitle = isMeaningfulText(block.title);
     const hasDescription = isMeaningfulText(block.description);
     const hasSubblocks = block.subblocks.length > 0;
     const hasTests = block.test.questions.length > 0;
     const hasOpenQuestions = block.open_questions.length > 0;
+    const hasAttachments = block.attachments.length > 0;
 
     // ✅ Главное исправление: пустой блок не сохраняем
-    if (hasTitle || hasDescription || hasSubblocks || hasTests || hasOpenQuestions) {
+    if (hasTitle || hasDescription || hasSubblocks || hasTests || hasOpenQuestions || hasAttachments) {
       blocks.push(block);
     }
   });
@@ -712,4 +868,6 @@ window.addEventListener('DOMContentLoaded', () => {
   window.closeReorderModal = closeReorderModal;
   window.applyReorderBlocks = applyReorderBlocks;
   window.moveReorderItem = moveReorderItem;
+  window.uploadAttachment = uploadAttachment;
+  window.deleteAttachment = deleteAttachment;
 });

@@ -3,12 +3,15 @@ from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
 from onboarding_crm.models import OnboardingTemplate, OnboardingInstance, OnboardingStep, User, TestResult
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 from onboarding_crm.extensions import db
 from onboarding_crm.utils import parse_nested_structure
 import json
 import random
 import re
 import copy
+import os
+import uuid
 
 import html
 
@@ -18,6 +21,24 @@ except ImportError:
     bleach = None
 
 bp = Blueprint('main', __name__)
+
+# --- Onboarding Attachment Upload Helpers ---
+ALLOWED_ATTACHMENT_EXTENSIONS = {
+    'png', 'jpg', 'jpeg', 'gif', 'webp',
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'txt', 'csv', 'zip'
+}
+MAX_ATTACHMENT_SIZE_MB = 25
+
+def _allowed_attachment_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_ATTACHMENT_EXTENSIONS
+
+def _attachment_kind(mimetype):
+    if (mimetype or '').startswith('image/'):
+        return 'image'
+    if mimetype == 'application/pdf':
+        return 'pdf'
+    return 'file'
 
 # --- Helper: allowed managers for current user (department-aware)
 
@@ -813,6 +834,52 @@ def onboarding_editor():
 
     managers = _allowed_managers_for_current_user().all()
     return render_template('add_template.html', managers=managers)
+
+
+# --- Onboarding block attachment upload endpoint ---
+@bp.route('/onboarding/attachment/upload', methods=['POST'])
+@login_required
+def upload_onboarding_attachment():
+    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
+        return jsonify({'ok': False, 'message': 'Немає прав на завантаження файлів'}), 403
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'ok': False, 'message': 'Файл не передано'}), 400
+
+    if not _allowed_attachment_file(file.filename):
+        return jsonify({'ok': False, 'message': 'Недозволений тип файлу'}), 400
+
+    file.seek(0, os.SEEK_END)
+    size_bytes = file.tell()
+    file.seek(0)
+
+    max_bytes = MAX_ATTACHMENT_SIZE_MB * 1024 * 1024
+    if size_bytes > max_bytes:
+        return jsonify({'ok': False, 'message': f'Файл завеликий. Максимум {MAX_ATTACHMENT_SIZE_MB} MB'}), 400
+
+    original_name = secure_filename(file.filename)
+    ext = original_name.rsplit('.', 1)[1].lower()
+    stored_name = f"{uuid.uuid4().hex}.{ext}"
+
+    upload_dir = os.path.join(os.getcwd(), 'onboarding_crm', 'static', 'uploads', 'onboarding')
+    os.makedirs(upload_dir, exist_ok=True)
+
+    file_path = os.path.join(upload_dir, stored_name)
+    file.save(file_path)
+
+    file_url = url_for('static', filename=f'uploads/onboarding/{stored_name}')
+
+    return jsonify({
+        'ok': True,
+        'attachment': {
+            'name': original_name,
+            'url': file_url,
+            'type': file.mimetype or 'application/octet-stream',
+            'kind': _attachment_kind(file.mimetype),
+            'size': size_bytes
+        }
+    })
 
 @bp.route('/onboarding/template/add', methods=['GET', 'POST'])
 @login_required
