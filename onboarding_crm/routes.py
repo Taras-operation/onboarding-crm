@@ -17,6 +17,7 @@ from onboarding_crm.permissions import (
     assert_can_edit_template,
     assert_can_delete_template,
 )
+from onboarding_crm.services.progress import count_stages, calculate_progress
 import json
 import random
 import re
@@ -128,6 +129,27 @@ def _sanitize_onboarding_structure(blocks):
                     subblock['description'] = _sanitize_rich_text_html(subblock.get('description'))
 
     return blocks
+# Where each role lands after login. Unknown roles fall back to DEFAULT_HOME so a valid
+# login never dead-ends on a 401 (that was the `head` bug — head had no branch).
+ROLE_HOME = {
+    Role.DEVELOPER: 'main.developer_dashboard',
+    Role.TEAMLEAD: 'main.mentor_dashboard',
+    Role.HEAD: 'main.mentor_dashboard',
+    Role.MENTOR: 'main.mentor_dashboard',
+    Role.MANAGER: 'main.manager_dashboard',
+}
+DEFAULT_HOME = 'main.mentor_dashboard'
+
+
+def home_for(user):
+    return ROLE_HOME.get(user.role, DEFAULT_HOME)
+
+
+def is_safe_url(target):
+    """Only same-site, absolute-path redirects — blocks open-redirect via ?next=."""
+    return bool(target) and target.startswith('/') and not target.startswith('//')
+
+
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -136,13 +158,14 @@ def login():
 
         user = User.query.filter_by(username=login_input).first()
         if user and check_password_hash(user.password, password_input):
+            if not user.is_active:
+                return "Обліковий запис деактивовано", 403
             login_user(user)
-            if user.role == 'developer':
-                return redirect(url_for('main.developer_dashboard'))
-            elif user.role == 'mentor' or user.role == 'teamlead':
-                return redirect(url_for('main.mentor_dashboard'))
-            elif user.role == 'manager':
-                return redirect(url_for('main.manager_dashboard'))
+
+            next_url = request.args.get('next')
+            if is_safe_url(next_url):
+                return redirect(next_url)
+            return redirect(url_for(home_for(user)))
         return "Невірний логін або пароль", 401
     return render_template('login.html')
 
@@ -339,10 +362,6 @@ def developer_user_delete(user_id):
 def developer_user_toggle_active(user_id):
     user = User.query.get_or_404(user_id)
 
-    if not hasattr(user, 'is_active'):
-        flash('Поле is_active відсутнє в моделі User. Пропускаю.', 'warning')
-        return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
-
     # Don't allow disabling yourself
     if user.id == current_user.id:
         flash('Неможливо деактивувати самого себе', 'danger')
@@ -372,17 +391,8 @@ def mentor_dashboard():
         OnboardingInstance.archived == True
     ).count()
 
-    # 4. Прогрес по кожному інстансу
-    progress_list = []
-    for i in active_instances:
-        structure = i.structure or []
-        total = len(structure)
-        completed = min(i.onboarding_step or 0, total)
-
-        if total > 0:
-            percent = round((completed / total) * 100, 1)
-            progress_list.append(percent)
-
+    # 4. Прогрес по кожному інстансу (stage-aware, single source)
+    progress_list = [calculate_progress(i) for i in active_instances if count_stages(i.structure) > 0]
     average_progress = round(sum(progress_list) / len(progress_list), 1) if progress_list else 0
 
     return render_template(

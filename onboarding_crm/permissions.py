@@ -31,14 +31,16 @@ def managers_query_for(user):
 
     role = user.role
 
+    # Deactivated managers must not surface in any supervisor's list/selection.
     if role == Role.DEVELOPER:
-        return User.query.filter_by(role=Role.MANAGER.value)
+        return User.query.filter_by(role=Role.MANAGER.value, is_active=True)
 
     if role == Role.MENTOR:
         return User.query.filter_by(
             role=Role.MANAGER.value,
             added_by_id=user.id,
             department=user.department,
+            is_active=True,
         )
 
     if role == Role.TEAMLEAD:
@@ -52,12 +54,14 @@ def managers_query_for(user):
             User.role == Role.MANAGER.value,
             User.added_by_id.in_(mentor_ids),
             User.department == user.department,
+            User.is_active.is_(True),
         )
 
     if role == Role.HEAD:
         return User.query.filter_by(
             role=Role.MANAGER.value,
             department=user.department,
+            is_active=True,
         )
 
     return User.query.filter(False)

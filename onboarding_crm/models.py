@@ -24,9 +24,15 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(256))
     role = db.Column(db.String(50))
 
+    # Real column shadows UserMixin.is_active (a property). False → login is refused.
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=text('true'))
+
     added_by_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     added_by = db.relationship('User', remote_side=[id])
 
+    # DEPRECATED: canonical onboarding progress lives on OnboardingInstance (a user may
+    # have several onboardings). These per-user mirrors drift out of sync — do not treat
+    # them as the source of truth. Kept for backward-compat until fully migrated away.
     onboarding_status = db.Column(db.String(100), default='Не розпочато')
     onboarding_step = db.Column(db.Integer, default=0)
     onboarding_step_total = db.Column(db.Integer, default=0)
@@ -60,18 +66,9 @@ class User(db.Model, UserMixin):
 
     @property
     def total_steps(self):
+        from onboarding_crm.services.progress import count_stages
         instance = OnboardingInstance.query.filter_by(manager_id=self.id).first()
-        if not instance or not instance.structure:
-            return 0
-        try:
-            structure = instance.structure
-            if isinstance(structure, str):
-                structure = json.loads(structure)
-            blocks = structure.get("blocks") if isinstance(structure, dict) else structure
-            return sum(1 for b in blocks if b.get("type") == "stage")
-        except Exception as e:
-            print(f"[User.total_steps] JSON error for user {self.id}: {e}")
-            return 0
+        return count_stages(instance.structure) if instance else 0
 
 
 # ─────────────────────────────────────────────
