@@ -1,0 +1,7 @@
+line-length = 120
+extend-exclude = ["migrations", "venv", ".venv", "instance", "архів"]
+
+[lint]
+# Error-level pyflakes/syntax only — catches real bugs (undefined names, bad syntax,
+# f-string mistakes) without drowning CI in legacy style noise. Tighten over time.
+select = ["E9", "F63", "F7", "F82", "F821"]
