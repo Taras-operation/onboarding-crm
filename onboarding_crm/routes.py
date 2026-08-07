@@ -64,6 +64,21 @@ def _visible_templates_for_current_user():
     return visible_templates_for(current_user)
 
 
+def _latest_instances_for(manager_ids):
+    """One query → {manager_id: latest OnboardingInstance}. Replaces the per-manager
+    N+1 that ran a separate 'latest instance' query inside dashboard loops."""
+    if not manager_ids:
+        return {}
+    rows = (OnboardingInstance.query
+            .filter(OnboardingInstance.manager_id.in_(manager_ids))
+            .order_by(OnboardingInstance.id.desc())
+            .all())
+    latest = {}
+    for inst in rows:
+        latest.setdefault(inst.manager_id, inst)  # first seen per manager = highest id
+    return latest
+
+
 def _sanitize_rich_text_html(value):
     """Allow safe Quill HTML formatting, links and lists; strip dangerous HTML."""
     if not value:
@@ -450,48 +465,23 @@ def managers_list():
     # 🔹 1. Базовая выборка менеджеров по ролям (department-aware, single source)
     managers = managers_query_for(current_user).all()
 
-    # 🔹 2. Формирование финального списка
+    # 🔹 2. Latest instance per manager in ONE query (was N+1: one query per manager)
+    latest_by_manager = _latest_instances_for([m.id for m in managers])
+
     filtered_managers = []
     for manager in managers:
-        # Получаем последний онбординг-инстанс
-        instance = (OnboardingInstance.query
-                    .filter_by(manager_id=manager.id)
-                    .order_by(OnboardingInstance.id.desc())
-                    .first())
-
-        # Сохраняем даже если None (для шаблона)
+        instance = latest_by_manager.get(manager.id)
         manager.latest_instance = instance
 
         # Если онбординг существует, но в архиве — пропускаем
         if instance and instance.archived:
             continue
 
-        # Подсчёт количества этапов (если структура есть)
-        if instance and instance.structure:
-            try:
-                structure = instance.structure
-                if isinstance(structure, str):
-                    structure = json.loads(structure)
-                if isinstance(structure, str):
-                    structure = json.loads(structure)
-
-                blocks = structure.get('blocks') if isinstance(structure, dict) else structure
-                total = len([b for b in blocks if b.get("type") == "stage"])
-                setattr(manager, 'total_steps_calculated', total)
-            except Exception as e:
-                print(f"[managers_list] ❌ Error parsing structure for manager {manager.id}: {e}")
-                setattr(manager, 'total_steps_calculated', 0)
-        else:
-            # Если онбординга ещё нет — ставим 0 этапов
-            setattr(manager, 'total_steps_calculated', 0)
-
-        # Добавляем менеджера в финальный список
+        manager.total_steps_calculated = count_stages(instance.structure) if instance else 0
         filtered_managers.append(manager)
 
-    managers = filtered_managers
-
     # 🔹 3. Рендер страницы
-    return render_template('managers_list.html', managers=managers)
+    return render_template('managers_list.html', managers=filtered_managers)
 
 @bp.route('/manager/statistics')
 @roles_required(Role.MANAGER)
@@ -676,34 +666,15 @@ def onboarding_plans():
     # ✅ Managers list (department-aware, single source)
     managers = managers_query_for(current_user).all()
 
+    # Latest instance per manager in ONE query (was N+1)
+    latest_by_manager = _latest_instances_for([m.id for m in managers])
+
     user_plans_data = []
     for m in managers:
-        instance = (OnboardingInstance.query
-                    .filter_by(manager_id=m.id)
-                    .order_by(OnboardingInstance.id.desc())
-                    .first())
+        instance = latest_by_manager.get(m.id)
 
-        total_steps = 0
-        completed_steps = 0
-
-        if instance:
-            completed_steps = instance.onboarding_step or 0
-
-        if instance and instance.structure:
-            try:
-                raw = instance.structure
-                parsed = json.loads(raw) if isinstance(raw, str) else raw
-                if isinstance(parsed, str):
-                    parsed = json.loads(parsed)
-
-                blocks = parsed.get('blocks') if isinstance(parsed, dict) else parsed
-                blocks = blocks or []
-                total_steps = sum(
-                    1 for b in blocks
-                    if isinstance(b, dict) and b.get('type') == 'stage'
-                )
-            except Exception as e:
-                print(f"[plans] ❌ manager {m.id} structure error: {e}")
+        completed_steps = (instance.onboarding_step or 0) if instance else 0
+        total_steps = count_stages(instance.structure) if instance else 0
 
         user_plans_data.append({
             'manager_id': m.id,
