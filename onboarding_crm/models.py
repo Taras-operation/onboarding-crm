@@ -203,3 +203,19 @@ class TestResult(db.Model):
 
     step = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ─────────────────────────────────────────────
+# 🔹 Аудит входів (успішні та невдалі спроби)
+# ─────────────────────────────────────────────
+class LoginAttempt(db.Model):
+    __tablename__ = 'login_attempt'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # SET NULL, not CASCADE: keep the audit trail even if the user is later deleted.
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True, index=True)
+    username = db.Column(db.String(150))          # the login string as typed (may not exist)
+    ip = db.Column(db.String(64))
+    user_agent = db.Column(db.String(400))
+    success = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)

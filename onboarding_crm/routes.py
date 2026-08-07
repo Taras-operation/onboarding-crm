@@ -1,10 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
-from onboarding_crm.models import OnboardingTemplate, OnboardingInstance, OnboardingStep, User, TestResult
+from onboarding_crm.models import OnboardingTemplate, OnboardingInstance, OnboardingStep, User, TestResult, LoginAttempt
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-from onboarding_crm.extensions import db
+from onboarding_crm.extensions import db, limiter
 from onboarding_crm.utils import parse_nested_structure
 from onboarding_crm.roles import Role, SUPERVISOR_ROLES
 from onboarding_crm.decorators import roles_required
@@ -150,22 +150,53 @@ def is_safe_url(target):
     return bool(target) and target.startswith('/') and not target.startswith('//')
 
 
+# Precomputed once. Checking a login for a non-existent user against this hash keeps the
+# response time indistinguishable from a real-user wrong-password, defeating enumeration.
+_DUMMY_PASSWORD_HASH = generate_password_hash('timing-equalizer-not-a-real-password')
+
+
+def _record_login_attempt(user, username, success):
+    """Best-effort audit row; never let logging break the login flow."""
+    try:
+        db.session.add(LoginAttempt(
+            user_id=user.id if user else None,
+            username=(username or '')[:150],
+            ip=request.remote_addr,
+            user_agent=(request.headers.get('User-Agent') or '')[:400],
+            success=success,
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 @bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute; 30 per hour", methods=['POST'])
 def login():
     if request.method == 'POST':
         login_input = request.form.get('login')
-        password_input = request.form.get('password')
+        password_input = request.form.get('password') or ''
 
         user = User.query.filter_by(username=login_input).first()
-        if user and check_password_hash(user.password, password_input):
+
+        # Always hash-compare (dummy hash when the user is unknown) → constant-ish timing.
+        stored_hash = user.password if user else _DUMMY_PASSWORD_HASH
+        password_ok = check_password_hash(stored_hash, password_input)
+
+        if user and password_ok:
             if not user.is_active:
+                _record_login_attempt(user, login_input, success=False)
                 return "Обліковий запис деактивовано", 403
+
             login_user(user)
+            _record_login_attempt(user, login_input, success=True)
 
             next_url = request.args.get('next')
             if is_safe_url(next_url):
                 return redirect(next_url)
             return redirect(url_for(home_for(user)))
+
+        _record_login_attempt(user, login_input, success=False)
         return "Невірний логін або пароль", 401
     return render_template('login.html')
 
@@ -273,12 +304,22 @@ def developer_dashboard():
     mentors = User.query.filter_by(role=Role.MENTOR.value).order_by(User.id.desc()).all()
     templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
 
+    # Last successful login per user (for the users table in the dashboard).
+    last_login_rows = (
+        db.session.query(LoginAttempt.user_id, db.func.max(LoginAttempt.created_at))
+        .filter(LoginAttempt.success.is_(True), LoginAttempt.user_id.isnot(None))
+        .group_by(LoginAttempt.user_id)
+        .all()
+    )
+    last_logins = {uid: ts for uid, ts in last_login_rows}
+
     return render_template(
         'developer_dashboard.html',
         users=users,
         teamleads=teamleads,
         mentors=mentors,
         templates=templates,
+        last_logins=last_logins,
         tab=tab,
         view=view
     )

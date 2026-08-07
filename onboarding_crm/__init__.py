@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from flask import Flask
-from onboarding_crm.extensions import db, login_manager, migrate  # ✅ уже есть
+from werkzeug.middleware.proxy_fix import ProxyFix
+from onboarding_crm.extensions import db, login_manager, migrate, limiter  # ✅ уже есть
 from onboarding_crm.routes import bp
 from onboarding_crm.models import User
 from onboarding_crm.utils import register_custom_filters
@@ -28,6 +31,20 @@ def create_app():
     app.config['SECRET_KEY'] = secret_key
     app.config['WTF_CSRF_TIME_LIMIT'] = None
 
+    # Session cookie hardening. SECURE defaults to on; set SESSION_COOKIE_SECURE=false in
+    # .env for local http dev (otherwise the browser won't send the cookie over http).
+    _secure = os.environ.get('SESSION_COOKIE_SECURE', 'true').lower() not in ('0', 'false', 'no')
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        SESSION_COOKIE_SECURE=_secure,
+        PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+    )
+
+    # Behind Render's proxy the real client IP is in X-Forwarded-For — trust one hop so
+    # the rate limiter keys on the actual client, not the proxy.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
     # 📌 2. Конфіг БД
     db_url = os.getenv("DATABASE_URL")
     if db_url:
@@ -43,6 +60,7 @@ def create_app():
     migrate.init_app(app, db)
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
+    limiter.init_app(app)
 
     # ✅ 4. Підключаємо CSRFProtect до всього додатку
     csrf.init_app(app)
