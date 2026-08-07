@@ -6,6 +6,12 @@ from onboarding_crm.utils import register_custom_filters
 from flask_wtf import CSRFProtect  # 🧩 додай це
 import os
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # read .env for local dev; no-op if the file is absent
+except ImportError:
+    pass
+
 # 🧩 1. Ініціалізуємо CSRFProtect (глобально)
 csrf = CSRFProtect()
 
@@ -13,7 +19,13 @@ csrf = CSRFProtect()
 def create_app():
     app = Flask(__name__)
     app.jinja_env.cache = {}
-    app.config['SECRET_KEY'] = 'secret-key-goes-here'
+
+    # SECRET_KEY must come from the environment. No fallback on purpose: a missing
+    # key fails startup loudly instead of silently signing sessions with a known value.
+    secret_key = os.environ.get('SECRET_KEY')
+    if not secret_key:
+        raise RuntimeError('SECRET_KEY is not set')
+    app.config['SECRET_KEY'] = secret_key
     app.config['WTF_CSRF_TIME_LIMIT'] = None
 
     # 📌 2. Конфіг БД
