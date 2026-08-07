@@ -1,97 +1,84 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <title>Список Менеджерів</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f8f9fc;
-        }
-        .sidebar {
-            min-width: 250px;
-            max-width: 250px;
-            background-color: #ffffff;
-            height: 100vh;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-            padding: 2rem 1rem;
-            position: fixed;
-            top: 0;
-            left: 0;
-        }
-        .main-content {
-            margin-left: 250px;
-            padding: 2rem;
-        }
-        .sidebar .btn {
-            text-align: left;
-            width: 100%;
-        }
-    </style>
-</head>
-<body>
-  {% include 'components/mentor_sidebar.html' %}
-
-  <div class="main-content">
-      <h2 class="mb-4 text-center">📋 Список Менеджерів</h2>
-
-      <a href="{{ url_for('main.mentor_dashboard') }}" class="btn btn-secondary mb-3">⬅️ Назад</a>
-
-      <table class="table table-striped table-bordered table-hover text-center align-middle">
-          <thead class="table-light">
-              <tr>
-                  <th>ID</th>
-                  <th>TG нік</th>
-                  <th>Відділ</th>
-                  <th>Логін</th>
-                  <th>Посада</th>
-                  <th>Онбординг</th>
-                  <th>Статус онбордингу</th>
-                  <th>Етап</th>
-                  <th>Дата створення</th>
-                  <th>Відповідальний</th>
-                  <th>Дії</th>
-              </tr>
-          </thead>
-          <tbody>
-              {% for manager in managers %}
-              {% set instance = manager.manager_onboardings|first %}
-              <tr id="manager-row-{{ manager.id }}">
-                  <td>{{ manager.id }}</td>
-                  <td>{{ manager.tg_nick }}</td>
-                  <td>{{ manager.department }}</td>
-                  <td>{{ manager.username }}</td>
-                  <td>{{ manager.position or '—' }}</td>
-                  <td>
-                      {% if instance %}
-                          {{ instance.name }}
-                      {% else %}
-                          <span class="text-muted small">Немає</span>
-                      {% endif %}
-                  </td>
-                  <td>{{ manager.onboarding_status or '—' }}</td>
-                  <td>{{ manager.onboarding_step or 0 }}/{{ manager.total_steps_calculated or 0 }}</td>
-                  <td>{{ manager.created_at.strftime('%d.%m.%Y %H:%M') if manager.created_at else '—' }}</td>
-                  <td>{{ manager.added_by.tg_nick if manager.added_by else '—' }}</td>
-                  <td>
-                      <div class="d-flex justify-content-center align-items-center gap-2">
-                          {% if instance %}
-                          <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
-                             class="btn btn-outline-secondary btn-sm">
-                              📊 Результати
-                          </a>
-                          {% endif %}
-                          {% if current_user.role in ['teamlead', 'developer', 'head'] %}
-                          <button class="btn btn-outline-danger btn-sm" onclick="deleteManager({{ manager.id }})">
-                              🗑️
-                          </button>
-                          {% endif %}
-                      </div>
-                  </td>
-              </tr>
-              {% endfor %}
-          </tbody>
-      </table>
+{% extends 'base.html' %}
+{% block title %}Менеджери — Onboarding CRM{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <div class="page-title mb-0">📋 Список менеджерів</div>
   </div>
-</body>
-</html>
+  {% if current_user.role in ['mentor', 'teamlead'] %}
+  <a href="{{ url_for('main.add_manager') }}" class="btn btn-primary btn-sm">➕ Додати менеджера</a>
+  {% endif %}
+</div>
+
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle text-center mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>TG нік</th>
+          <th>Відділ</th>
+          <th>Логін</th>
+          <th>Посада</th>
+          <th>Онбординг</th>
+          <th>Статус</th>
+          <th>Етап</th>
+          <th>Створено</th>
+          <th>Відповідальний</th>
+          <th>Дії</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for manager in managers %}
+        {% set instance = manager.manager_onboardings|first %}
+        <tr id="manager-row-{{ manager.id }}">
+          <td>{{ manager.id }}</td>
+          <td>{{ manager.tg_nick or '—' }}</td>
+          <td>{{ manager.department or '—' }}</td>
+          <td class="mono">{{ manager.username }}</td>
+          <td>{{ manager.position or '—' }}</td>
+          <td>
+            {% if instance %}{{ instance.name }}{% else %}<span class="text-muted small">Немає</span>{% endif %}
+          </td>
+          <td>{{ manager.onboarding_status or '—' }}</td>
+          <td>{{ manager.onboarding_step or 0 }}/{{ manager.total_steps_calculated or 0 }}</td>
+          <td>{{ manager.created_at.strftime('%d.%m.%Y') if manager.created_at else '—' }}</td>
+          <td>{{ manager.added_by.tg_nick if manager.added_by else '—' }}</td>
+          <td>
+            <div class="d-flex justify-content-center gap-2">
+              {% if instance %}
+              <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
+                 class="btn btn-outline-secondary btn-sm">📊 Результати</a>
+              {% endif %}
+              {% if current_user.role in ['teamlead', 'developer', 'head'] %}
+              <button class="btn btn-outline-danger btn-sm" onclick="deleteManager({{ manager.id }})">🗑️</button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="11" class="text-muted py-4">Поки що немає менеджерів.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function deleteManager(id) {
+    if (!confirm('Видалити цього менеджера? Дію не можна скасувати.')) return;
+    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    fetch(`/onboarding/user/delete/${id}`, { method: 'DELETE', headers: { 'X-CSRFToken': csrf } })
+      .then(r => {
+        if (r.status === 204) {
+          const row = document.getElementById(`manager-row-${id}`);
+          if (row) row.remove(); else location.reload();
+        } else {
+          r.json().then(d => alert(d.message || 'Помилка при видаленні')).catch(() => alert('Помилка при видаленні'));
+        }
+      });
+  }
+</script>
+{% endblock %}

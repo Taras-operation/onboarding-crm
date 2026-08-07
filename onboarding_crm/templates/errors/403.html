@@ -1,16 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}403 — Доступ заборонено{% endblock %}
-{% block content %}
-<div class="max-w-lg mx-auto mt-24 text-center">
-  <div class="text-6xl font-black text-gray-300">403</div>
-  <h1 class="mt-4 text-2xl font-bold text-gray-800">Доступ заборонено</h1>
-  <p class="mt-2 text-gray-500">
-    У вас немає прав для цієї дії. Якщо ви вважаєте, що це помилка —
-    зверніться до адміністратора.
-  </p>
-  <a href="{{ url_for('main.login') }}"
-     class="inline-block mt-6 px-5 py-2.5 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 transition">
-    ← Повернутися
-  </a>
+{% block shell %}
+<div class="centered-wrap">
+  <div class="text-center">
+    <div style="font-size:4rem;font-weight:800;color:#cbd5e1;line-height:1;">403</div>
+    <h1 class="h4 mt-3">Доступ заборонено</h1>
+    <p class="text-muted">У вас немає прав для цієї дії. Якщо це помилка — зверніться до адміністратора.</p>
+    <a href="{{ url_for('main.login') }}" class="btn btn-primary mt-2">← Повернутися</a>
+  </div>
 </div>
 {% endblock %}

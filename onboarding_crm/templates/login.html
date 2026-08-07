@@ -1,57 +1,24 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <title>Тебе вітає Onboarding CRM</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .login-box {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            width: 300px;
-        }
-        h2 {
-            margin-top: 0;
-            margin-bottom: 20px;
-        }
-        input, button {
-            width: 100%;
-            padding: 10px;
-            margin-top: 10px;
-            box-sizing: border-box;
-            font: inherit;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button {
-            background-color: #f0f0f0;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #e0e0e0;
-        }
-    </style>
-</head>
-<body>
-    <div class="login-box">
-        <h2>Вхід в Onboarding систему</h2>
-        <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            
-            <input type="text" name="login" placeholder="Логін" required>
-            <input type="password" name="password" placeholder="Пароль" required>
-            <button type="submit">Увійти</button>
-        </form>
+{% extends 'base.html' %}
+{% block title %}Вхід — Onboarding CRM{% endblock %}
+{% block shell %}
+<div class="centered-wrap">
+  <div class="centered-card">
+    <div class="text-center mb-4">
+      <div style="font-size:1.4rem;font-weight:700;">Onboarding CRM</div>
+      <div class="text-muted">Вхід до системи</div>
     </div>
-</body>
-</html>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3">
+        <label class="form-label">Логін</label>
+        <input type="text" name="login" class="form-control" placeholder="Логін" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Пароль</label>
+        <input type="password" name="password" class="form-control" placeholder="Пароль" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Увійти</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

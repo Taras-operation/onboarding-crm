@@ -1,0 +1,50 @@
+{% set ep = request.endpoint %}
+<aside class="sidebar">
+  <div class="sidebar-brand">Onboarding CRM</div>
+  <div class="sidebar-subtitle">Панель керування</div>
+
+  {% if current_user.role == 'manager' %}
+    <div class="sidebar-section-title">Мій онбординг</div>
+    <a class="sidebar-link {{ 'active' if ep == 'main.manager_dashboard' }}" href="{{ url_for('main.manager_dashboard') }}">
+      <span class="ico">🧩</span> Етапи
+    </a>
+    <a class="sidebar-link {{ 'active' if ep == 'main.manager_statistics' }}" href="{{ url_for('main.manager_statistics') }}">
+      <span class="ico">📊</span> Статистика
+    </a>
+
+  {% else %}
+    <div class="sidebar-section-title">Огляд</div>
+    {% if current_user.role == 'developer' %}
+      <a class="sidebar-link {{ 'active' if ep == 'main.developer_dashboard' }}" href="{{ url_for('main.developer_dashboard') }}">
+        <span class="ico">🛠️</span> Developer панель
+      </a>
+    {% endif %}
+    {% if current_user.role in ['mentor', 'teamlead', 'head'] %}
+      <a class="sidebar-link {{ 'active' if ep == 'main.mentor_dashboard' }}" href="{{ url_for('main.mentor_dashboard') }}">
+        <span class="ico">🏠</span> Дашборд
+      </a>
+    {% endif %}
+
+    <div class="sidebar-section-title">Онбординг</div>
+    <a class="sidebar-link {{ 'active' if ep == 'main.managers_list' }}" href="{{ url_for('main.managers_list') }}">
+      <span class="ico">📋</span> Менеджери
+    </a>
+    {% if current_user.role in ['mentor', 'teamlead'] %}
+      <a class="sidebar-link {{ 'active' if ep == 'main.add_manager' }}" href="{{ url_for('main.add_manager') }}">
+        <span class="ico">➕</span> Додати менеджера
+      </a>
+    {% endif %}
+    <a class="sidebar-link {{ 'active' if ep == 'main.onboarding_plans' }}" href="{{ url_for('main.onboarding_plans') }}">
+      <span class="ico">📅</span> Плани онбордингу
+    </a>
+    <a class="sidebar-link {{ 'active' if ep == 'main.archived_managers' }}" href="{{ url_for('main.archived_managers') }}">
+      <span class="ico">📁</span> Архів
+    </a>
+  {% endif %}
+
+  <div class="sidebar-foot">
+    <a class="sidebar-link" href="{{ url_for('main.logout') }}">
+      <span class="ico">🚪</span> Вийти
+    </a>
+  </div>
+</aside>

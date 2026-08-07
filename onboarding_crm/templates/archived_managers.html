@@ -1,102 +1,58 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8">
-  <title>📦 Архів менеджерів</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body {
-      background-color: #f8f9fc;
-    }
-    .sidebar {
-      min-width: 250px;
-      max-width: 250px;
-      background-color: #ffffff;
-      height: 100vh;
-      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-      padding: 2rem 1rem;
-      position: fixed;
-      top: 0;
-      left: 0;
-    }
-    .main-content {
-      margin-left: 250px;
-      padding: 2rem;
-    }
-    .sidebar .btn {
-      text-align: left;
-      width: 100%;
-      margin-bottom: 0.5rem;
-    }
-  </style>
-</head>
-<body>
+{% extends 'base.html' %}
+{% block title %}Архів — Onboarding CRM{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="page-title mb-0">📁 Архів менеджерів</div>
+  <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline-secondary btn-sm">← До списку</a>
+</div>
 
-  {% include 'components/mentor_sidebar.html' %}
-
-  <!-- Основна частина -->
-  <div class="main-content">
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="h3"><span style="font-size: 1.5rem;">📦</span> Архів менеджерів</h1>
-      <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline-secondary btn-sm">← Назад до списку</a>
-    </div>
-
-    {% if archived_managers %}
-    <div class="table-responsive bg-white shadow rounded">
-      <table class="table table-bordered table-hover align-middle text-center">
-        <thead class="table-light">
+{% if archived_managers %}
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle text-center mb-0">
+      <thead>
+        <tr>
+          <th>#</th><th>Telegram</th><th>Посада</th><th>Відділ</th>
+          <th>Старт</th><th>Прогрес</th><th>Фідбек</th><th>Дії</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pair in archived_managers %}
+          {% set manager = pair[0] %}
+          {% set instance = pair[1] %}
           <tr>
-            <th>#</th>
-            <th>Telegram</th>
-            <th>Посада</th>
-            <th>Відділ</th>
-            <th>Дата старту</th>
-            <th>Прогрес</th>
-            <th>Фідбек</th>
-            <th>Дії</th>
+            <td>{{ loop.index }}</td>
+            <td class="text-primary">@{{ manager.username }}</td>
+            <td>{{ manager.position or '—' }}</td>
+            <td>{{ manager.department or '—' }}</td>
+            <td>{{ instance.created_at.strftime('%d.%m.%Y') if instance.created_at else '—' }}</td>
+            <td>{{ instance.onboarding_step or 0 }}</td>
+            <td>
+              {% if instance.final_decision == 'approved' %}
+                <span class="badge bg-success">✅ Пройдено</span>
+              {% elif instance.final_decision == 'rejected' %}
+                <span class="badge bg-danger">❌ Не пройдено</span>
+              {% elif instance.final_decision == 'revision' %}
+                <span class="badge bg-warning text-dark">✍️ Доопрацювання</span>
+              {% else %}
+                <span class="badge bg-secondary">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
+                 class="btn btn-outline-primary btn-sm">Переглянути</a>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {% for pair in archived_managers %}
-            {% set manager = pair[0] %}
-            {% set instance = pair[1] %}
-            <tr>
-              <td>{{ loop.index }}</td>
-              <td class="text-primary">@{{ manager.username }}</td>
-              <td>{{ manager.position }}</td>
-              <td>{{ manager.department }}</td>
-              <td>{{ instance.created_at.strftime('%d.%m.%Y') }}</td>
-              <td>{{ instance.onboarding_step }}/{{ instance.structure | length }}</td>
-              <td>
-                {% if instance.final_decision == 'approved' %}
-                  <span class="badge bg-success">✅ Пройдено</span>
-                {% elif instance.final_decision == 'rejected' %}
-                  <span class="badge bg-danger">❌ Не пройдено</span>
-                {% elif instance.final_decision == 'revision' %}
-                  <span class="badge bg-warning text-dark">✍️ Доопрацювання</span>
-                {% else %}
-                  <span class="badge bg-secondary">—</span>
-                {% endif %}
-              </td>
-              <td>
-                <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
-                   class="btn btn-outline-primary btn-sm">
-                  Переглянути
-                </a>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="text-center text-muted mt-5">
-      <h5>Поки що архів порожній.</h5>
-      <p>Коли менеджер завершить онбординг — він зʼявиться тут.</p>
-    </div>
-    {% endif %}
-
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-</body>
-</html>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="emoji">📭</div>
+  <h5 class="mt-2">Поки що архів порожній</h5>
+  <p>Коли менеджер завершить онбординг — він зʼявиться тут.</p>
+</div>
+{% endif %}
+{% endblock %}

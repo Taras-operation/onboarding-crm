@@ -1,94 +1,45 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8">
-  <title>Кабінет Ментора</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body {
-      background-color: #f8f9fc;
-    }
-    .sidebar {
-      min-width: 250px;
-      max-width: 250px;
-      background-color: #ffffff;
-      height: 100vh;
-      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-      padding: 2rem 1rem;
-      position: fixed;
-      top: 0;
-      left: 0;
-    }
-    .main-content {
-      margin-left: 250px;
-      padding: 2rem;
-    }
-    .sidebar .btn {
-      text-align: left;
-      width: 100%;
-    }
-  </style>
-</head>
-<body>
+{% extends 'base.html' %}
+{% block title %}Дашборд — Onboarding CRM{% endblock %}
+{% block content %}
+<div class="page-title">👋 Привіт, {{ current_user.tg_nick or current_user.username }}!</div>
+<div class="page-subtitle">
+  Роль: <strong>{{ current_user.role }}</strong> · Відділ: <strong>{{ current_user.department or '—' }}</strong>
+</div>
 
-<!-- Сайдбар -->
-{% include 'components/mentor_sidebar.html' %}
-
-<!-- Основна частина -->
-<div class="main-content">
-  <h2 class="mb-4">👋 Привіт, {{ current_user.username }}!</h2>
-  <p class="text-muted mb-4">
-    Ваша роль: <strong>{{ current_user.role }}</strong> /
-    Відділ: <strong>{{ current_user.department }}</strong>
-  </p>
-
-  <!-- Статистика -->
-  <div class="row">
-    <!-- Всього менеджерів -->
-    <div class="col-md-3">
-      <div class="card border-primary mb-3">
-        <div class="card-body">
-          <h5 class="card-title">Менеджерів</h5>
-          <p class="card-text fs-3">{{ managers|length }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Активних онбордингів -->
-    <div class="col-md-3">
-      <div class="card border-success mb-3">
-        <div class="card-body">
-          <h5 class="card-title">Активних онбордингів</h5>
-          <p class="card-text fs-3">{{ active_onboardings }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Менеджерів в архіві -->
-    <div class="col-md-3">
-      <div class="card border-secondary mb-3">
-        <div class="card-body">
-          <h5 class="card-title">В архіві</h5>
-          <p class="card-text fs-3">{{ archived_count }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Середній прогрес -->
-    <div class="col-md-3">
-      <div class="card border-info mb-3">
-        <div class="card-body">
-          <h5 class="card-title">Середній прогрес</h5>
-          <p class="card-text fs-3">{{ average_progress }}%</p>
-        </div>
-      </div>
+<div class="row g-3">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="label">Менеджерів</div>
+      <div class="value">{{ managers|length }}</div>
+      <div class="accent-bar"></div>
     </div>
   </div>
-
-  <div class="alert alert-light mt-4">
-    🧩 Всі деталі ви можете переглядати через “Список менеджерів” або “Плани онбордингу”.
+  <div class="col-6 col-lg-3">
+    <div class="stat-card green">
+      <div class="label">Активних онбордингів</div>
+      <div class="value">{{ active_onboardings }}</div>
+      <div class="accent-bar"></div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card slate">
+      <div class="label">В архіві</div>
+      <div class="value">{{ archived_count }}</div>
+      <div class="accent-bar"></div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card amber">
+      <div class="label">Середній прогрес</div>
+      <div class="value">{{ average_progress }}%</div>
+      <div class="accent-bar"></div>
+    </div>
   </div>
 </div>
 
-</body>
-</html>
+<div class="card mt-4">
+  <div class="card-body text-muted">
+    🧩 Деталі — у розділах «Менеджери» та «Плани онбордингу» ліворуч.
+  </div>
+</div>
+{% endblock %}
