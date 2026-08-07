@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}404 — Сторінку не знайдено{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto mt-24 text-center">
+  <div class="text-6xl font-black text-gray-300">404</div>
+  <h1 class="mt-4 text-2xl font-bold text-gray-800">Сторінку не знайдено</h1>
+  <p class="mt-2 text-gray-500">
+    Можливо, посилання застаріле або сторінку було переміщено.
+  </p>
+  <a href="{{ url_for('main.login') }}"
+     class="inline-block mt-6 px-5 py-2.5 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-700 transition">
+    ← На головну
+  </a>
+</div>
+{% endblock %}

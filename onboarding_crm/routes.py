@@ -157,11 +157,8 @@ def logout():
     return redirect(url_for('main.login'))
 
 @bp.route('/dashboard/developer', methods=['GET', 'POST'])
-@login_required
+@roles_required(Role.DEVELOPER)
 def developer_dashboard():
-    if current_user.role != 'developer':
-        return redirect(url_for('main.login'))
-
     # --- Tabs (single route UI) ---
     tab = (request.args.get('tab') or 'overview').strip()
     view = (request.args.get('view') or '').strip()
@@ -183,7 +180,7 @@ def developer_dashboard():
         username = (request.form.get('username') or '').strip()
         password_raw = request.form.get('password') or ''
 
-        if not role or role not in ['developer', 'head', 'teamlead', 'mentor', 'manager']:
+        if not role or role not in Role.values():
             flash('Некоректна роль користувача', 'danger')
             return redirect(url_for('main.developer_dashboard', tab='users', view='add'))
 
@@ -199,7 +196,7 @@ def developer_dashboard():
 
         # --- Determine added_by_id (who created the user)
         added_by_id = None
-        if role == 'mentor':
+        if role == Role.MENTOR:
             # mentor must be linked to a teamlead
             tl_id = request.form.get('teamlead_id')
             if not tl_id:
@@ -211,7 +208,7 @@ def developer_dashboard():
                 flash('Некоректний teamlead_id', 'danger')
                 return redirect(url_for('main.developer_dashboard', tab='users', view='add'))
 
-        elif role == 'manager':
+        elif role == Role.MANAGER:
             # manager can be linked to any mentor/teamlead (optional dropdown)
             mentor_id = request.form.get('mentor_id')
             if mentor_id:
@@ -249,8 +246,8 @@ def developer_dashboard():
 
     # --- Data for GET ---
     users = User.query.order_by(User.id.desc()).all()
-    teamleads = User.query.filter_by(role='teamlead').order_by(User.id.desc()).all()
-    mentors = User.query.filter_by(role='mentor').order_by(User.id.desc()).all()
+    teamleads = User.query.filter_by(role=Role.TEAMLEAD.value).order_by(User.id.desc()).all()
+    mentors = User.query.filter_by(role=Role.MENTOR.value).order_by(User.id.desc()).all()
     templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
 
     return render_template(
@@ -266,11 +263,8 @@ def developer_dashboard():
 
 # --- Developer user management routes ---
 @bp.route('/dashboard/developer/user/<int:user_id>/update', methods=['POST'])
-@login_required
+@roles_required(Role.DEVELOPER)
 def developer_user_update(user_id):
-    if current_user.role != 'developer':
-        return redirect(url_for('main.login'))
-
     user = User.query.get_or_404(user_id)
 
     # Only update safe profile fields from the form
@@ -283,7 +277,7 @@ def developer_user_update(user_id):
     if tg_nick is not None:
         user.tg_nick = (tg_nick or '').strip() or None
 
-    if role is not None and role.strip() in ['developer', 'head', 'teamlead', 'mentor', 'manager']:
+    if role is not None and role.strip() in Role.values():
         user.role = role.strip()
 
     if department is not None:
@@ -305,11 +299,8 @@ def developer_user_update(user_id):
 
 
 @bp.route('/dashboard/developer/user/<int:user_id>/reset_password', methods=['POST'])
-@login_required
+@roles_required(Role.DEVELOPER)
 def developer_user_reset_password(user_id):
-    if current_user.role != 'developer':
-        return redirect(url_for('main.login'))
-
     user = User.query.get_or_404(user_id)
     new_password = request.form.get('new_password') or ''
     if not new_password:
@@ -323,11 +314,8 @@ def developer_user_reset_password(user_id):
 
 
 @bp.route('/dashboard/developer/user/<int:user_id>/delete', methods=['POST'])
-@login_required
+@roles_required(Role.DEVELOPER)
 def developer_user_delete(user_id):
-    if current_user.role != 'developer':
-        return redirect(url_for('main.login'))
-
     user = User.query.get_or_404(user_id)
 
     # Don't allow deleting yourself to avoid locking out
@@ -347,12 +335,8 @@ def developer_user_delete(user_id):
 
 
 @bp.route('/dashboard/developer/user/<int:user_id>/toggle_active', methods=['POST'])
-@login_required
+@roles_required(Role.DEVELOPER)
 def developer_user_toggle_active(user_id):
-    """Optional: works only if User model has `is_active` column."""
-    if current_user.role != 'developer':
-        return redirect(url_for('main.login'))
-
     user = User.query.get_or_404(user_id)
 
     if not hasattr(user, 'is_active'):
@@ -370,40 +354,10 @@ def developer_user_toggle_active(user_id):
     return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
 @bp.route('/dashboard/mentor')
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.HEAD)
 def mentor_dashboard():
-    if current_user.role not in ['mentor', 'teamlead', 'head']:
-        return redirect(url_for('main.login'))
-
-    # 1. Отримуємо список менеджерів
-    if current_user.role == 'mentor':
-        managers = User.query.filter_by(
-            role='manager',
-            added_by_id=current_user.id
-        ).all()
-
-    elif current_user.role == 'teamlead':
-        mentors = User.query.filter_by(
-            role='mentor',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-        mentor_ids = [m.id for m in mentors] + [current_user.id]
-        managers = User.query.filter(
-            User.role == 'manager',
-            User.added_by_id.in_(mentor_ids),
-            User.department == current_user.department
-        ).all()
-
-    elif current_user.role == 'head':
-        managers = User.query.filter_by(
-            role='manager',
-            department=current_user.department
-        ).all()
-
-    else:
-        managers = []
-
+    # 1. Отримуємо список менеджерів (department-aware, single source)
+    managers = managers_query_for(current_user).all()
     manager_ids = [m.id for m in managers]
 
     # 2. Активні інстанси онбордингу (не в архіві)
@@ -440,42 +394,10 @@ def mentor_dashboard():
     )
 
 @bp.route('/managers/list')
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.DEVELOPER, Role.HEAD)
 def managers_list():
-    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
-        return redirect(url_for('main.login'))
-
-    # 🔹 1. Базовая выборка менеджеров по ролям
-    if current_user.role == 'developer':
-        managers = User.query.filter_by(role='manager').all()
-
-    elif current_user.role == 'teamlead':
-        mentors = User.query.filter_by(
-            role='mentor',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-        mentor_ids = [mentor.id for mentor in mentors]
-        mentor_ids.append(current_user.id)
-
-        managers = User.query.filter(
-            User.role == 'manager',
-            User.added_by_id.in_(mentor_ids),
-            User.department == current_user.department
-        ).all()
-
-    elif current_user.role == 'mentor':
-        managers = User.query.filter_by(
-            role='manager',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-
-    elif current_user.role == 'head':
-        managers = User.query.filter_by(
-            role='manager',
-            department=current_user.department
-        ).all()
+    # 🔹 1. Базовая выборка менеджеров по ролям (department-aware, single source)
+    managers = managers_query_for(current_user).all()
 
     # 🔹 2. Формирование финального списка
     filtered_managers = []
@@ -521,11 +443,8 @@ def managers_list():
     return render_template('managers_list.html', managers=managers)
 
 @bp.route('/manager/statistics')
-@login_required
+@roles_required(Role.MANAGER)
 def manager_statistics():
-    if current_user.role != 'manager':
-        return redirect(url_for('main.login'))
-
     # 🔹 Отримуємо останній інстанс онбордингу
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
@@ -633,17 +552,14 @@ def manager_statistics():
         final_status=final_status
     )
 @bp.route('/add_manager', methods=['GET', 'POST'])
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD)
 def add_manager():
-    if current_user.role not in ['mentor', 'teamlead']:
-        return redirect(url_for('main.login'))
-
     # 🟢 Формуємо список менторів тільки з того ж відділу
-    if current_user.role == 'mentor':
+    if current_user.role == Role.MENTOR:
         mentors = [current_user]
-    elif current_user.role == 'teamlead':
+    elif current_user.role == Role.TEAMLEAD:
         mentors = User.query.filter(
-            User.role.in_(['mentor', 'teamlead']),
+            User.role.in_([Role.MENTOR.value, Role.TEAMLEAD.value]),
             User.department == current_user.department
         ).all()
     else:
@@ -673,7 +589,7 @@ def add_manager():
             tg_nick=tg_nick,
             position=position,
             department=department,
-            role='manager',
+            role=Role.MANAGER.value,
             username=username,
             password=password,
             added_by_id=int(mentor_id)
@@ -686,11 +602,8 @@ def add_manager():
     return render_template('add_manager.html', mentors=mentors)
 
 @bp.route('/onboarding/plans')
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.DEVELOPER, Role.HEAD)
 def onboarding_plans():
-    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
-        return redirect(url_for('main.login'))
-
     # ✅ Templates visibility: own department + own created + shared + global
     templates = _visible_templates_for_current_user()
     for t in templates:
@@ -709,15 +622,8 @@ def onboarding_plans():
             print(f"[plans] Шаблон {t.id}: помилка JSON: {e}")
             t.step_count = 0
 
-    # ✅ Managers list (department-aware)
-    if current_user.role in ['mentor', 'teamlead']:
-        managers = _allowed_managers_for_current_user().all()
-    elif current_user.role == 'head':
-        managers = User.query.filter_by(role='manager', department=current_user.department).all()
-    elif current_user.role == 'developer':
-        managers = User.query.filter_by(role='manager').all()
-    else:
-        managers = []
+    # ✅ Managers list (department-aware, single source)
+    managers = managers_query_for(current_user).all()
 
     user_plans_data = []
     for m in managers:
@@ -764,11 +670,8 @@ def onboarding_plans():
     )
 
 @bp.route('/onboarding/editor')
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD)
 def onboarding_editor():
-    if current_user.role not in ['mentor', 'teamlead']:
-        return redirect(url_for('main.login'))
-
     managers = _allowed_managers_for_current_user().all()
     return render_template('add_template.html', managers=managers)
 
@@ -777,7 +680,7 @@ def onboarding_editor():
 @bp.route('/onboarding/attachment/upload', methods=['POST'])
 @login_required
 def upload_onboarding_attachment():
-    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
+    if current_user.role not in SUPERVISOR_ROLES:
         return jsonify({'ok': False, 'message': 'Немає прав на завантаження файлів'}), 403
 
     file = request.files.get('file')
@@ -819,7 +722,7 @@ def upload_onboarding_attachment():
     })
 
 @bp.route('/onboarding/template/add', methods=['GET', 'POST'])
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD)
 def add_onboarding_template():
     """
     Создание/редактирование шаблона ИЛИ назначение/редактирование онбординга менеджеру.
@@ -863,6 +766,7 @@ def add_onboarding_template():
             if existing_template_id:
                 tpl = OnboardingTemplate.query.get(int(existing_template_id))
                 if tpl:
+                    assert_can_edit_template(tpl)
                     tpl.name = name
                     tpl.structure = payload
                     # ✅ FIX: если департамент пустой — проставляем текущий
@@ -933,6 +837,7 @@ def add_onboarding_template():
 
     if template_id:
         template = OnboardingTemplate.query.get_or_404(int(template_id))
+        assert_can_edit_template(template)
         try:
             parsed = template.structure if not isinstance(template.structure, str) else json.loads(template.structure)
             if isinstance(parsed, str):
@@ -967,10 +872,10 @@ def add_onboarding_template():
     )
 
 @bp.route('/onboarding/user/edit/<int:manager_id>', methods=['GET', 'POST'])
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD)
 def edit_onboarding(manager_id):
-    if current_user.role not in ['mentor', 'teamlead']:
-        return redirect(url_for('main.login'))
+    # Only a manager the current user supervises.
+    assert_can_manage_user(manager_id)
 
     # Берём самый свежий інстанс онбординга для менеджера
     instance = (OnboardingInstance.query
@@ -1080,7 +985,7 @@ def edit_onboarding(manager_id):
 @roles_required(Role.MENTOR, Role.TEAMLEAD)
 def copy_user_onboarding(id):
     original = User.query.get_or_404(id)
-    if original.role != 'manager':
+    if original.role != Role.MANAGER:
         flash('Цей користувач не є менеджером.', 'warning')
         return redirect(url_for('main.onboarding_plans'))
 
@@ -1106,7 +1011,7 @@ def copy_user_onboarding(id):
         position=original.position,
         username=username,
         password=generate_password_hash(temp_password),
-        role='manager',
+        role=Role.MANAGER.value,
         added_by_id=current_user.id,
         onboarding_name=(original.onboarding_name or original.username or 'Онбординг') + ' (копія)',
         onboarding_status='Не розпочато',
@@ -1123,19 +1028,19 @@ def copy_user_onboarding(id):
     return redirect(url_for('main.edit_onboarding', manager_id=new_user.id))
 
 @bp.route('/onboarding/save', methods=['POST'])
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD)
 def save_onboarding():
     data = request.get_json()
     manager_id = data.get('manager_id')
     blocks = data.get('blocks', [])
 
-    # Department-aware permission check for mentor/teamlead
-    if manager_id and current_user.role in ['mentor', 'teamlead']:
+    # Department-aware ownership check (JSON endpoint → JSON 403)
+    if manager_id:
         try:
             _mid = int(manager_id)
         except Exception:
             _mid = None
-        if _mid is None or _mid not in [u.id for u in _allowed_managers_for_current_user().all()]:
+        if _mid is None or _mid not in allowed_manager_ids(current_user):
             return {'message': 'Немає прав призначати онбординг цьому менеджеру'}, 403
 
     if not blocks:
@@ -1145,7 +1050,7 @@ def save_onboarding():
 
     if manager_id:
         user = User.query.get(manager_id)
-        if not user or user.role != 'manager':
+        if not user or user.role != Role.MANAGER:
             return {'message': 'Невірний менеджер'}, 400
 
         instance = (OnboardingInstance.query
@@ -1206,11 +1111,8 @@ def delete_onboarding_template(id):
 
 
 @bp.route('/onboarding/template/<int:id>/share', methods=['POST'])
-@login_required
+@roles_required(Role.DEVELOPER)
 def share_onboarding_template(id):
-    if current_user.role != 'developer':
-        return redirect(url_for('main.login'))
-
     template = OnboardingTemplate.query.get_or_404(id)
 
     is_global = request.form.get('is_global') == 'on'
@@ -1263,17 +1165,16 @@ def duplicate_onboarding_template(id):
     return redirect(url_for('main.developer_dashboard', tab='templates'))
 
 @bp.route('/onboarding/user/delete/<int:id>', methods=['DELETE'])
-@login_required
+@roles_required(Role.TEAMLEAD, Role.DEVELOPER)
 def delete_user_onboarding(id):
     user = User.query.get_or_404(id)
 
-    # 🧱 Заборона для mentor-ів
-    if current_user.role == 'mentor':
-        return {'message': 'У вас немає прав на видалення'}, 403
-
-    # 🔐 Якщо Teamlead — може видаляти лише менеджерів
-    if current_user.role == 'teamlead' and user.role != 'manager':
-        return {'message': 'Тімлід може видаляти лише менеджерів'}, 403
+    # 🔐 Teamlead — тільки менеджери, і тільки свої (mentor вже відсіяно декоратором)
+    if current_user.role == Role.TEAMLEAD:
+        if user.role != Role.MANAGER:
+            return {'message': 'Тімлід може видаляти лише менеджерів'}, 403
+        if user.id not in allowed_manager_ids(current_user):
+            return {'message': 'Немає прав на видалення цього користувача'}, 403
 
     try:
         db.session.delete(user)  # 🧼 Каскад сам видалить всі пов’язані записи
@@ -1284,34 +1185,13 @@ def delete_user_onboarding(id):
         return {'message': f'Помилка при видаленні: {str(e)}'}, 500
     
 @bp.route('/onboarding/instance/delete/<int:onboarding_id>', methods=['DELETE'])
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.HEAD, Role.DEVELOPER)
 def delete_onboarding_instance(onboarding_id):
     instance = OnboardingInstance.query.get_or_404(onboarding_id)
 
-    print(f"[DELETE] Текущий юзер: {current_user.id}, роль: {current_user.role}")
-    print(f"[DELETE] Удаляем онбординг #{onboarding_id}, manager_id: {instance.manager_id}, mentor_id: {instance.mentor_id}")
-
-    manager = User.query.get(instance.manager_id)
-
-    # 🔐 Проверка доступа
-    if current_user.role == 'mentor':
-        if manager.added_by_id != current_user.id:
-            return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
-
-    elif current_user.role == 'teamlead':
-        # Найти всех менторов текущего ТЛ
-        mentors = User.query.filter_by(
-            role='mentor',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-        mentor_ids = [m.id for m in mentors] + [current_user.id]
-
-        if manager.added_by_id not in mentor_ids:
-            return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
-
-    elif current_user.role != 'developer':
-        return {'message': 'Роль не має прав на видалення онбордингу'}, 403
+    # 🔐 Ownership (JSON endpoint → JSON 403)
+    if current_user.role != Role.DEVELOPER and instance.manager_id not in allowed_manager_ids(current_user):
+        return {'message': 'У вас немає прав на видалення цього онбордингу'}, 403
 
     try:
         TestResult.query.filter_by(onboarding_instance_id=onboarding_id).delete()
@@ -1325,11 +1205,8 @@ def delete_onboarding_instance(onboarding_id):
         return {'message': f'Помилка при видаленні онбордингу: {str(e)}'}, 500
 
 @bp.route('/manager_dashboard')
-@login_required
+@roles_required(Role.MANAGER)
 def manager_dashboard():
-    if current_user.role != 'manager':
-        return redirect(url_for('main.login'))
-
     # 1. Последний онбординг-инстанс менеджера
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
@@ -1407,12 +1284,9 @@ def manager_dashboard():
     )
 
 @bp.route('/manager_step/<int:step>', methods=['GET', 'POST'])
-@login_required
+@roles_required(Role.MANAGER)
 def manager_step(step):
     from flask import jsonify, make_response
-
-    if current_user.role != 'manager':
-        return redirect(url_for('main.login'))
 
     instance = (OnboardingInstance.query
                 .filter_by(manager_id=current_user.id)
@@ -1609,16 +1483,8 @@ def manager_step(step):
 from sqlalchemy import and_
 
 @bp.route('/manager_results/<int:manager_id>/<int:onboarding_id>')
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.HEAD, Role.DEVELOPER)
 def manager_results(manager_id, onboarding_id):
-    print("🔒 current_user:", current_user)
-    print("🔒 is_authenticated:", current_user.is_authenticated)
-    print("🔒 current_user.role:", getattr(current_user, 'role', None))
-
-    if current_user.role not in ['mentor', 'teamlead', 'developer']:
-        flash("⛔️ Доступ заборонено", "danger")
-        return redirect(url_for('main.managers_list'))
-
     manager = User.query.get(manager_id)
     instance = OnboardingInstance.query.get(onboarding_id)
 
@@ -1629,6 +1495,9 @@ def manager_results(manager_id, onboarding_id):
     if instance.manager_id != manager.id:
         flash("⛔️ Онбординг не належить цьому менеджеру", "danger")
         return redirect(url_for('main.managers_list'))
+
+    # IDOR: the viewer must actually supervise this manager
+    assert_can_access_instance(instance)
 
     try:
         structure = json.loads(instance.structure) if isinstance(instance.structure, str) else instance.structure
@@ -1754,13 +1623,13 @@ def api_test_complete(step):
     return resp
 
 @bp.route('/update_result/<int:result_id>', methods=['POST'])
-@login_required
+@roles_required(SUPERVISOR_ROLES)
 def update_result(result_id):
     """Автоматичне збереження фідбеку (чернетки) для відкритих питань."""
     result = TestResult.query.get_or_404(result_id)
 
-    # 🔐 Перевірка доступу
-    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
+    # 🔐 Ownership: only over a supervised manager's results (JSON endpoint)
+    if current_user.role != Role.DEVELOPER and result.manager_id not in allowed_manager_ids(current_user):
         return jsonify({'error': 'Access denied'}), 403
 
     data = request.get_json()
@@ -1784,10 +1653,10 @@ def update_result(result_id):
         return jsonify({'error': str(e)}), 500
     
 @bp.route('/publish_feedback/<int:manager_id>', methods=['POST'])
-@login_required
+@roles_required(SUPERVISOR_ROLES)
 def publish_feedback(manager_id):
     """Публікація фідбеку по ВСІМ відкритим питанням менеджера"""
-    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
+    if current_user.role != Role.DEVELOPER and manager_id not in allowed_manager_ids(current_user):
         return jsonify({'error': 'Access denied'}), 403
 
     try:
@@ -1829,13 +1698,11 @@ def publish_feedback(manager_id):
         return jsonify({'error': str(e)}), 500
     
 @bp.route('/final_feedback/<int:manager_id>')
-@login_required
+@roles_required(SUPERVISOR_ROLES)
 def final_feedback(manager_id):
     """Фінальний фідбек після перевірки всіх етапів онбордингу"""
-    # --- Перевірка ролі
-    if current_user.role not in ['mentor', 'teamlead', 'developer', 'head']:
-        flash("⛔️ Доступ заборонено", "danger")
-        return redirect(url_for('main.login'))
+    # Only over a supervised manager
+    assert_can_manage_user(manager_id)
 
     # --- Отримуємо останній інстанс онбордингу
     instance = (OnboardingInstance.query
@@ -2068,12 +1935,9 @@ def final_decision():
     return redirect(url_for('main.managers_list'))
 
 @bp.route('/managers/archive')
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.HEAD, Role.DEVELOPER)
 def archived_managers():
-    if current_user.role not in ['mentor', 'teamlead', 'developer']:
-        return redirect(url_for('main.login'))
-
-    managers = User.query.filter_by(role='manager').all()
+    managers = managers_query_for(current_user).all()
 
     archived_pairs = []
     for manager in managers:
@@ -2088,3 +1952,16 @@ def archived_managers():
             archived_pairs.append((manager, instance))
 
     return render_template('archived_managers.html', archived_managers=archived_pairs)
+
+
+# ─────────────────────────────────────────────
+# 🔹 Error handlers (app-wide, registered via blueprint)
+# ─────────────────────────────────────────────
+@bp.app_errorhandler(403)
+def forbidden(error):
+    return render_template('errors/403.html'), 403
+
+
+@bp.app_errorhandler(404)
+def not_found(error):
+    return render_template('errors/404.html'), 404
