@@ -6,12 +6,24 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from onboarding_crm.extensions import db
 from onboarding_crm.utils import parse_nested_structure
+from onboarding_crm.roles import Role, SUPERVISOR_ROLES
+from onboarding_crm.decorators import roles_required
+from onboarding_crm.permissions import (
+    managers_query_for,
+    visible_templates_for,
+    allowed_manager_ids,
+    assert_can_manage_user,
+    assert_can_access_instance,
+    assert_can_edit_template,
+    assert_can_delete_template,
+)
 import json
 import random
 import re
 import copy
 import os
 import uuid
+import secrets
 
 import html
 
@@ -42,88 +54,13 @@ def _attachment_kind(mimetype):
 
 # --- Helper: allowed managers for current user (department-aware)
 
+# Backwards-compatible wrappers — canonical logic now lives in onboarding_crm.permissions
 def _allowed_managers_for_current_user():
-    """
-    Returns a SQLAlchemy query for managers the current user is allowed to see/select.
-    - mentor   -> managers with same department and added_by_id = current_user.id
-    - teamlead -> managers with same department and added_by_id in [teamlead.id] + mentors created by teamlead in same department
-    - developer -> all managers (fallback for tooling/admin)
-    - others  -> empty query
-    """
-    if not current_user.is_authenticated:
-        return User.query.filter(False)
-
-    if current_user.role == 'mentor':
-        return User.query.filter_by(
-            role='manager',
-            added_by_id=current_user.id,
-            department=current_user.department
-        )
-
-    if current_user.role == 'teamlead':
-        mentors = User.query.filter_by(
-            role='mentor',
-            added_by_id=current_user.id,
-            department=current_user.department
-        ).all()
-        mentor_ids = [m.id for m in mentors] + [current_user.id]
-        return User.query.filter(
-            User.role == 'manager',
-            User.added_by_id.in_(mentor_ids),
-            User.department == current_user.department
-        )
-
-    if current_user.role == 'developer':
-        return User.query.filter_by(role='manager')
-
-    return User.query.filter(False)
+    return managers_query_for(current_user)
 
 
 def _visible_templates_for_current_user():
-    """
-    Returns onboarding templates visible to the current user.
-    Rules:
-    - developer -> all templates
-    - owner department -> visible
-    - created_by current user -> visible
-    - is_global -> visible
-    - current user's department in shared_departments -> visible
-    """
-    templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
-
-    if not current_user.is_authenticated:
-        return []
-
-    if current_user.role == 'developer':
-        return templates
-
-    visible = []
-    user_department = (current_user.department or '').strip()
-
-    for template in templates:
-        template_department = (getattr(template, 'department', None) or '').strip()
-        shared_departments = getattr(template, 'shared_departments', None) or []
-
-        if not isinstance(shared_departments, list):
-            shared_departments = []
-
-        if getattr(template, 'created_by', None) == current_user.id:
-            visible.append(template)
-            continue
-
-        if template_department and user_department and template_department == user_department:
-            visible.append(template)
-            continue
-
-        if bool(getattr(template, 'is_global', False)):
-            visible.append(template)
-            continue
-
-        if user_department and user_department in shared_departments:
-            visible.append(template)
-            continue
-
-    return visible
+    return visible_templates_for(current_user)
 
 
 def _sanitize_rich_text_html(value):
@@ -1140,28 +1077,49 @@ def edit_onboarding(manager_id):
     )
 
 @bp.route('/onboarding/user/copy/<int:id>')
-@login_required
+@roles_required(Role.MENTOR, Role.TEAMLEAD)
 def copy_user_onboarding(id):
     original = User.query.get_or_404(id)
     if original.role != 'manager':
         flash('Цей користувач не є менеджером.', 'warning')
         return redirect(url_for('main.onboarding_plans'))
 
+    # Only copy a manager the current user actually supervises.
+    assert_can_manage_user(original.id)
+
+    # Guarantee a unique username (…_copy, _copy2, _copy3, …) — the old code always
+    # appended "_copy" and hit the unique constraint (500) on the second copy.
+    base_username = f"{original.username}_copy"
+    username = base_username
+    counter = 2
+    while User.query.filter_by(username=username).first():
+        username = f"{base_username}{counter}"
+        counter += 1
+
+    # NEVER copy the original's password hash — that would hand out a working login.
+    # Issue a fresh random temporary password and surface it once to the creator.
+    temp_password = secrets.token_urlsafe(9)
+
     new_user = User(
         tg_nick=original.tg_nick,
         department=original.department,
         position=original.position,
-        username=original.username + '_copy',
-        password=original.password,
+        username=username,
+        password=generate_password_hash(temp_password),
         role='manager',
         added_by_id=current_user.id,
-        onboarding_name=original.onboarding_name + ' (копія)',
+        onboarding_name=(original.onboarding_name or original.username or 'Онбординг') + ' (копія)',
         onboarding_status='Не розпочато',
         onboarding_step=0,
         onboarding_step_total=original.onboarding_step_total
     )
     db.session.add(new_user)
     db.session.commit()
+    flash(
+        f"Створено «{username}». Тимчасовий пароль: {temp_password} — "
+        f"збережіть його зараз, він більше не відобразиться.",
+        "success"
+    )
     return redirect(url_for('main.edit_onboarding', manager_id=new_user.id))
 
 @bp.route('/onboarding/save', methods=['POST'])
@@ -1234,9 +1192,12 @@ def save_onboarding():
         return {'message': 'Шаблон збережено'}, 200
 
 @bp.route('/onboarding/template/delete/<int:id>', methods=['POST', 'DELETE'])
-@login_required
+@roles_required(SUPERVISOR_ROLES)
 def delete_onboarding_template(id):
     template = OnboardingTemplate.query.get_or_404(id)
+    # Only the owner, a teamlead/head of the template's department, or a developer.
+    # Global templates: developer only.
+    assert_can_delete_template(template)
     # Видаляємо всі кроки, пов’язані з шаблоном
     OnboardingStep.query.filter_by(template_id=template.id).delete()
     db.session.delete(template)
@@ -1271,9 +1232,11 @@ def share_onboarding_template(id):
 
 
 @bp.route('/onboarding/template/<int:id>/duplicate', methods=['POST'])
-@login_required
+@roles_required(SUPERVISOR_ROLES)
 def duplicate_onboarding_template(id):
     template = OnboardingTemplate.query.get_or_404(id)
+    # You can only duplicate a template you're allowed to see (department isolation).
+    assert_can_edit_template(template)
 
     structure_copy = copy.deepcopy(template.structure) if template.structure is not None else None
 
@@ -2043,17 +2006,34 @@ def final_feedback(manager_id):
         weakest_test_block=weak_test_blocks[0] if weak_test_blocks else None
     )
 
+VALID_FINAL_DECISIONS = {'approved', 'rejected', 'needs_revision'}
+
+
 @bp.route('/final_decision', methods=['POST'])
-@login_required
+@roles_required(SUPERVISOR_ROLES)
 def final_decision():
     instance_id = request.form.get('instance_id')
     decision = request.form.get('decision')
     comment = request.form.get('comment', '')  # опціональний фідбек
 
+    # Whitelist the decision at the door — an arbitrary string must never slip through.
+    if decision not in VALID_FINAL_DECISIONS:
+        flash("⚠️ Невідома дія", "warning")
+        return redirect(url_for('main.managers_list'))
+
     instance = OnboardingInstance.query.get(instance_id)
 
     if not instance:
         flash("Онбординг не знайдено", "danger")
+        return redirect(url_for('main.managers_list'))
+
+    # A manager must not be able to decide their own onboarding: only a supervisor of
+    # this instance's manager may act on it.
+    assert_can_access_instance(instance)
+
+    # A closed (archived) onboarding cannot be re-decided.
+    if instance.archived:
+        flash("Онбординг вже закрито — повторне рішення неможливе", "warning")
         return redirect(url_for('main.managers_list'))
 
     # Збереження фінального рішення

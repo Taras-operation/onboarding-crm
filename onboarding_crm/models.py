@@ -2,8 +2,13 @@ from onboarding_crm.extensions import db
 from flask_login import UserMixin
 from datetime import datetime
 import json
+from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import JSONB  # ✅ для test_progress
 from sqlalchemy import text  # ✅ для server_default
+
+# JSONB on Postgres (prod), plain JSON on SQLite (local/tests) — same Python dict API,
+# and no schema change on Postgres since the variant there is still JSONB.
+JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 # ─────────────────────────────────────────────
 # 🔹 Модель користувача (менеджер, ментор, ТЛ)
@@ -151,7 +156,7 @@ class OnboardingInstance(db.Model):
     structure = db.Column(db.JSON, nullable=False)
 
     # Прогресс по каждому этапу (0, 1, 2 и т.д.)
-    test_progress = db.Column(JSONB, nullable=True, default=dict)
+    test_progress = db.Column(JSON_TYPE, nullable=True, default=dict)
 
     onboarding_step = db.Column(db.Integer, default=0)
     onboarding_step_total = db.Column(db.Integer, default=0)
