@@ -88,7 +88,9 @@ body {
 .topbar .who { font-weight: 600; }
 .topbar .who small { color: var(--ink-soft); font-weight: 500; }
 
-.content { padding: 28px; max-width: 1180px; width: 100%; margin: 0 auto; }
+/* Fluid: content fills the whole main column (no max-width cap), so cards/tables/
+   grids stretch to the available width and shrink as the viewport does. */
+.content { padding: 28px; width: 100%; }
 .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
 .page-subtitle { color: var(--ink-soft); margin-bottom: 22px; }
 
@@ -124,7 +126,7 @@ body {
 .empty-state .emoji { font-size: 2.5rem; }
 
 /* ---- forms ---- */
-.form-card { background: #fff; border: 1px solid var(--card-border); border-radius: 16px; padding: 28px 30px; max-width: 560px; }
+.form-card { background: #fff; border: 1px solid var(--card-border); border-radius: 16px; padding: 28px 30px; width: 100%; }
 .form-label { font-weight: 600; color: var(--ink-soft); }
 .form-control, .form-select { border-radius: 10px; }
 
