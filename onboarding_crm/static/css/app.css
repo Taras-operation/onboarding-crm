@@ -88,7 +88,7 @@ body {
 .topbar .who { font-weight: 600; }
 .topbar .who small { color: var(--ink-soft); font-weight: 500; }
 
-.content { padding: 28px; max-width: 1180px; width: 100%; }
+.content { padding: 28px; max-width: 1180px; width: 100%; margin: 0 auto; }
 .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
 .page-subtitle { color: var(--ink-soft); margin-bottom: 22px; }
 
