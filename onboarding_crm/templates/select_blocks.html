@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Вибір блоків — Onboarding CRM{% endblock %}
 {% block content %}
-<div class="page-title">🧩 Блоки для @{{ manager.tg_nick or manager.username }}</div>
+<div class="page-title">🧩 Блоки для {{ (manager.tg_nick or manager.username)|handle }}</div>
 <div class="page-subtitle">
   Відзначте, які блоки майстер-онбордингу отримає цей менеджер. Правки контенту робляться в
   <a href="{{ url_for('main.master_onboarding') }}">майстрі</a> — тут лише вибір.

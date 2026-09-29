@@ -68,7 +68,7 @@
 
       <div class="flex justify-between items-center mb-6">
         <h1 class="text-3xl font-extrabold text-gray-900">
-          Привіт, {{ current_user.tg_nick or current_user.login }}!
+          Привіт, {{ (current_user.tg_nick or current_user.username)|handle }}!
         </h1>
       </div>
 
@@ -80,7 +80,8 @@
           {% else %}bg-yellow-50 border-yellow-500 text-yellow-800{% endif %}">
           <div class="text-xl font-bold mb-1">{{ status.label }}</div>
           {% if status.code == 'approved' %}
-            <p>Вітаємо! Ти успішно завершив онбординг 🎉 Тепер ти повноцінний учасник команди.</p>
+            <p class="mb-1">Вітаємо! Ти успішно завершив онбординг 🎉 Тепер ти повноцінний учасник команди.</p>
+            <p class="text-sm">📚 Уся інформація нижче лишається доступною як твоя база знань — заходь і перечитуй будь-який етап, коли щось забудеш. Це твоя шпаргалка.</p>
           {% elif status.code == 'rejected' %}
             <p>На жаль, онбординг не зараховано. З тобою звʼяжеться ментор або тімлід.</p>
           {% else %}

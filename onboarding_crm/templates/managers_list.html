@@ -33,7 +33,7 @@
         {% set instance = manager.manager_onboardings|first %}
         <tr id="manager-row-{{ manager.id }}">
           <td>{{ manager.id }}</td>
-          <td>{{ manager.tg_nick or '—' }}</td>
+          <td>{{ manager.tg_nick|handle or '—' }}</td>
           <td>{{ manager.department or '—' }}</td>
           <td class="mono">{{ manager.username }}</td>
           <td>{{ manager.position or '—' }}</td>

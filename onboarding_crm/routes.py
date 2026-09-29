@@ -21,7 +21,7 @@ from onboarding_crm.services.progress import count_stages, calculate_progress
 from onboarding_crm.services.master import (
     get_or_create_master, get_master, ensure_block_ids, normalize_blocks, resolve_manager_blocks,
 )
-from onboarding_crm.services.scoring import answer_stats, onboarding_status, block_progress
+from onboarding_crm.services.scoring import answer_stats, onboarding_status, block_progress, block_breakdown
 import json
 import random
 import re
@@ -693,7 +693,7 @@ def select_manager_blocks(manager_id):
             instance.structure = {'blocks': snapshot}
         else:
             instance = OnboardingInstance(
-                name=f"Онбординг для @{manager.tg_nick or manager.username}",
+                name=f"Онбординг для {(manager.tg_nick or manager.username or '').lstrip('@')}",
                 manager_id=manager.id,
                 mentor_id=current_user.id,
                 master_template_id=master.id,
@@ -1754,6 +1754,8 @@ def final_feedback(manager_id):
 
     stats = answer_stats(instance)
     status = onboarding_status(instance)
+    breakdown = block_breakdown(instance)
+    weak_blocks = [b for b in breakdown if b['verdict'] == 'redo']
 
     overall = stats['overall_pct'] if stats['overall_pct'] is not None else 100
     if overall >= 71:
@@ -1770,6 +1772,8 @@ def final_feedback(manager_id):
         open_questions=open_questions,
         stats=stats,
         status=status,
+        breakdown=breakdown,
+        weak_blocks=weak_blocks,
         locked=bool(instance.archived),          # decided → read-only
         final_recommendation=final_recommendation,
     )

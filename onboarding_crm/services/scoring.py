@@ -65,6 +65,50 @@ def answer_stats(instance):
     }
 
 
+def block_breakdown(instance):
+    """Per-block scoring so the final feedback can say *which* blocks are weak.
+    TestResult.step is the block's position in the manager's ordered blocks."""
+    if instance is None:
+        return []
+    blocks = [b for b in resolve_manager_blocks(instance) if b.get('type') == 'stage']
+    results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
+
+    by_step = {}
+    for r in results:
+        by_step.setdefault(r.step, []).append(r)
+
+    out = []
+    for i, b in enumerate(blocks):
+        rs = by_step.get(i, [])
+        choice = [r for r in rs if r.is_correct is not None]
+        openq = [r for r in rs if r.is_correct is None]
+        c_correct = sum(1 for r in choice if r.is_correct)
+        c_total = len(choice)
+        o_graded = [r for r in openq if r.approved is not None]
+        o_ok = sum(1 for r in openq if r.approved is True)
+
+        num = c_correct + o_ok
+        den = c_total + len(o_graded)
+        pct = round(num / den * 100) if den else None
+
+        if pct is None:
+            verdict, label, badge = 'info', 'Інфо-блок', 'secondary'
+        elif pct >= 80:
+            verdict, label, badge = 'good', 'Добре', 'success'
+        elif pct >= 50:
+            verdict, label, badge = 'ok', 'Нормально', 'warning'
+        else:
+            verdict, label, badge = 'redo', 'Варто пройти ще раз', 'danger'
+
+        out.append({
+            'index': i, 'title': b.get('title') or f'Блок {i + 1}',
+            'choice_correct': c_correct, 'choice_total': c_total,
+            'open_ok': o_ok, 'open_graded': len(o_graded),
+            'pct': pct, 'verdict': verdict, 'label': label, 'badge': badge,
+        })
+    return out
+
+
 # stored final_decision -> (label, bootstrap badge class)
 _DECISION = {
     'approved': ('✅ Пройдено', 'success'),

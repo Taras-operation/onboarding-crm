@@ -398,6 +398,9 @@ function renumberAnswers(testDiv, blockIndex, testIndex) {
         input.name = input.name.replace(/answers\]\[\d+\]/, `answers][${i}]`);
       }
     });
+    // a) b) c) … display label (not part of the value)
+    const lbl = aDiv.querySelector('.answer-label');
+    if (lbl) lbl.textContent = String.fromCharCode(97 + (i % 26)) + ')';
   });
 }
 
@@ -747,8 +750,10 @@ function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
   container.appendChild(div);
 
   if (!data.answers || data.answers.length === 0) {
+    // default: 3 options (a, b, c) — add/remove as needed
     addAnswer(div.querySelector('.answers'), blockIndex, idx, 0);
     addAnswer(div.querySelector('.answers'), blockIndex, idx, 1);
+    addAnswer(div.querySelector('.answers'), blockIndex, idx, 2);
   } else {
     data.answers.forEach((ans, i) => addAnswer(div.querySelector('.answers'), blockIndex, idx, i, ans));
   }
@@ -765,10 +770,12 @@ function addAnswer(parentEl, blockIndex, testIndex, answerIndex = null, data = {
   div.className = 'answer flex items-center gap-2 mb-1';
   div.innerHTML = `
     <button type="button" class="text-red-500 hover:text-red-700" onclick="deleteAnswer(this)">✖</button>
+    <span class="answer-label font-semibold text-gray-500 w-6 text-center shrink-0"></span>
     <input type="text" name="blocks[${blockIndex}][test][questions][${testIndex}][answers][${idx}][value]" placeholder="Відповідь" class="flex-1 p-1 border rounded" value="${data?.value || ''}" />
-    <label><input type="checkbox" name="blocks[${blockIndex}][test][questions][${testIndex}][answers][${idx}][correct]" ${data?.correct ? 'checked' : ''}/> Правильна</label>
+    <label class="shrink-0"><input type="checkbox" name="blocks[${blockIndex}][test][questions][${testIndex}][answers][${idx}][correct]" ${data?.correct ? 'checked' : ''}/> Правильна</label>
   `;
   container.appendChild(div);
+  renumberAnswers(container);
 }
 
 // 🆕 Открытый вопрос

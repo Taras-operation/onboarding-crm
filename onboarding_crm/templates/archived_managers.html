@@ -22,7 +22,7 @@
           {% set instance = pair[1] %}
           <tr>
             <td>{{ loop.index }}</td>
-            <td class="text-primary">@{{ manager.username }}</td>
+            <td class="text-primary">{{ (manager.tg_nick or manager.username)|handle }}</td>
             <td>{{ manager.position or '—' }}</td>
             <td>{{ manager.department or '—' }}</td>
             <td>{{ instance.created_at.strftime('%d.%m.%Y') if instance.created_at else '—' }}</td>

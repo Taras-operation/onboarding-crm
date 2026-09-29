@@ -1,229 +1,131 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8">
-  <title>Результати тестів {{ manager.username }}</title>
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-</head>
-<body class="bg-gray-100 p-6">
-  <div class="max-w-4xl mx-auto bg-white p-6 rounded shadow">
-    
-    <h1 class="text-2xl font-bold mb-4">
-      Результати тестів для {{ manager.tg_nick or manager.username }}
-      <br>
-      <span class="text-base text-gray-600 font-normal">
-        Онбординг: {{ instance.name }}
-      </span>
-    </h1>
+{% extends 'base.html' %}
+{% block title %}Результати — Onboarding CRM{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+  <div class="page-title mb-0">📊 Результати: {{ (manager.tg_nick or manager.username)|handle }}</div>
+  <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline-secondary btn-sm">← До списку</a>
+</div>
+<div class="page-subtitle">{{ instance.name }}</div>
 
-    {% if locked %}
-    <div class="mb-6 p-4 rounded bg-gray-100 border border-gray-300">
-      🔒 <strong>Рішення прийнято:</strong> {{ status.label }}. Онбординг закрито — це перегляд, змінити оцінки чи рішення не можна.
-      {% if instance.final_comment %}<div class="text-sm text-gray-600 mt-1">Коментар ментора: {{ instance.final_comment }}</div>{% endif %}
-    </div>
-    {% endif %}
+{% if locked %}
+<div class="alert alert-{{ status.badge }} d-flex align-items-center gap-2">
+  <span class="fs-4">🔒</span>
+  <div>
+    <div class="fw-semibold">Рішення прийнято: {{ status.label }}</div>
+    {% if instance.final_comment %}<div class="small">Коментар: {{ instance.final_comment }}</div>{% endif %}
+    <div class="small text-muted">Онбординг закрито — це перегляд, змінити оцінки чи рішення не можна.</div>
+  </div>
+</div>
+{% elif show_popup %}
+<div class="alert alert-success d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span>🎉 Усі етапи та відкриті питання перевірено. Можна виносити фінальне рішення.</span>
+  <a href="{{ url_for('main.final_feedback', manager_id=manager.id) }}" class="btn btn-success btn-sm">🏁 До фінального фідбеку</a>
+</div>
+{% endif %}
 
-    <h2 class="text-xl font-semibold mb-2 mt-6">Тестові питання</h2>
+{# ── Тестові питання ── #}
+<div class="card mb-3">
+  <div class="card-body">
+    <h2 class="h6 mb-3">🧠 Тестові питання</h2>
     {% if choice_results %}
-      <table class="w-full table-auto border border-gray-300">
-        <thead class="bg-gray-100 text-left">
-          <tr>
-            <th class="border p-2">Крок</th>
-            <th class="border p-2">Питання</th>
-            <th class="border p-2">Відповідь</th>
-            <th class="border p-2">Правильна відповідь</th>
-            <th class="border p-2 text-center">✅</th>
-          </tr>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr><th>Крок</th><th>Питання</th><th>Відповідь</th><th>Правильна</th><th class="text-center">✔</th></tr>
         </thead>
         <tbody>
           {% for r in choice_results %}
-          <tr class="border-b {% if not r.is_correct %}bg-red-50{% endif %}">
-            <td class="border p-2">{{ r.step }}</td>
-            <td class="border p-2">{{ r.question }}</td>
-            <td class="border p-2">
-              {% if r.selected_answer.startswith('[') %}
-                {% set selected = r.selected_answer | safe | fromjson %}
-                {% if selected and selected|length > 0 %}
-                  {{ selected | join(', ') }}
-                {% else %}
-                  <i class="text-gray-400">Нічого не вибрано</i>
-                {% endif %}
-              {% else %}
-                {{ r.selected_answer }}
-              {% endif %}
+          <tr class="{% if not r.is_correct %}table-danger{% endif %}">
+            <td>{{ r.step + 1 }}</td>
+            <td>{{ r.question }}</td>
+            <td>
+              {% if r.selected_answer and r.selected_answer.startswith('[') %}
+                {% set sel = r.selected_answer | fromjson %}
+                {{ sel | join(', ') if sel else '—' }}
+              {% else %}{{ r.selected_answer or '—' }}{% endif %}
             </td>
-            <td class="border p-2">
-              {% if r.correct_answer.startswith('[') %}
-                {% set correct = r.correct_answer | safe | fromjson %}
-                {{ correct | join(', ') }}
-              {% else %}
-                {{ r.correct_answer }}
-              {% endif %}
+            <td class="text-muted">
+              {% if r.correct_answer and r.correct_answer.startswith('[') %}
+                {% set cor = r.correct_answer | fromjson %}{{ cor | join(', ') }}
+              {% else %}{{ r.correct_answer or '—' }}{% endif %}
             </td>
-            <td class="border p-2 text-center">
-              {% if r.is_correct %}
-                ✅
-              {% else %}
-                ❌
-              {% endif %}
-            </td>
+            <td class="text-center">{{ '✅' if r.is_correct else '❌' }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-    {% else %}
-      <p>Немає тестових результатів.</p>
-    {% endif %}
+    </div>
+    {% else %}<p class="text-muted mb-0">Немає тестових відповідей.</p>{% endif %}
+  </div>
+</div>
 
-    <h2 class="text-xl font-semibold mb-2 mt-8">Відкриті питання</h2>
+{# ── Відкриті питання (оцінювання) ── #}
+<div class="card">
+  <div class="card-body">
+    <h2 class="h6 mb-3">✍️ Відкриті питання</h2>
     {% if open_results %}
-      <div class="space-y-6 border border-gray-300 rounded p-4 bg-gray-50">
+      <div class="d-flex flex-column gap-3">
         {% for r in open_results %}
-          <form class="autosave-form" data-result-id="{{ r.id }}">
-            <div class="mb-4 p-4 rounded shadow {{ 'border border-green-300 bg-green-50' if r.approved is not none and r.feedback }}">
-              <div class="font-semibold mb-2">Крок {{ r.step }}: {{ r.question }}</div>
-
-              <div class="whitespace-pre-wrap text-gray-800 border-t pt-2 mb-2">
-                <div class="prose prose-sm">
-                  {{ r.selected_answer | urlize(target="_blank", rel="noopener noreferrer") | safe }}
-                </div>
-              </div>
-
-              <div class="mb-2">
-                <label class="block text-sm font-semibold text-gray-700">Оцінка:</label>
-                <div class="flex space-x-4">
-                  <label class="inline-flex items-center">
-                    <input type="radio" name="approved_{{ r.id }}" value="True"
-                      {% if r.approved is true %}checked{% endif %}
-                      {% if locked or (r.approved is not none and r.feedback) %}disabled{% endif %}
-                      class="form-radio text-green-500">
-                    <span class="ml-2">✅ Зараховано</span>
-                  </label>
-                  <label class="inline-flex items-center">
-                    <input type="radio" name="approved_{{ r.id }}" value="False"
-                      {% if r.approved is false %}checked{% endif %}
-                      {% if locked or (r.approved is not none and r.feedback) %}disabled{% endif %}
-                      class="form-radio text-red-500">
-                    <span class="ml-2">❌ Не зараховано</span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="mb-2">
-                <label class="block text-sm font-semibold text-gray-700">Фідбек:</label>
-                <textarea name="feedback" rows="2" class="w-full border rounded p-2" {% if locked or (r.approved is not none and r.feedback) %}disabled{% endif %}>{{ r.feedback or '' }}</textarea>
-              </div>
+        <form class="autosave-form border rounded p-3" data-result-id="{{ r.id }}">
+          <div class="fw-semibold mb-1">Крок {{ r.step + 1 }}: {{ r.question }}</div>
+          <div class="border-top pt-2 mb-2" style="white-space:pre-wrap">{{ r.selected_answer | urlize(target="_blank") }}</div>
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="btn-group btn-group-sm" role="group">
+              <input type="radio" class="btn-check" name="approved_{{ r.id }}" id="ok_{{ r.id }}" value="True"
+                     autocomplete="off" {% if r.approved is sameas true %}checked{% endif %} {% if locked %}disabled{% endif %}>
+              <label class="btn btn-outline-success" for="ok_{{ r.id }}">✅ Зараховано</label>
+              <input type="radio" class="btn-check" name="approved_{{ r.id }}" id="no_{{ r.id }}" value="False"
+                     autocomplete="off" {% if r.approved is sameas false %}checked{% endif %} {% if locked %}disabled{% endif %}>
+              <label class="btn btn-outline-danger" for="no_{{ r.id }}">❌ Не зараховано</label>
             </div>
-          </form>
+            <input type="text" name="feedback" class="form-control form-control-sm flex-grow-1"
+                   style="min-width:220px" placeholder="Коментар (необовʼязково)"
+                   value="{{ r.feedback or '' }}" {% if locked %}disabled{% endif %}>
+          </div>
+        </form>
         {% endfor %}
       </div>
-
       {% if not locked %}
-      <button id="publish-feedback-btn"
-        class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
-        ✅ Опублікувати фідбек
-      </button>
-
-      <script>
-        function getCSRFToken() {
-          return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        }
-
-        document.getElementById('publish-feedback-btn').addEventListener('click', () => {
-          fetch(`/publish_feedback/{{ manager.id }}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify({ publish: true })
-          })
-          .then(res => res.json())
-          .then(data => {
-            if (data.status === "published") {
-              alert("✅ Фідбек успішно опубліковано!");
-              window.location.href = "{{ url_for('main.managers_list') }}";
-            } else if (data.status === "no_changes") {
-              alert("ℹ️ Немає оновлень — перевірте, чи всі відповіді мають оцінку та фідбек.");
-            } else {
-              alert("⚠ Помилка при публікації.");
-            }
-          })
-          .catch(err => {
-            console.error(err);
-            alert("❌ Сталася помилка при надсиланні запиту.");
-          });
-        });
-      </script>
+      <button id="publish-feedback-btn" class="btn btn-primary btn-sm mt-3">✅ Опублікувати фідбек</button>
       {% endif %}
-    {% else %}
-      <p>Немає відкритих відповідей.</p>
-    {% endif %}
-
-    <a href="{{ url_for('main.managers_list') }}" class="mt-6 inline-block text-blue-600 hover:underline">← Назад</a>
+    {% else %}<p class="text-muted mb-0">Немає відкритих відповідей.</p>{% endif %}
   </div>
+</div>
+{% endblock %}
 
-  <script>
-    function getCSRFToken() {
-      return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    }
+{% block scripts %}
+<script>
+  const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-    document.querySelectorAll('.autosave-form').forEach(form => {
-      const resultId = form.dataset.resultId;
-
-      form.querySelectorAll('input[type=radio], textarea').forEach(input => {
-        input.addEventListener('change', () => {
-          const approved = form.querySelector('input[type=radio]:checked')?.value;
-          const feedback = form.querySelector('textarea[name=feedback]').value;
-
-          fetch(`/update_result/${resultId}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify({
-              approved: approved,
-              feedback: feedback,
-              draft: true
-            })
-          }).then(response => {
-            if (response.ok) {
-              console.log(`✔ Збережено: ${resultId}`);
-            } else {
-              console.error('❌ Помилка збереження');
-            }
-          });
+  document.querySelectorAll('.autosave-form').forEach(form => {
+    const id = form.dataset.resultId;
+    form.querySelectorAll('input[type=radio], input[name=feedback]').forEach(input => {
+      input.addEventListener('change', () => {
+        const approved = form.querySelector('input[type=radio]:checked')?.value;
+        const feedback = form.querySelector('input[name=feedback]').value;
+        fetch(`/update_result/${id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+          body: JSON.stringify({ approved: approved, feedback: feedback, draft: true })
         });
       });
     });
-  </script>
+  });
 
-  {% if show_popup %}
-  <script>
-    window.addEventListener("DOMContentLoaded", function () {
-      document.getElementById('finalFeedbackModal').classList.remove('hidden');
-    });
-  </script>
-
-  <div id="finalFeedbackModal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full shadow-xl text-center">
-      <h2 class="text-xl font-bold mb-3">🎉 Увага!</h2>
-      <p class="mb-2">Усі тести та відкриті питання менеджера <strong>{{ manager.tg_nick or manager.username }}</strong> завершено.</p>
-      <p class="mb-4 text-sm text-gray-600">Ви можете перейти до фінального фідбеку та зарахувати або повернути на доопрацювання.</p>
-      <div class="flex justify-center gap-4 mt-4">
-        <a href="{{ url_for('main.final_feedback', manager_id=manager.id) }}"
-           class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-          🔍 Перейти до фінального фідбеку
-        </a>
-        <button onclick="document.getElementById('finalFeedbackModal').classList.add('hidden')"
-                class="text-gray-500 hover:text-gray-700 px-4 py-2">
-          Закрити
-        </button>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-</body>
-</html>
+  const pub = document.getElementById('publish-feedback-btn');
+  if (pub) pub.addEventListener('click', () => {
+    fetch(`/publish_feedback/{{ manager.id }}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ publish: true })
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'published') { alert('✅ Фідбек опубліковано'); location.href = "{{ url_for('main.managers_list') }}"; }
+      else if (d.status === 'no_changes') { alert('ℹ️ Немає нових оцінок — перевірте, що всі відповіді оцінені.'); }
+      else { alert('⚠ Помилка публікації'); }
+    })
+    .catch(() => alert('❌ Помилка запиту'));
+  });
+</script>
+{% endblock %}

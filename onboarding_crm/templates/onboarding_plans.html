@@ -31,7 +31,7 @@
         {% for r in rows %}
         <tr>
           <td>{{ loop.index }}</td>
-          <td class="fw-semibold">@{{ r.manager.tg_nick or r.manager.username }}</td>
+          <td class="fw-semibold">{{ (r.manager.tg_nick or r.manager.username)|handle }}</td>
           <td>{{ r.mentor }}</td>
           <td>{{ r.selected }} / {{ master_block_count }}</td>
           <td>{{ r.completed }} / {{ r.selected }}</td>

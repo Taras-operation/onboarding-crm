@@ -73,5 +73,19 @@ def register_custom_filters(app):
     def regex_replace(s, find, replace):
         return re.sub(find, replace, s)
 
+    def handle(value):
+        # Bare handle without any leading @ (tg_nick is often stored as "@nick").
+        return (value or '').lstrip('@').strip()
+
+    import json as _json
+
+    def fromjson(value):
+        try:
+            return _json.loads(value)
+        except Exception:
+            return value
+
     app.jinja_env.filters['regex_replace'] = regex_replace
     app.jinja_env.filters['autolink'] = auto_link_urls
+    app.jinja_env.filters['handle'] = handle
+    app.jinja_env.filters['fromjson'] = fromjson

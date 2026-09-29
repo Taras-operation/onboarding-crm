@@ -2,7 +2,7 @@
 {% block title %}Фінальний фідбек — Onboarding CRM{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
-  <div class="page-title mb-0">📋 Фінальний фідбек: @{{ manager.tg_nick or manager.username }}</div>
+  <div class="page-title mb-0">📋 Фінальний фідбек: {{ (manager.tg_nick or manager.username)|handle }}</div>
   <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline-secondary btn-sm">← До списку</a>
 </div>
 <div class="page-subtitle">
@@ -56,6 +56,41 @@
 {% if stats.open_pending > 0 and not locked %}
 <div class="alert alert-warning small">
   ⚠️ {{ stats.open_pending }} відкрит(их) питань ще без оцінки — оцініть їх на сторінці «📊 Результати» перед фінальним рішенням.
+</div>
+{% endif %}
+
+{# ── Розбивка по блоках (чому «доопрацювання») ── #}
+{% if breakdown %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h6 mb-0">🧩 По блоках</h2>
+      {% if weak_blocks %}<span class="text-danger small">🔁 {{ weak_blocks|length }} блок(ів) варто пройти ще раз</span>{% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr><th>Блок</th><th class="text-center">Тести</th><th class="text-center">Відкриті</th><th class="text-center">%</th><th>Оцінка</th></tr>
+        </thead>
+        <tbody>
+          {% for b in breakdown %}
+          <tr>
+            <td>{{ loop.index }}. {{ b.title }}</td>
+            <td class="text-center">{% if b.choice_total %}{{ b.choice_correct }}/{{ b.choice_total }}{% else %}—{% endif %}</td>
+            <td class="text-center">{% if b.open_graded %}{{ b.open_ok }}/{{ b.open_graded }}{% else %}—{% endif %}</td>
+            <td class="text-center fw-semibold">{% if b.pct is not none %}{{ b.pct }}%{% else %}—{% endif %}</td>
+            <td><span class="badge bg-{{ b.badge }}{% if b.badge in ['warning','secondary'] %} text-dark{% endif %}">{{ b.label }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if weak_blocks %}
+    <div class="alert alert-danger small mt-3 mb-0">
+      🔁 <strong>Слабкі сторони.</strong> Рекомендуємо пройти ще раз: {{ weak_blocks|map(attribute='title')|join(', ') }}.
+    </div>
+    {% endif %}
+  </div>
 </div>
 {% endif %}
 
