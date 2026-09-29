@@ -93,6 +93,10 @@ class OnboardingTemplate(db.Model):
         index=True
     )
 
+    # 🔹 МАСТЕР-ОНБОРДИНГ ВІДДІЛУ — єдине джерело всіх блоків (один на відділ).
+    # Менеджеру призначається підмножина блоків цього майстра (за block id).
+    is_master = db.Column(db.Boolean, default=False, server_default=text('false'), index=True)
+
     # 🔹 ШЕРИНГ ШАБЛОНОВ
     is_global = db.Column(db.Boolean, default=False)
 

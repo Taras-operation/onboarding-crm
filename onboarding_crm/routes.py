@@ -18,6 +18,7 @@ from onboarding_crm.permissions import (
     assert_can_delete_template,
 )
 from onboarding_crm.services.progress import count_stages, calculate_progress
+from onboarding_crm.services.master import get_or_create_master, ensure_block_ids
 import json
 import random
 import re
@@ -698,6 +699,14 @@ def onboarding_editor():
     return render_template('add_template.html', managers=managers)
 
 
+@bp.route('/onboarding/master')
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.HEAD)
+def master_onboarding():
+    """Open the department's single master onboarding (all blocks) in the editor."""
+    master = get_or_create_master(current_user.department, created_by=current_user.id)
+    return redirect(url_for('main.add_onboarding_template', template_id=master.id))
+
+
 # --- Onboarding block attachment upload endpoint ---
 @bp.route('/onboarding/attachment/upload', methods=['POST'])
 @login_required
@@ -765,6 +774,8 @@ def add_onboarding_template():
             structure = []
 
         structure = _sanitize_onboarding_structure(structure)
+        # Ensure every block carries a stable id (belt-and-suspenders next to the editor JS).
+        structure = ensure_block_ids(structure)['blocks']
 
         selected_manager_id = request.form.get('selected_manager') or 'template'
         name = request.form.get('name')

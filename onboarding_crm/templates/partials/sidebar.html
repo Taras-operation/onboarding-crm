@@ -34,6 +34,9 @@
         <span class="ico">➕</span> Додати менеджера
       </a>
     {% endif %}
+    <a class="sidebar-link {{ 'active' if ep == 'main.master_onboarding' }}" href="{{ url_for('main.master_onboarding') }}">
+      <span class="ico">🧱</span> Майстер онбордингу
+    </a>
     <a class="sidebar-link {{ 'active' if ep == 'main.onboarding_plans' }}" href="{{ url_for('main.onboarding_plans') }}">
       <span class="ico">📅</span> Плани онбордингу
     </a>

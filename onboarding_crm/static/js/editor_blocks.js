@@ -627,6 +627,9 @@ function addStage(data = {}, index = null) {
   const block = document.createElement('div');
   block.className = 'block bg-white p-4 rounded shadow mb-4 border relative';
   block.dataset.reorderId = `block-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  // Stable block id — kept through edits/reorder so a manager can reference a subset of
+  // master blocks. Preserved from saved data; new blocks get one on save (parseStructure).
+  block.dataset.blockId = data.id || '';
 
   block.innerHTML = `
     <div class="drag-handle cursor-move absolute left-2 top-2 text-gray-400" title="Перетягніть, щоб змінити порядок">⋮⋮</div>
@@ -790,7 +793,12 @@ function parseStructure() {
   const blocks = [];
 
   document.querySelectorAll('.block').forEach((blockDiv) => {
+    // Reuse the stable id, or mint one for a brand-new block.
+    if (!blockDiv.dataset.blockId) {
+      blockDiv.dataset.blockId = 'b' + Date.now().toString(16) + Math.random().toString(16).slice(2, 8);
+    }
     const block = {
+      id: blockDiv.dataset.blockId,
       type: 'stage',
       title: blockDiv.querySelector('[name^="blocks"][name$="[title]"]')?.value || '',
       description: blockDiv.querySelector('[name^="blocks"][name$="[description]"]')?.value || '',
