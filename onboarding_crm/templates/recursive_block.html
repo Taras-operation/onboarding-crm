@@ -252,7 +252,13 @@
         </div>
       </form>
     {% else %}
-      <div class="text-sm text-gray-600">Для цього блоку немає тестових питань.</div>
+      <div class="text-sm text-gray-600 mb-4">Для цього блоку немає тестових питань — ознайомтеся й завершіть.</div>
+      {% if not test_completed %}
+      <button type="button" id="completeNoTest_{{ index }}"
+              class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+        Завершити блок
+      </button>
+      {% endif %}
     {% endif %}
   </div>
 
@@ -326,8 +332,9 @@
     function updateButtonState() {
       if (!proceedBtn) return;
       if (checkboxes.length === 0) {
-        proceedBtn.disabled = true;
-        proceedBtn.classList.add("opacity-50","cursor-not-allowed");
+        // no subblocks to acknowledge → nothing to gate on, allow proceeding
+        proceedBtn.disabled = false;
+        proceedBtn.classList.remove("opacity-50","cursor-not-allowed");
         return;
       }
       const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -339,9 +346,24 @@
     checkboxes.forEach(cb => cb.addEventListener("change", updateButtonState));
     updateButtonState();
 
+    const completeNoTestBtn = root.querySelector("#completeNoTest_{{ index }}");
+    if (completeNoTestBtn) {
+      completeNoTestBtn.addEventListener("click", async () => {
+        completeNoTestBtn.disabled = true;
+        try {
+          await fetch(`/api/test/complete/{{ index }}`, { method: "POST", headers: { 'X-CSRFToken': getCSRFToken() } });
+        } catch (_) {}
+        resultTextModal.innerText = "Блок пройдено ✅";
+        motivationText.innerText = motivations[Math.floor(Math.random() * motivations.length)];
+        resultModal.classList.remove("hidden");
+      });
+    }
+
     if (proceedBtn) {
       proceedBtn.addEventListener("click", async () => {
-        try { await fetch(`/api/test/start/{{ index }}`, { method: 'POST' }); } catch (_) {}
+        // NB: send CSRF — without it CSRFProtect rejects the POST (400) and the
+        // "started" lock never persists, so a reload would drop you back to the info.
+        try { await fetch(`/api/test/start/{{ index }}`, { method: 'POST', headers: { 'X-CSRFToken': getCSRFToken() } }); } catch (_) {}
         try {
           const url = new URL(window.location.href);
           url.searchParams.set('start', '1');

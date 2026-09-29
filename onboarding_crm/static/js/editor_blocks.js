@@ -900,7 +900,38 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  document.querySelector('form')?.addEventListener('submit', function () {
+  // Validate: every test with answers must have a correct one marked, else block saving.
+  function validateTests() {
+    const invalid = [];
+    document.querySelectorAll('#blocks-container .test').forEach(testDiv => {
+      testDiv.classList.remove('border-red-500', 'border-2');
+      testDiv.querySelector('.test-warning')?.remove();
+
+      const answers = Array.from(testDiv.querySelectorAll('.answer'));
+      const hasContent = answers.some(a => (a.querySelector('input[type=text]')?.value || '').trim() !== '');
+      const qText = (testDiv.querySelector('input[name$="[question]"]')?.value || '').trim();
+      const hasCorrect = answers.some(a => a.querySelector('input[type=checkbox]')?.checked);
+
+      if ((hasContent || qText) && !hasCorrect) {
+        invalid.push(testDiv);
+        testDiv.classList.add('border-red-500', 'border-2');
+        const w = document.createElement('div');
+        w.className = 'test-warning text-red-600 text-xs font-semibold mt-1';
+        w.textContent = '⚠️ Позначте правильну відповідь (галочку «Правильна»)';
+        testDiv.appendChild(w);
+      }
+    });
+    return invalid;
+  }
+
+  document.querySelector('form')?.addEventListener('submit', function (e) {
+    const invalid = validateTests();
+    if (invalid.length) {
+      e.preventDefault();
+      alert(`⚠️ У ${invalid.length} тест(ах) не позначено правильну відповідь. Позначте правильний варіант, щоб зберегти.`);
+      invalid[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     const structure = parseStructure();
     document.getElementById('structure').value = JSON.stringify(structure.blocks);
   });

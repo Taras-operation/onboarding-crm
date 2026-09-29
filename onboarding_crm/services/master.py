@@ -101,11 +101,21 @@ def resolve_manager_blocks(instance):
     locked = instance.locked_blocks if isinstance(instance.locked_blocks, dict) else {}
     master = (OnboardingTemplate.query.get(instance.master_template_id)
               if instance.master_template_id else None)
-    master_by_id = {b.get('id'): b for b in normalize_blocks(master.structure)} if master else {}
+    master_list = normalize_blocks(master.structure) if master else []
+    master_by_id = {b.get('id'): b for b in master_list}
     snap_by_id = {b.get('id'): b for b in normalize_blocks(instance.structure)}
 
-    out = []
+    # Follow the CURRENT master order so the manager sees blocks in the same order the
+    # supervisor does on the selection screen. Any selected id no longer in the master
+    # (removed/locked) is appended in its stored order.
+    selected_set = set(selected)
+    ordered_ids = [b.get('id') for b in master_list if b.get('id') in selected_set]
     for bid in selected:
+        if bid not in ordered_ids:
+            ordered_ids.append(bid)
+
+    out = []
+    for bid in ordered_ids:
         if isinstance(locked.get(bid), dict):
             out.append(locked[bid])
         elif bid in master_by_id:
