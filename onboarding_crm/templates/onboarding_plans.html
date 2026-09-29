@@ -2,121 +2,57 @@
 {% block title %}Плани онбордингу — Onboarding CRM{% endblock %}
 {% block content %}
 <div class="page-title">📅 Плани онбордингу</div>
-<div class="page-subtitle">Шаблони та призначені онбординги менеджерів.</div>
+<div class="page-subtitle">Єдиний майстер відділу — і блоки, призначені кожному менеджеру.</div>
 
-<div class="row g-3">
-  <!-- Templates -->
-  <div class="col-12 col-xl-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h2 class="h5 mb-0">Шаблони онбордингу</h2>
-          <a class="btn btn-primary btn-sm" href="/onboarding/template/add">+ Додати шаблон</a>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle text-center mb-0">
-            <thead>
-              <tr><th>№</th><th>Назва</th><th>Етапів</th><th>Створено</th><th>Дії</th></tr>
-            </thead>
-            <tbody>
-              {% for template in templates %}
-              <tr id="template-row-{{ template.id }}">
-                <td>{{ loop.index }}</td>
-                <td>{{ template.name }}</td>
-                <td>{{ template.step_count }}</td>
-                <td>{{ template.created_at.strftime('%d.%m.%Y') if template.created_at else '—' }}</td>
-                <td>
-                  <div class="d-inline-flex gap-2">
-                    <a class="btn btn-outline-secondary btn-sm" title="Редагувати"
-                       href="/onboarding/template/add?template_id={{ template.id }}">✏️</a>
-                    <a class="btn btn-outline-secondary btn-sm" title="Копіювати"
-                       href="/onboarding/template/add?template_id={{ template.id }}&copy=1">📄</a>
-                    <button class="btn btn-outline-danger btn-sm" title="Видалити"
-                            onclick="confirmDeleteTemplate('{{ template.id }}', '{{ template.name|e }}')">🗑️</button>
-                  </div>
-                </td>
-              </tr>
-              {% else %}
-              <tr><td colspan="5" class="text-muted py-3">Немає шаблонів.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
+{# ── Майстер відділу ── #}
+<div class="card mb-3">
+  <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <div class="fw-semibold">🧱 Майстер онбордингу{% if master %} — {{ master.department }}{% endif %}</div>
+      <div class="text-muted small">{{ master_block_count }} блок(ів) · єдине джерело для всіх менеджерів</div>
     </div>
-  </div>
-
-  <!-- Manager plans -->
-  <div class="col-12 col-xl-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h2 class="h5 mb-0">Онбординги менеджерів</h2>
-          <a class="btn btn-primary btn-sm" href="/onboarding/template/add">+ Додати план</a>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle text-center mb-0">
-            <thead>
-              <tr><th>№</th><th>Назва</th><th>Етапи</th><th>Ментор</th><th>Дії</th></tr>
-            </thead>
-            <tbody>
-              {% for plan in user_plans %}
-              <tr id="manager-row-{{ plan.manager_id }}">
-                <td>{{ loop.index }}</td>
-                <td>{{ plan.name }}</td>
-                <td>{{ plan.completed or 0 }}/{{ plan.total or 0 }}</td>
-                <td>{{ plan.mentor or '—' }}</td>
-                <td>
-                  <div class="d-inline-flex gap-2">
-                    <a class="btn btn-outline-secondary btn-sm" title="Редагувати"
-                       href="/onboarding/user/edit/{{ plan.manager_id }}">✏️</a>
-                    {% if plan.onboarding_id %}
-                    <button class="btn btn-outline-danger btn-sm" title="Видалити"
-                            onclick="confirmDeleteInstance({{ plan.onboarding_id }}, {{ plan.manager_id }})">🗑️</button>
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-              {% else %}
-              <tr><td colspan="5" class="text-muted py-3">Немає призначених онбордингів.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    {% if current_user.role in ['mentor', 'teamlead', 'head'] %}
+    <a href="{{ url_for('main.master_onboarding') }}" class="btn btn-primary btn-sm">Редагувати майстер</a>
+    {% endif %}
   </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
-<script>
-  const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-  function confirmDeleteInstance(onboardingId, managerId) {
-    if (!confirm("Видалити цей онбординг?")) return;
-    fetch(`/onboarding/instance/delete/${onboardingId}`, { method: 'DELETE', headers: { 'X-CSRFToken': CSRF } })
-      .then(r => {
-        if (r.status === 204) {
-          const row = document.getElementById(`manager-row-${managerId}`);
-          if (row) row.remove(); else location.reload();
-        } else {
-          r.json().then(d => alert(d.message || 'Помилка при видаленні')).catch(() => alert('Помилка'));
-        }
-      });
-  }
-
-  function confirmDeleteTemplate(templateId, templateName) {
-    if (!confirm(`Видалити шаблон "${templateName}"?`)) return;
-    fetch(`/onboarding/template/delete/${templateId}`, { method: 'DELETE', headers: { 'X-CSRFToken': CSRF } })
-      .then(r => {
-        if (r.status === 204) {
-          const row = document.getElementById(`template-row-${templateId}`);
-          if (row) row.remove(); else location.reload();
-        } else {
-          r.json().then(d => alert(d.message || 'Помилка при видаленні шаблону')).catch(() => alert('Помилка'));
-        }
-      });
-  }
-</script>
+{# ── Менеджери та їхні блоки ── #}
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>№</th><th>Менеджер</th><th>Ментор</th>
+          <th>Блоків обрано</th><th>Пройдено</th><th class="text-end">Дії</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td class="fw-semibold">@{{ r.manager.tg_nick or r.manager.username }}</td>
+          <td>{{ r.mentor }}</td>
+          <td>{{ r.selected }} / {{ master_block_count }}</td>
+          <td>{{ r.completed }} / {{ r.selected }}</td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-2">
+              {% if current_user.role in ['mentor', 'teamlead'] %}
+              <a href="{{ url_for('main.select_manager_blocks', manager_id=r.manager.id) }}"
+                 class="btn btn-outline-primary btn-sm">🧩 Блоки</a>
+              {% endif %}
+              {% if r.instance %}
+              <a href="{{ url_for('main.manager_results', manager_id=r.manager.id, onboarding_id=r.instance.id) }}"
+                 class="btn btn-outline-secondary btn-sm">📊 Результати</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted py-3">Немає менеджерів.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}

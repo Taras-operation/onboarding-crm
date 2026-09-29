@@ -19,7 +19,7 @@ from onboarding_crm.permissions import (
 )
 from onboarding_crm.services.progress import count_stages, calculate_progress
 from onboarding_crm.services.master import (
-    get_or_create_master, ensure_block_ids, normalize_blocks, resolve_manager_blocks,
+    get_or_create_master, get_master, ensure_block_ids, normalize_blocks, resolve_manager_blocks,
 )
 import json
 import random
@@ -717,50 +717,31 @@ def select_manager_blocks(manager_id):
 @bp.route('/onboarding/plans')
 @roles_required(Role.MENTOR, Role.TEAMLEAD, Role.DEVELOPER, Role.HEAD)
 def onboarding_plans():
-    # ✅ Templates visibility: own department + own created + shared + global
-    templates = _visible_templates_for_current_user()
-    for t in templates:
-        try:
-            parsed = json.loads(t.structure) if isinstance(t.structure, str) else t.structure
-            if isinstance(parsed, str):
-                parsed = json.loads(parsed)
+    # New model: one master per department + managers with their selected block counts.
+    master = get_master(current_user.department)
+    master_block_count = len(normalize_blocks(master.structure)) if master else 0
 
-            blocks = parsed.get('blocks') if isinstance(parsed, dict) else parsed
-            blocks = blocks or []
-            t.step_count = sum(
-                1 for block in blocks
-                if isinstance(block, dict) and block.get('type') == 'stage'
-            )
-        except Exception as e:
-            print(f"[plans] Шаблон {t.id}: помилка JSON: {e}")
-            t.step_count = 0
-
-    # ✅ Managers list (department-aware, single source)
     managers = managers_query_for(current_user).all()
-
-    # Latest instance per manager in ONE query (was N+1)
     latest_by_manager = _latest_instances_for([m.id for m in managers])
 
-    user_plans_data = []
+    rows = []
     for m in managers:
         instance = latest_by_manager.get(m.id)
-
-        completed_steps = (instance.onboarding_step or 0) if instance else 0
-        total_steps = count_stages(instance.structure) if instance else 0
-
-        user_plans_data.append({
-            'manager_id': m.id,
-            'onboarding_id': instance.id if instance else None,
-            'name': f"Онбординг для @{m.tg_nick or m.username}",
-            'completed': completed_steps,
-            'total': total_steps,
-            'mentor': m.added_by.tg_nick if m.added_by else '—'
+        selected = len(instance.selected_block_ids or []) if instance else 0
+        completed = (instance.onboarding_step or 0) if instance else 0
+        rows.append({
+            'manager': m,
+            'instance': instance,
+            'selected': selected,
+            'completed': completed,
+            'mentor': (m.added_by.tg_nick if m.added_by else '—'),
         })
 
     return render_template(
         "onboarding_plans.html",
-        templates=templates,
-        user_plans=user_plans_data
+        master=master,
+        master_block_count=master_block_count,
+        rows=rows,
     )
 
 @bp.route('/onboarding/editor')
