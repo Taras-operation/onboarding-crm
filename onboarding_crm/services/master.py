@@ -78,3 +78,38 @@ def master_blocks(department):
     if not master:
         return []
     return normalize_blocks(master.structure)
+
+
+def resolve_manager_blocks(instance):
+    """Ordered blocks a manager actually sees (new live-reference model):
+
+    - a completed block → its frozen snapshot from `locked_blocks` (so later master edits
+      don't rewrite what they already did);
+    - otherwise → the live block from the department master, by id;
+    - fallback → the assignment-time snapshot in `instance.structure` if the master block
+      is gone.
+
+    Legacy instances (no `selected_block_ids`) fall back to their own structure.
+    """
+    if instance is None:
+        return []
+
+    selected = instance.selected_block_ids or []
+    if not selected:
+        return [b for b in normalize_blocks(instance.structure) if isinstance(b, dict)]
+
+    locked = instance.locked_blocks if isinstance(instance.locked_blocks, dict) else {}
+    master = (OnboardingTemplate.query.get(instance.master_template_id)
+              if instance.master_template_id else None)
+    master_by_id = {b.get('id'): b for b in normalize_blocks(master.structure)} if master else {}
+    snap_by_id = {b.get('id'): b for b in normalize_blocks(instance.structure)}
+
+    out = []
+    for bid in selected:
+        if isinstance(locked.get(bid), dict):
+            out.append(locked[bid])
+        elif bid in master_by_id:
+            out.append(master_by_id[bid])
+        elif bid in snap_by_id:
+            out.append(snap_by_id[bid])
+    return out

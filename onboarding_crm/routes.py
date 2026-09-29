@@ -18,7 +18,9 @@ from onboarding_crm.permissions import (
     assert_can_delete_template,
 )
 from onboarding_crm.services.progress import count_stages, calculate_progress
-from onboarding_crm.services.master import get_or_create_master, ensure_block_ids, normalize_blocks
+from onboarding_crm.services.master import (
+    get_or_create_master, ensure_block_ids, normalize_blocks, resolve_manager_blocks,
+)
 import json
 import random
 import re
@@ -662,9 +664,22 @@ def select_manager_blocks(manager_id):
 
     if request.method == 'POST':
         chosen = set(request.form.getlist('block_ids'))
-        # Keep selection in master order; drop any ids no longer in the master.
-        ordered = [b['id'] for b in blocks if b.get('id') in chosen]
-        snapshot = [b for b in blocks if b.get('id') in chosen]
+
+        # Never drop a block the manager already completed (keeps results consistent).
+        completed_ids = set((instance.locked_blocks or {}).keys()) if instance else set()
+        chosen |= completed_ids
+
+        master_ids_in_order = [b['id'] for b in blocks if b.get('id')]
+        valid_master_ids = set(master_ids_in_order)
+        existing = [bid for bid in ((instance.selected_block_ids or []) if instance else [])
+                    if bid in chosen and bid in valid_master_ids]
+        # Preserve the positions of already-selected blocks; append newly chosen ones in
+        # master order — so a completed block's index never shifts under it.
+        added = [bid for bid in master_ids_in_order if bid in chosen and bid not in existing]
+        ordered = existing + added
+
+        by_id = {b['id']: b for b in blocks if b.get('id')}
+        snapshot = [by_id[bid] for bid in ordered if bid in by_id]
 
         if not ordered:
             flash('Оберіть хоча б один блок', 'warning')
@@ -1304,66 +1319,32 @@ def manager_dashboard():
     if not instance:
         return "Онбординг ще не призначено", 404
 
-    print(f"[manager_dashboard] use onboarding_instance id={instance.id}")
+    # New model: blocks are resolved live from the department master (snapshot if the
+    # block is already completed). Progress is keyed by stable block id.
+    stage_blocks = [b for b in resolve_manager_blocks(instance) if b.get("type") == "stage"]
 
-    # 2. Разбор структуры
-    try:
-        raw = instance.structure
-        parsed = json.loads(raw) if isinstance(raw, str) else raw
-        if isinstance(parsed, str):
-            parsed = json.loads(parsed)
+    progress = instance.test_progress if isinstance(instance.test_progress, dict) else {}
 
-        if isinstance(parsed, dict) and 'blocks' in parsed:
-            blocks_all = parsed['blocks']
-        elif isinstance(parsed, list):
-            blocks_all = parsed
-        else:
-            blocks_all = []
-    except Exception as e:
-        print(f"[manager_dashboard] ❌ JSON error: {e}")
-        blocks_all = []
-
-    # 3. Выбираем только stage-блоки
-    stage_blocks = [b for b in blocks_all if b.get("type") == "stage"]
-
-    # 4. Поточный шаг
-    current_step = instance.onboarding_step or 0
-    if current_step >= len(stage_blocks):
-        current_step = len(stage_blocks) - 1 if stage_blocks else 0
-
-    # 5. Прогресс (dict)
-    progress = instance.test_progress or {}
-    if not isinstance(progress, dict):
-        try:
-            progress = json.loads(progress)
-        except Exception:
-            progress = {}
-
-    # Добавляем progress['0'] при первом запуске
-    if '0' not in progress and stage_blocks:
-        progress['0'] = {"started": False, "completed": False}
-        instance.test_progress = progress
-        db.session.commit()
-
-    # 6. Генерация метаданных шагов
     steps_meta = []
     for i, b in enumerate(stage_blocks):
-        p = progress.get(str(i), {})
-        started = bool(p.get('started', False))
-        completed = bool(p.get('completed', False))
-        step_url = url_for('main.manager_step', step=i)
+        bid = b.get("id")
+        p = progress.get(bid, {}) if bid else {}
         steps_meta.append({
             "index": i,
+            "id": bid,
             "title": b.get("title") or f"Крок {i + 1}",
             "description": b.get("description") or "",
-            "started": started,
-            "completed": completed,
-            "url": step_url,
+            "started": bool(p.get("started")),
+            "completed": bool(p.get("completed")),
+            "url": url_for('main.manager_step', step=i),
         })
 
-    # 7. Доступность шагов через onboarding_step
+    # Sequential unlock: first step always open; each next opens once the previous is done.
     for i, meta in enumerate(steps_meta):
-        meta["accessible"] = (i <= current_step)
+        meta["accessible"] = (i == 0) or steps_meta[i - 1]["completed"]
+
+    current_step = next((m["index"] for m in steps_meta if not m["completed"]),
+                        max(len(steps_meta) - 1, 0))
 
     return render_template(
         'manager_dashboard.html',
@@ -1384,49 +1365,23 @@ def manager_step(step):
     if not instance:
         return redirect(url_for('main.manager_dashboard'))
 
-    print(f"[manager_step] use onboarding_instance id={instance.id}")
-
-    # --- Разбор структуры ---
-    try:
-        raw = instance.structure
-        parsed = json.loads(raw) if isinstance(raw, str) else raw
-        if isinstance(parsed, str):
-            parsed = json.loads(parsed)
-        blocks = parsed.get('blocks', []) if isinstance(parsed, dict) else parsed
-    except Exception as e:
-        print(f"[manager_step] ❌ JSON parse error: {e}")
-        blocks = []
-
-    stage_blocks = [b for b in blocks if b.get("type") == "stage"]
+    # New model: blocks are the manager's selected subset, resolved live from the master
+    # (snapshot for completed ones). Progress is keyed by stable block id.
+    stage_blocks = [b for b in resolve_manager_blocks(instance) if b.get("type") == "stage"]
     total_steps = len(stage_blocks)
     if step >= total_steps:
         return redirect(url_for('main.manager_dashboard'))
 
     block = stage_blocks[step]
+    block_id = block.get('id') or str(step)
 
-    # --- Прогресс ---
-    progress = instance.test_progress or {}
-    if not isinstance(progress, dict):
-        try:
-            progress = json.loads(progress)
-        except Exception:
-            progress = {}
+    # --- Прогресс (copy → new object so JSON writes are detected) ---
+    progress = dict(instance.test_progress) if isinstance(instance.test_progress, dict) else {}
 
-    step_key = str(step)
+    step_key = block_id
     step_progress = progress.get(step_key, {})
     raw_started = bool(step_progress.get('started', False))
     raw_completed = bool(step_progress.get('completed', False))
-
-    # --- Подстраховка: если уже прошли дальше, а этот не завершён
-    if (instance.onboarding_step or 0) > step and not raw_completed:
-        prev = progress.get(step_key, {})
-        prev['started'] = True
-        prev['completed'] = True
-        progress[step_key] = prev
-        instance.test_progress = progress
-        db.session.commit()
-        raw_started = True
-        raw_completed = True
 
     # --- Cookie fallback
     cookie_started = request.cookies.get(f"step_started_{step}") == "1"
@@ -1528,16 +1483,18 @@ def manager_step(step):
             ))
             open_q_count += 1
 
-        # --- Завершаем шаг и открываем следующий
+        # Complete this step and FREEZE its content: snapshot the block into locked_blocks
+        # so later edits to the master don't rewrite what the manager already did.
         progress[step_key] = {'started': True, 'completed': True}
-
-        next_step = step + 1
-        if next_step < total_steps and str(next_step) not in progress:
-            progress[str(next_step)] = {"started": False, "completed": False}
+        locked = dict(instance.locked_blocks) if isinstance(instance.locked_blocks, dict) else {}
+        locked[block_id] = block
 
         instance.test_progress = progress
-        instance.onboarding_step = max(instance.onboarding_step or 0, step + 1)
-        current_user.onboarding_step = instance.onboarding_step
+        instance.locked_blocks = locked
+
+        completed_count = sum(1 for v in progress.values() if isinstance(v, dict) and v.get('completed'))
+        instance.onboarding_step = completed_count
+        current_user.onboarding_step = completed_count
         db.session.commit()
 
         print(f"[manager_step POST] instance_id={instance.id} COMPLETE step={step} progress[{step_key}]={progress[step_key]}")
@@ -1650,27 +1607,20 @@ def api_test_start(step):
                 .order_by(OnboardingInstance.id.desc())
                 .first_or_404())
 
-    progress = instance.test_progress or {}
-    if not isinstance(progress, dict):
-        try:
-            progress = json.loads(progress)
-        except Exception:
-            progress = {}
+    blocks = [b for b in resolve_manager_blocks(instance) if b.get('type') == 'stage']
+    if step >= len(blocks):
+        return jsonify({'status': 'error'}), 404
+    block_id = blocks[step].get('id') or str(step)
 
-    key = str(step)
-    prev = progress.get(key, {})
-    # только помечаем started, completed не трогаем
-    prev['started'] = True
-    progress[key] = prev
+    progress = dict(instance.test_progress) if isinstance(instance.test_progress, dict) else {}
+    prev = dict(progress.get(block_id, {}))
+    prev['started'] = True  # только помечаем started, completed не трогаем
+    progress[block_id] = prev
 
     instance.test_progress = progress
     db.session.commit()
 
-    print(f"[START] instance_id={instance.id} step={step} progress={progress}")
-
-    # Возвращаем JSON и одновременно ставим cookie, чтобы «анти-чит» переживал Back/Fwd
     resp = jsonify({'status': 'ok'})
-    # cookie действует на страницу шага; живёт до конца сессии
     resp.set_cookie(f"step_started_{step}", "1", path=f"/manager_step/{step}", samesite="Lax")
     return resp
 
@@ -1684,29 +1634,30 @@ def api_test_complete(step):
                 .order_by(OnboardingInstance.id.desc())
                 .first_or_404())
 
-    progress = instance.test_progress or {}
-    if not isinstance(progress, dict):
-        try:
-            progress = json.loads(progress)
-        except Exception:
-            progress = {}
+    blocks = [b for b in resolve_manager_blocks(instance) if b.get('type') == 'stage']
+    if step >= len(blocks):
+        return jsonify({'status': 'error'}), 404
+    block = blocks[step]
+    block_id = block.get('id') or str(step)
 
-    key = str(step)
-    prev = progress.get(key, {})
+    progress = dict(instance.test_progress) if isinstance(instance.test_progress, dict) else {}
+    prev = dict(progress.get(block_id, {}))
     prev['completed'] = True
-    prev['started']  = prev.get('started', True)  # если не было start → считаем, что был
-    progress[key] = prev
+    prev['started'] = prev.get('started', True)
+    progress[block_id] = prev
+
+    # Freeze the completed block (snapshot) so master edits don't rewrite it.
+    locked = dict(instance.locked_blocks) if isinstance(instance.locked_blocks, dict) else {}
+    locked[block_id] = block
 
     instance.test_progress = progress
+    instance.locked_blocks = locked
 
-    # если этот шаг был текущим, продвигаем дальше
-    if instance.onboarding_step is None or instance.onboarding_step <= step:
-        instance.onboarding_step = step + 1
-
+    completed_count = sum(1 for v in progress.values() if isinstance(v, dict) and v.get('completed'))
+    instance.onboarding_step = completed_count
+    current_user.onboarding_step = completed_count
     db.session.commit()
-    print(f"[COMPLETE] instance_id={instance.id} step={step} progress={progress}")
 
-    # Чистим cookie «старт шага», чтобы при возврате не открывался тест
     resp = jsonify({'status': 'ok'})
     resp.delete_cookie(f"step_started_{step}", path=f"/manager_step/{step}")
     return resp
