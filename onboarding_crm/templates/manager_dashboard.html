@@ -66,11 +66,37 @@
   <div class="ml-64 p-6 w-[calc(100%-16rem)]">
     <div class="max-w-4xl mx-auto space-y-6">
 
-      <div class="flex justify-between items-center mb-8">
+      <div class="flex justify-between items-center mb-6">
         <h1 class="text-3xl font-extrabold text-gray-900">
           Привіт, {{ current_user.tg_nick or current_user.login }}!
         </h1>
       </div>
+
+      {# ── Статус онбордингу ── #}
+      {% if status.decided %}
+        <div class="mb-8 p-5 rounded-2xl border-l-4
+          {% if status.code == 'approved' %}bg-green-50 border-green-500 text-green-800
+          {% elif status.code == 'rejected' %}bg-red-50 border-red-500 text-red-800
+          {% else %}bg-yellow-50 border-yellow-500 text-yellow-800{% endif %}">
+          <div class="text-xl font-bold mb-1">{{ status.label }}</div>
+          {% if status.code == 'approved' %}
+            <p>Вітаємо! Ти успішно завершив онбординг 🎉 Тепер ти повноцінний учасник команди.</p>
+          {% elif status.code == 'rejected' %}
+            <p>На жаль, онбординг не зараховано. З тобою звʼяжеться ментор або тімлід.</p>
+          {% else %}
+            <p>Потрібне доопрацювання — ментор додасть блок для проходження.</p>
+          {% endif %}
+        </div>
+      {% elif status.finished %}
+        <div class="mb-8 p-5 rounded-2xl border-l-4 bg-blue-50 border-blue-500 text-blue-800">
+          <div class="text-xl font-bold mb-1">🎉 Ти завершив усі етапи онбордингу!</div>
+          <p>Очікуй фінального рішення від ментора / тімліда — воно зʼявиться тут.</p>
+        </div>
+      {% else %}
+        <div class="mb-8 p-4 rounded-xl bg-white border border-gray-200 text-gray-700">
+          Прогрес: <strong>{{ status.progress.completed }}/{{ status.progress.total }}</strong> етапів пройдено.
+        </div>
+      {% endif %}
 
       {% for block in blocks %}
         {% set i = loop.index0 %}

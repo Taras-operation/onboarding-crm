@@ -40,8 +40,12 @@
           <td>
             {% if instance %}{{ instance.name }}{% else %}<span class="text-muted small">Немає</span>{% endif %}
           </td>
-          <td>{{ manager.onboarding_status or '—' }}</td>
-          <td>{{ manager.onboarding_step or 0 }}/{{ manager.total_steps_calculated or 0 }}</td>
+          <td>
+            <span class="badge bg-{{ manager.status.badge }}{% if manager.status.badge in ['light','warning','info'] %} text-dark{% endif %}">
+              {{ manager.status.label }}
+            </span>
+          </td>
+          <td>{{ manager.status.progress.completed }}/{{ manager.status.progress.total }}</td>
           <td>{{ manager.created_at.strftime('%d.%m.%Y') if manager.created_at else '—' }}</td>
           <td>{{ manager.added_by.tg_nick if manager.added_by else '—' }}</td>
           <td>

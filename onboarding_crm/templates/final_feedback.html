@@ -1,151 +1,105 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Фінальний фідбек</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen py-10 px-4">
+{% extends 'base.html' %}
+{% block title %}Фінальний фідбек — Onboarding CRM{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+  <div class="page-title mb-0">📋 Фінальний фідбек: @{{ manager.tg_nick or manager.username }}</div>
+  <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline-secondary btn-sm">← До списку</a>
+</div>
+<div class="page-subtitle">
+  Старт: {{ instance.created_at.strftime('%d.%m.%Y') if instance.created_at else '—' }}
+</div>
 
-  <div class="max-w-5xl mx-auto bg-white shadow-lg rounded-lg p-8">
-    <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-4">
-      📋 Фінальний фідбек: {{ manager.full_name or manager.username }}
-    </h1>
+{# ── Уже вирішено → read-only банер ── #}
+{% if locked %}
+<div class="alert alert-{{ status.badge }} d-flex align-items-center gap-2">
+  <span class="fs-4">🔒</span>
+  <div>
+    <div class="fw-semibold">Рішення прийнято: {{ status.label }}</div>
+    {% if instance.final_comment %}<div class="small">Коментар: {{ instance.final_comment }}</div>{% endif %}
+    <div class="small text-muted">Онбординг закрито — це перегляд, змінити рішення не можна.</div>
+  </div>
+</div>
+{% endif %}
 
-    <!-- Загальна інформація -->
-    <div class="mb-6 space-y-1 text-gray-700">
-      <p>👤 <strong>Менеджер:</strong> {{ manager.full_name or manager.username }}</p>
-      <p>📅 <strong>Старт онбордингу:</strong> {{ instance.created_at.strftime('%d.%m.%Y') }}</p>
-      <p>🧑‍🏫 <strong>Ментор / ТЛ:</strong> {{ current_user.username }}</p>
+{# ── Бали ── #}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="label">Тести</div>
+      <div class="value">{{ stats.choice_pct if stats.choice_pct is not none else '—' }}{% if stats.choice_pct is not none %}%{% endif %}</div>
+      <div class="text-muted small mt-1">{{ stats.choice_correct }} / {{ stats.choice_total }} правильних</div>
     </div>
-
-    <!-- Блок Тестові питання -->
-    <div class="mb-8 bg-blue-50 border border-blue-200 rounded p-6">
-      <h2 class="text-xl font-semibold text-blue-700 mb-3">🧠 Тестові питання</h2>
-      <p>– Усього питань: <strong>{{ total_test_questions }}</strong></p>
-      <p>– Правильних відповідей: <strong>{{ correct_test_answers }}/{{ total_test_questions }}</strong></p>
-      <p>– Відсоток правильних: <strong>{{ test_percent }}%</strong></p>
-
-      {% if weak_test_blocks %}
-        <div class="mt-4">
-          <p class="font-medium text-red-600">📉 Слабкі блоки (менше 60%):</p>
-          <ul class="list-disc list-inside text-gray-800">
-            {% for b in weak_test_blocks %}
-              {% if b.title and b.percent is not none %}
-                <li>{{ b.title }} — {{ b.percent }}%</li>
-              {% else %}
-                <li><em class="text-gray-400">(некоректний блок)</em></li>
-              {% endif %}
-            {% endfor %}
-          </ul>
-        </div>
-      {% elif weakest_test_block %}
-        <div class="mt-4">
-          <p class="font-medium text-yellow-600">📉 Найменш успішний блок:</p>
-          <p>{{ weakest_test_block.title }} — {{ weakest_test_block.percent }}%</p>
-        </div>
-      {% endif %}
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card green">
+      <div class="label">Відкриті</div>
+      <div class="value">{{ stats.open_pct if stats.open_pct is not none else '—' }}{% if stats.open_pct is not none %}%{% endif %}</div>
+      <div class="text-muted small mt-1">{{ stats.open_approved }} / {{ stats.open_graded }} зараховано</div>
     </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card amber">
+      <div class="label">На перевірці</div>
+      <div class="value">{{ stats.open_pending }}</div>
+      <div class="text-muted small mt-1">відкритих без оцінки</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card slate">
+      <div class="label">Загальний бал</div>
+      <div class="value">{{ stats.overall_pct if stats.overall_pct is not none else '—' }}{% if stats.overall_pct is not none %}%{% endif %}</div>
+      <div class="text-muted small mt-1">рекомендація: {{ final_recommendation }}</div>
+    </div>
+  </div>
+</div>
 
-    <!-- Блок Відкриті питання -->
-    <div class="mb-8 bg-yellow-50 border border-yellow-200 rounded p-6">
-      <h2 class="text-xl font-semibold text-yellow-800 mb-3">✍️ Відкриті питання</h2>
-      <p>– Всього питань: <strong>{{ open_questions|length }}</strong></p>
-      <p>– Зараховано: <strong>{{ open_approved_count }}/{{ open_questions|length }}</strong></p>
-      <p>– Відсоток зарахованих: <strong>{{ open_percent }}%</strong></p>
+{% if stats.open_pending > 0 and not locked %}
+<div class="alert alert-warning small">
+  ⚠️ {{ stats.open_pending }} відкрит(их) питань ще без оцінки — оцініть їх на сторінці «📊 Результати» перед фінальним рішенням.
+</div>
+{% endif %}
 
-      {% if weak_open_blocks %}
-        <div class="mt-4">
-          <p class="font-medium text-red-600">📉 Блоки з >2 незарахованими відповідями:</p>
-          <ul class="list-disc list-inside text-gray-800">
-            {% for b in weak_open_blocks %}
-              <li>{{ b }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-      {% endif %}
-
-      <div class="mt-6 space-y-4">
-        {% for r in open_questions %}
-          <div class="p-4 rounded border
-            {% if r.approved is sameas true %} border-green-400 bg-green-50
-            {% elif r.approved is sameas false %} border-red-400 bg-red-50
-            {% else %} border-gray-300 {% endif %}">
-            <p class="text-gray-800 font-medium">❓ {{ r.question }}</p>
-            <p class="text-sm mt-2">💬 <strong>Коментар ментора:</strong> <em>{{ r.feedback or "—" }}</em></p>
-            <p class="mt-1">
-              <strong>Статус:</strong>
-              {% if r.approved is sameas true %}
-                <span class="text-green-700 font-semibold">Зараховано</span>
-              {% elif r.approved is sameas false %}
-                <span class="text-red-700 font-semibold">Не зараховано</span>
-              {% else %}
-                <span class="text-gray-500 italic">Не перевірено</span>
-              {% endif %}
-            </p>
+{# ── Відкриті питання (перегляд) ── #}
+{% if open_questions %}
+<div class="card mb-3">
+  <div class="card-body">
+    <h2 class="h6 mb-3">✍️ Відкриті питання</h2>
+    <div class="d-flex flex-column gap-2">
+      {% for r in open_questions %}
+        {% set b = 'success' if r.approved is sameas true else ('danger' if r.approved is sameas false else 'secondary') %}
+        <div class="border rounded p-3 border-{{ b }}">
+          <div class="fw-semibold">❓ {{ r.question }}</div>
+          {% if r.feedback %}<div class="small mt-1">💬 {{ r.feedback }}</div>{% endif %}
+          <div class="small mt-1">
+            Статус:
+            {% if r.approved is sameas true %}<span class="text-success fw-semibold">Зараховано</span>
+            {% elif r.approved is sameas false %}<span class="text-danger fw-semibold">Не зараховано</span>
+            {% else %}<span class="text-muted">Не перевірено</span>{% endif %}
           </div>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- Підсумок -->
-    <div class="mb-8 bg-gray-100 border border-gray-300 rounded p-6">
-      <h2 class="text-xl font-semibold text-gray-700 mb-2">🏁 Підсумок</h2>
-      <p class="text-lg font-bold text-gray-800 mb-2">
-        {% if final_score >= 71 %}✅ Пройдено
-        {% elif final_score >= 41 %}🟠 Потребує доопрацювання
-        {% else %}❌ Не пройдено
-        {% endif %}
-      </p>
-      <p class="text-gray-700">Середній бал (тести + відкриті): <strong>{{ final_score }}%</strong></p>
-
-      {% if not_approved_open > 0 %}
-        <div class="mt-3 text-red-600 font-medium text-sm">
-          ⚠️ Увага: {{ not_approved_open }} відкрит{{ 'е' if not_approved_open == 1 else 'их' }} питан{{ 'ня' if not_approved_open == 1 else 'ь' }} не зараховано — перевірте відповіді менеджера.
         </div>
-      {% endif %}
-
-      {% if summary_issues %}
-        <div class="mt-3">
-          <p class="font-semibold text-gray-800">📌 Просідання в блоках:</p>
-          <ul class="list-disc list-inside text-sm text-gray-700">
-            {% for msg in summary_issues %}
-              <li>{{ msg }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-      {% endif %}
+      {% endfor %}
     </div>
+  </div>
+</div>
+{% endif %}
 
-    <!-- Форма рішення -->
-    <form action="{{ url_for('main.final_decision') }}" method="POST" class="flex flex-col gap-4 mt-6">
+{# ── Рішення: форма (якщо не закрито) або нічого (банер вище) ── #}
+{% if not locked %}
+<div class="card">
+  <div class="card-body">
+    <h2 class="h6 mb-3">🏁 Рішення</h2>
+    <form action="{{ url_for('main.final_decision') }}" method="POST">
       <input type="hidden" name="instance_id" value="{{ instance.id }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-      <!-- Коментар -->
-      <textarea name="comment" rows="3" placeholder="Фінальний коментар або рекомендації..."
-                class="border border-gray-300 rounded p-2 text-sm w-full resize-y"></textarea>
-
-      <!-- Кнопки -->
-      <div class="flex flex-wrap gap-4">
-        <button name="decision" value="approved" type="submit"
-                class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">
-          ✅ Зарахувати онбординг
-        </button>
-
-        <button name="decision" value="rejected" type="submit"
-                class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded">
-          ❌ Не зараховано
-        </button>
-
-        <button name="decision" value="needs_revision" type="submit"
-                class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded">
-          ✍️ На доопрацювання
-        </button>
+      <textarea name="comment" rows="3" class="form-control mb-3"
+                placeholder="Фінальний коментар або рекомендації..."></textarea>
+      <div class="d-flex flex-wrap gap-2">
+        <button name="decision" value="approved" type="submit" class="btn btn-success">✅ Зарахувати</button>
+        <button name="decision" value="rejected" type="submit" class="btn btn-danger">❌ Не зараховано</button>
+        <button name="decision" value="needs_revision" type="submit" class="btn btn-warning">✍️ На доопрацювання</button>
       </div>
     </form>
   </div>
-
-</body>
-</html>
+</div>
+{% endif %}
+{% endblock %}

@@ -21,6 +21,7 @@ from onboarding_crm.services.progress import count_stages, calculate_progress
 from onboarding_crm.services.master import (
     get_or_create_master, get_master, ensure_block_ids, normalize_blocks, resolve_manager_blocks,
 )
+from onboarding_crm.services.scoring import answer_stats, onboarding_status, block_progress
 import json
 import random
 import re
@@ -481,6 +482,7 @@ def managers_list():
             continue
 
         manager.total_steps_calculated = count_stages(instance.structure) if instance else 0
+        manager.status = onboarding_status(instance)
         filtered_managers.append(manager)
 
     # 🔹 3. Рендер страницы
@@ -1332,6 +1334,7 @@ def manager_dashboard():
         blocks=stage_blocks,
         steps_meta=steps_meta,
         current_step=current_step,
+        status=onboarding_status(instance),
     )
 
 @bp.route('/manager_step/<int:step>', methods=['GET', 'POST'])
@@ -1563,10 +1566,8 @@ def manager_results(manager_id, onboarding_id):
     all_blocks_completed = len(completed_blocks) >= total_blocks
     all_open_checked = all(r.approved is not None and not r.draft for r in open_results)
 
-    show_popup = all_blocks_completed and (not open_results or all_open_checked)
-
-    print(f"📊 Blocks completed: {len(completed_blocks)}/{total_blocks}")
-    print(f"📊 Popup: {show_popup}")
+    locked = bool(instance.archived)  # decided → review-only, no re-grading / re-decision
+    show_popup = all_blocks_completed and (not open_results or all_open_checked) and not locked
 
     return render_template(
         'manager_results.html',
@@ -1575,7 +1576,9 @@ def manager_results(manager_id, onboarding_id):
         choice_results=choice_results,
         open_results=open_results,
         step=instance.onboarding_step,
-        show_popup=show_popup
+        show_popup=show_popup,
+        locked=locked,
+        status=onboarding_status(instance),
     )
 
 # --- API: старт теста ---
@@ -1653,6 +1656,10 @@ def update_result(result_id):
     if current_user.role != Role.DEVELOPER and result.manager_id not in allowed_manager_ids(current_user):
         return jsonify({'error': 'Access denied'}), 403
 
+    # 🔒 Closed onboarding — grading is read-only.
+    if result.onboarding_instance and result.onboarding_instance.archived:
+        return jsonify({'error': 'Онбординг закрито'}), 409
+
     data = request.get_json()
     try:
         if 'approved' in data:
@@ -1679,6 +1686,12 @@ def publish_feedback(manager_id):
     """Публікація фідбеку по ВСІМ відкритим питанням менеджера"""
     if current_user.role != Role.DEVELOPER and manager_id not in allowed_manager_ids(current_user):
         return jsonify({'error': 'Access denied'}), 403
+
+    # 🔒 Closed onboarding — no re-publishing feedback.
+    _latest = (OnboardingInstance.query.filter_by(manager_id=manager_id)
+               .order_by(OnboardingInstance.id.desc()).first())
+    if _latest and _latest.archived:
+        return jsonify({'error': 'Онбординг закрито'}), 409
 
     try:
         print(f"\n🟦 Publish request for manager_id={manager_id}")
@@ -1735,163 +1748,30 @@ def final_feedback(manager_id):
         flash("❌ Онбординг не знайдено", "danger")
         return redirect(url_for('main.managers_list'))
 
-    # --- Парсимо структуру (бо може бути str)
-    structure = instance.structure or []
-    if isinstance(structure, str):
-        try:
-            structure = json.loads(structure)
-        except Exception as e:
-            print(f"[final_feedback] JSON parse error: {e}")
-            structure = []
-
-    # --- Отримуємо результати тестів
     results = TestResult.query.filter_by(onboarding_instance_id=instance.id).all()
     test_results = [r for r in results if r.is_correct is not None]
     open_questions = [r for r in results if r.is_correct is None]
 
-    # ==========================================================
-    # 🔹 Розрахунок по тестах
-    # ==========================================================
-    block_test_stats = {}
-    for r in test_results:
-        block = r.step or 0
-        if block not in block_test_stats:
-            block_test_stats[block] = {'total': 0, 'correct': 0}
-        block_test_stats[block]['total'] += 1
-        if r.is_correct:
-            block_test_stats[block]['correct'] += 1
+    stats = answer_stats(instance)
+    status = onboarding_status(instance)
 
-    block_titles = []
-    if isinstance(structure, dict) and 'blocks' in structure:
-        block_titles = [b.get('title') for b in structure['blocks']]
-    elif isinstance(structure, list):
-        block_titles = [b.get('title') for b in structure if isinstance(b, dict)]
-
-    weak_test_blocks = []
-    for i, stats in block_test_stats.items():
-        percent = round((stats['correct'] / stats['total']) * 100, 1)
-        if percent < 60:
-            title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
-            weak_test_blocks.append({
-                "index": i,
-                "title": title,
-                "percent": percent
-            })
-
-    # якщо всі блоки > 60% — додати найслабший
-    if not weak_test_blocks and block_test_stats:
-        i, stats = min(block_test_stats.items(), key=lambda x: (x[1]['correct'] / x[1]['total']))
-        percent = round((stats['correct'] / stats['total']) * 100, 1)
-        title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
-        weak_test_blocks.append({
-            "index": i,
-            "title": title,
-            "percent": percent
-        })
-
-    # ==========================================================
-    # 🔹 Розрахунок по відкритих питаннях
-    # ==========================================================
-    block_open_stats = {}
-    for r in open_questions:
-        block = r.step or 0
-        if block not in block_open_stats:
-            block_open_stats[block] = {'total': 0, 'not_approved': 0}
-        block_open_stats[block]['total'] += 1
-        if r.approved is False:
-            block_open_stats[block]['not_approved'] += 1
-
-    weak_open_blocks = []
-    for i, s in block_open_stats.items():
-        if s['not_approved'] > 2:
-            title = block_titles[i] if i < len(block_titles) else f"Блок {i+1}"
-            weak_open_blocks.append(title)
-
-    # ==========================================================
-    # 🔹 Побудова пояснень по слабких блоках
-    # ==========================================================
-    explanations = []
-    for b in weak_test_blocks:
-        explanations.append(f"📉 {b['title']}: низький % по тестах ({b['percent']}%)")
-
-    for title in weak_open_blocks:
-        explanations.append(f"🟥 {title}: незараховані відкриті питання")
-
-    # ==========================================================
-    # 🔹 Загальний середній відсоток (тестові + відкриті)
-    # ==========================================================
-    test_percents = [
-        (s['correct'] / s['total']) * 100
-        for s in block_test_stats.values() if s['total'] > 0
-    ]
-    open_percents = [
-        100 - (s['not_approved'] / s['total']) * 100
-        for s in block_open_stats.values() if s['total'] > 0
-    ]
-
-    all_percents = test_percents + open_percents
-    average_percent = sum(all_percents) / len(all_percents) if all_percents else 100
-
-    # ==========================================================
-    # 🔹 Фінальний висновок
-    # ==========================================================
-    if average_percent >= 71:
+    overall = stats['overall_pct'] if stats['overall_pct'] is not None else 100
+    if overall >= 71:
         final_recommendation = "✅ Пройдено"
-    elif 41 <= average_percent < 71:
+    elif overall >= 41:
         final_recommendation = "🟠 Потребує доопрацювання"
     else:
         final_recommendation = "❌ Не пройдено"
 
-    print(f"[final_feedback] manager={manager_id}, avg={average_percent:.1f}%, weak={len(explanations)}")
-
-    # ==========================================================
-    # 🔹 Додаткові обчислення для шаблону
-    # ==========================================================
-    open_approved_count = len([r for r in open_questions if r.approved is True])
-    not_approved_open = len([r for r in open_questions if r.approved is False])
-    correct_test_answers = sum(1 for r in test_results if r.is_correct)
-    total_test_questions = len(test_results)
-
-    # ==========================================================
-    # 🔹 Рендер шаблону
-    # ==========================================================
     return render_template(
         'final_feedback.html',
         manager=User.query.get(manager_id),
         instance=instance,
-        test_results=test_results,
         open_questions=open_questions,
-
-        # Середній % за тестами та відкритими питаннями
-        test_percent=round(sum(test_percents)/len(test_percents)) if test_percents else 100,
-        open_percent=round(sum(open_percents)/len(open_percents)) if open_percents else 100,
-
-        # Фінальні рекомендації
-        test_recommendation=final_recommendation,
-        open_recommendation=final_recommendation,
+        stats=stats,
+        status=status,
+        locked=bool(instance.archived),          # decided → read-only
         final_recommendation=final_recommendation,
-
-        # Пояснення/слабкі блоки
-        explanations=explanations,
-        summary_issues=explanations,
-
-        # Остаточна оцінка
-        average_percent=round(average_percent),
-        final_score=round(average_percent),
-
-        # Підрахунки для статистики
-        open_approved_count=open_approved_count,
-        correct_test_answers=correct_test_answers,
-        total_test_questions=total_test_questions,
-        not_approved_open=not_approved_open,   # 👈 ВОТ ЭТА СТРОКА
-
-
-        # Слабкі блоки з назвами
-        weak_test_blocks=weak_test_blocks,
-        weak_open_blocks=weak_open_blocks,
-
-        # Найслабший блок
-        weakest_test_block=weak_test_blocks[0] if weak_test_blocks else None
     )
 
 VALID_FINAL_DECISIONS = {'approved', 'rejected', 'needs_revision'}

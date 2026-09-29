@@ -17,6 +17,13 @@
       </span>
     </h1>
 
+    {% if locked %}
+    <div class="mb-6 p-4 rounded bg-gray-100 border border-gray-300">
+      🔒 <strong>Рішення прийнято:</strong> {{ status.label }}. Онбординг закрито — це перегляд, змінити оцінки чи рішення не можна.
+      {% if instance.final_comment %}<div class="text-sm text-gray-600 mt-1">Коментар ментора: {{ instance.final_comment }}</div>{% endif %}
+    </div>
+    {% endif %}
+
     <h2 class="text-xl font-semibold mb-2 mt-6">Тестові питання</h2>
     {% if choice_results %}
       <table class="w-full table-auto border border-gray-300">
@@ -89,14 +96,14 @@
                   <label class="inline-flex items-center">
                     <input type="radio" name="approved_{{ r.id }}" value="True"
                       {% if r.approved is true %}checked{% endif %}
-                      {% if r.approved is not none and r.feedback %}disabled{% endif %}
+                      {% if locked or (r.approved is not none and r.feedback) %}disabled{% endif %}
                       class="form-radio text-green-500">
                     <span class="ml-2">✅ Зараховано</span>
                   </label>
                   <label class="inline-flex items-center">
                     <input type="radio" name="approved_{{ r.id }}" value="False"
                       {% if r.approved is false %}checked{% endif %}
-                      {% if r.approved is not none and r.feedback %}disabled{% endif %}
+                      {% if locked or (r.approved is not none and r.feedback) %}disabled{% endif %}
                       class="form-radio text-red-500">
                     <span class="ml-2">❌ Не зараховано</span>
                   </label>
@@ -105,13 +112,14 @@
 
               <div class="mb-2">
                 <label class="block text-sm font-semibold text-gray-700">Фідбек:</label>
-                <textarea name="feedback" rows="2" class="w-full border rounded p-2" {% if r.approved is not none and r.feedback %}disabled{% endif %}>{{ r.feedback or '' }}</textarea>
+                <textarea name="feedback" rows="2" class="w-full border rounded p-2" {% if locked or (r.approved is not none and r.feedback) %}disabled{% endif %}>{{ r.feedback or '' }}</textarea>
               </div>
             </div>
           </form>
         {% endfor %}
       </div>
 
+      {% if not locked %}
       <button id="publish-feedback-btn"
         class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
         ✅ Опублікувати фідбек
@@ -148,6 +156,7 @@
           });
         });
       </script>
+      {% endif %}
     {% else %}
       <p>Немає відкритих відповідей.</p>
     {% endif %}
