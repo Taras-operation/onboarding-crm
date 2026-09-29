@@ -57,6 +57,16 @@ def main():
         db.session.add(master)
         db.session.commit()
 
+        # Sample assignment: olena gets a subset of master blocks (1, 3, 5) — new model.
+        mblocks = master.structure["blocks"]
+        chosen = [mblocks[i]["id"] for i in (0, 2, 4)]
+        db.session.add(OnboardingInstance(
+            name="Онбординг для @olena", manager_id=m1, mentor_id=mentor,
+            master_template_id=master.id, selected_block_ids=chosen,
+            structure={"blocks": [b for b in mblocks if b["id"] in chosen]},
+            onboarding_step=0))
+        db.session.commit()
+
         print("Готово. Тестовые логины (пароль):")
         print("  dev / dev123          (developer)")
         print("  tl / tl123            (teamlead)")

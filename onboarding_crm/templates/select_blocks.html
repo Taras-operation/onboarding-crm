@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Вибір блоків — Onboarding CRM{% endblock %}
+{% block content %}
+<div class="page-title">🧩 Блоки для @{{ manager.tg_nick or manager.username }}</div>
+<div class="page-subtitle">
+  Відзначте, які блоки майстер-онбордингу отримає цей менеджер. Правки контенту робляться в
+  <a href="{{ url_for('main.master_onboarding') }}">майстрі</a> — тут лише вибір.
+</div>
+
+{% if blocks %}
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card mb-3">
+    <div class="card-body d-flex align-items-center justify-content-between">
+      <label class="form-check m-0">
+        <input class="form-check-input" type="checkbox" id="toggleAll">
+        <span class="form-check-label fw-semibold">Обрати всі</span>
+      </label>
+      <span class="text-muted small"><span id="selCount">{{ current_ids|length }}</span> / {{ blocks|length }} обрано</span>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="list-group list-group-flush">
+      {% for block in blocks %}
+        {% set sub = block.subblocks or [] %}
+        {% set tests = (block.test.questions if block.test else []) or [] %}
+        {% set openq = block.open_questions or [] %}
+        <label class="list-group-item d-flex align-items-start gap-3 py-3" style="cursor:pointer;">
+          <input class="form-check-input block-cb mt-1" type="checkbox" name="block_ids"
+                 value="{{ block.id }}" {% if block.id in current_ids %}checked{% endif %}>
+          <span class="flex-grow-1">
+            <span class="fw-semibold">{{ loop.index }}. {{ block.title or 'Без назви' }}</span>
+            <span class="d-block text-muted small mt-1">
+              Сабблоків: {{ sub|length }} · Тестів: {{ tests|length }} · Відкритих: {{ openq|length }}
+            </span>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mt-3">
+    <button type="submit" class="btn btn-primary">Зберегти вибір</button>
+    <a href="{{ url_for('main.managers_list') }}" class="btn btn-outline-secondary">Скасувати</a>
+  </div>
+</form>
+{% else %}
+<div class="empty-state">
+  <div class="emoji">🧱</div>
+  <h5 class="mt-2">У майстрі ще немає блоків</h5>
+  <p>Спочатку додайте блоки в <a href="{{ url_for('main.master_onboarding') }}">майстер онбордингу</a>.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const cbs = Array.from(document.querySelectorAll('.block-cb'));
+  const toggleAll = document.getElementById('toggleAll');
+  const selCount = document.getElementById('selCount');
+  function refresh() {
+    const n = cbs.filter(c => c.checked).length;
+    if (selCount) selCount.textContent = n;
+    if (toggleAll) toggleAll.checked = n === cbs.length && n > 0;
+  }
+  toggleAll?.addEventListener('change', () => { cbs.forEach(c => c.checked = toggleAll.checked); refresh(); });
+  cbs.forEach(c => c.addEventListener('change', refresh));
+  refresh();
+</script>
+{% endblock %}

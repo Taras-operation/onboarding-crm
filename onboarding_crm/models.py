@@ -156,6 +156,14 @@ class OnboardingInstance(db.Model):
     mentor_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     structure = db.Column(db.JSON, nullable=False)
 
+    # 🔹 НОВА МОДЕЛЬ: жива підмножина блоків майстра відділу.
+    # master_template_id — на який майстер посилаємось; selected_block_ids — які блоки
+    # (за stable id, у порядку майстра) призначені менеджеру; locked_blocks — знімки
+    # блоків, які менеджер уже пройшов (щоб правки майстра не ламали результати).
+    master_template_id = db.Column(db.Integer, db.ForeignKey('onboarding_template.id', ondelete='SET NULL'), nullable=True)
+    selected_block_ids = db.Column(db.JSON, default=list)
+    locked_blocks = db.Column(JSON_TYPE, nullable=True, default=dict)
+
     # Прогресс по каждому этапу (0, 1, 2 и т.д.)
     test_progress = db.Column(JSON_TYPE, nullable=True, default=dict)
 

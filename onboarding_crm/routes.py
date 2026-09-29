@@ -18,7 +18,7 @@ from onboarding_crm.permissions import (
     assert_can_delete_template,
 )
 from onboarding_crm.services.progress import count_stages, calculate_progress
-from onboarding_crm.services.master import get_or_create_master, ensure_block_ids
+from onboarding_crm.services.master import get_or_create_master, ensure_block_ids, normalize_blocks
 import json
 import random
 import re
@@ -639,9 +639,65 @@ def add_manager():
         db.session.add(new_user)
         db.session.commit()
 
-        return redirect(url_for('main.managers_list'))
+        # Step 2 of the new flow: choose which master blocks this manager gets.
+        return redirect(url_for('main.select_manager_blocks', manager_id=new_user.id))
 
     return render_template('add_manager.html', mentors=mentors)
+
+
+@bp.route('/onboarding/manager/<int:manager_id>/blocks', methods=['GET', 'POST'])
+@roles_required(Role.MENTOR, Role.TEAMLEAD)
+def select_manager_blocks(manager_id):
+    """Step 2 / edit: pick which master blocks this manager receives (checkboxes)."""
+    assert_can_manage_user(manager_id)
+    manager = User.query.get_or_404(manager_id)
+    master = get_or_create_master(manager.department, created_by=current_user.id)
+    blocks = normalize_blocks(master.structure)  # each block has a stable id + title
+
+    instance = (OnboardingInstance.query
+                .filter_by(manager_id=manager_id)
+                .order_by(OnboardingInstance.id.desc())
+                .first())
+    current_ids = set((instance.selected_block_ids if instance else []) or [])
+
+    if request.method == 'POST':
+        chosen = set(request.form.getlist('block_ids'))
+        # Keep selection in master order; drop any ids no longer in the master.
+        ordered = [b['id'] for b in blocks if b.get('id') in chosen]
+        snapshot = [b for b in blocks if b.get('id') in chosen]
+
+        if not ordered:
+            flash('Оберіть хоча б один блок', 'warning')
+            return redirect(url_for('main.select_manager_blocks', manager_id=manager_id))
+
+        if instance:
+            instance.selected_block_ids = ordered
+            instance.master_template_id = master.id
+            instance.structure = {'blocks': snapshot}
+        else:
+            instance = OnboardingInstance(
+                name=f"Онбординг для @{manager.tg_nick or manager.username}",
+                manager_id=manager.id,
+                mentor_id=current_user.id,
+                master_template_id=master.id,
+                selected_block_ids=ordered,
+                structure={'blocks': snapshot},
+                onboarding_step=0,
+            )
+            db.session.add(instance)
+
+        # keep the per-user mirror fields roughly in sync
+        manager.onboarding_name = instance.name
+        manager.onboarding_status = 'in_progress'
+        manager.onboarding_step = 0
+        manager.onboarding_step_total = len(ordered)
+        manager.onboarding_start = datetime.utcnow()
+        db.session.commit()
+
+        flash(f'Менеджеру призначено блоків: {len(ordered)}', 'success')
+        return redirect(url_for('main.managers_list'))
+
+    return render_template('select_blocks.html', manager=manager, blocks=blocks, current_ids=current_ids)
 
 @bp.route('/onboarding/plans')
 @roles_required(Role.MENTOR, Role.TEAMLEAD, Role.DEVELOPER, Role.HEAD)
