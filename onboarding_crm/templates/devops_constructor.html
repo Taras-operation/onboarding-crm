@@ -87,7 +87,7 @@
 {# ── Скинути у відділ ── #}
 <div class="card mt-3">
   <div class="card-body">
-    <h2 class="h6 mb-3">📤 Скинути копію у відділ</h2>
+    <h2 class="h6 mb-3">📤 Надіслати копію у відділ</h2>
     <form method="POST" action="{{ url_for('main.devops_send_to_department', id=tpl.id) }}" class="row g-2 align-items-end">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="col-12 col-md-4">
@@ -107,7 +107,7 @@
         </div>
       </div>
       <div class="col-12 col-md-3 text-md-end">
-        <button class="btn btn-primary btn-sm">Скинути у відділ</button>
+        <button class="btn btn-primary btn-sm">Надіслати у відділ</button>
       </div>
     </form>
     <div class="text-muted small mt-2">Блоки копіюються з новими id — відділ отримує незалежну копію.</div>

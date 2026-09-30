@@ -1942,7 +1942,7 @@ def devops_send_to_department(id):
         return redirect(url_for('main.devops_library_template', id=id))
     master, n = send_to_department(tpl, dept, mode=mode, created_by=current_user.id)
     verb = 'замінено' if mode == 'replace' else 'додано'
-    flash(f'Скинуто у відділ «{dept}»: {verb} {n} блок(ів).', 'success')
+    flash(f'Надіслано у відділ «{dept}»: {verb} {n} блок(ів).', 'success')
     return redirect(url_for('main.devops_library_template', id=id))
 
 
