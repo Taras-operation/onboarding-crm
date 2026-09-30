@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Онбординги — Onboarding CRM{% endblock %}
+{% block content %}
+<div class="page-title">🗂️ Усі онбординги</div>
+<div class="page-subtitle">Мастери всіх відділів і статуси всіх менеджерів.</div>
+
+{# ── Мастери відділів ── #}
+<div class="card mb-3">
+  <div class="card-body">
+    <h2 class="h6 mb-3">Мастери відділів</h2>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead><tr><th>Відділ</th><th class="text-center">Блоків</th><th class="text-end">Дії</th></tr></thead>
+        <tbody>
+          {% for m in master_rows %}
+          <tr>
+            <td class="fw-semibold">{{ m.dept or '—' }}</td>
+            <td class="text-center">{{ m.blocks }}</td>
+            <td class="text-end">
+              <a href="{{ url_for('main.master_onboarding', department=m.dept) }}" class="btn btn-outline-primary btn-sm">✏️ Редагувати мастер</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="text-muted py-3">Ще немає мастерів відділів.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{# ── Усі менеджери ── #}
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>№</th><th>Менеджер</th><th>Відділ</th><th>Статус</th><th>Прогрес</th><th class="text-end">Дії</th></tr>
+      </thead>
+      <tbody>
+        {% for r in mgr_rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td class="fw-semibold">{{ (r.manager.tg_nick or r.manager.username)|handle }}</td>
+          <td>{{ r.manager.department or '—' }}</td>
+          <td>
+            <span class="badge bg-{{ r.status.badge }}{% if r.status.badge in ['light','warning','info'] %} text-dark{% endif %}">
+              {{ r.status.label }}
+            </span>
+          </td>
+          <td>{{ r.status.progress.completed }}/{{ r.status.progress.total }}</td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-2">
+              <a href="{{ url_for('main.select_manager_blocks', manager_id=r.manager.id) }}" class="btn btn-outline-primary btn-sm">🧩 Блоки</a>
+              {% if r.instance %}
+              <a href="{{ url_for('main.manager_results', manager_id=r.manager.id, onboarding_id=r.instance.id) }}" class="btn btn-outline-secondary btn-sm">📊 Результати</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted py-3">Немає менеджерів.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Бібліотека — Onboarding CRM{% endblock %}
+{% block content %}
+{% set kind_badge = {'library': ('Бібліотека', 'primary'), 'master': ('Мастер відділу', 'success'), 'legacy': ('Старий', 'secondary')} %}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+  <div class="page-title mb-0">📚 Бібліотека шаблонів</div>
+  <form method="POST" action="{{ url_for('main.devops_library_new') }}" class="d-flex gap-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="text" name="name" class="form-control form-control-sm" placeholder="Назва нового шаблону" style="width:220px">
+    <button class="btn btn-primary btn-sm text-nowrap">+ Створити</button>
+  </form>
+</div>
+<div class="page-subtitle">Усі шаблони системи. Бібліотечні — сировина девопса; мастери відділів тягнуть менеджери.</div>
+
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>№</th><th>Назва</th><th>Тип</th><th>Відділ</th><th class="text-center">Блоків</th><th>Створено</th><th class="text-end">Дії</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        {% set kb = kind_badge[r.kind] %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td class="fw-semibold">{{ r.tpl.name }}</td>
+          <td><span class="badge bg-{{ kb[1] }}">{{ kb[0] }}</span></td>
+          <td>{{ r.tpl.department or '—' }}</td>
+          <td class="text-center">{{ r.blocks }}</td>
+          <td>{{ r.tpl.created_at.strftime('%d.%m.%Y') if r.tpl.created_at else '—' }}</td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-2">
+              <a href="{{ url_for('main.devops_library_template', id=r.tpl.id) }}" class="btn btn-outline-primary btn-sm">Відкрити</a>
+              {% if r.kind == 'library' %}
+              <form method="POST" action="{{ url_for('main.devops_library_delete', id=r.tpl.id) }}"
+                    onsubmit="return confirm('Видалити цей бібліотечний шаблон?');" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm">🗑️</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted py-3">Ще немає шаблонів.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

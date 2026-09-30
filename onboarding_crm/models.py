@@ -97,6 +97,10 @@ class OnboardingTemplate(db.Model):
     # Менеджеру призначається підмножина блоків цього майстра (за block id).
     is_master = db.Column(db.Boolean, default=False, server_default=text('false'), index=True)
 
+    # 🔹 БІБЛІОТЕЧНИЙ ШАБЛОН — сировина девопса ("глави бібліотеки"). Менеджери його НЕ
+    # тягнуть; девопс збирає з блоків і скидає КОПІЮ у мастер відділу.
+    is_library = db.Column(db.Boolean, default=False, server_default=text('false'), index=True)
+
     # 🔹 ШЕРИНГ ШАБЛОНОВ
     is_global = db.Column(db.Boolean, default=False)
 

@@ -55,6 +55,16 @@ def main():
             created_by=mentor, department="product", is_master=True,
         )
         db.session.add(master)
+
+        # Second department (to test "send to department") + its people.
+        mk("teamlead", "tl_buying", "tl123", dept="buying")
+        mk("manager", "petro", "petro123", dept="buying")
+
+        # Devops library pool (is_library) — raw material for the constructor.
+        for nm, n in [("Компанія 101", 4), ("Безпека та доступи", 3), ("Продукт: базовий", 5)]:
+            db.session.add(OnboardingTemplate(
+                name=nm, structure=ensure_block_ids({"blocks": _blocks(n)}),
+                created_by=dev, department=None, is_library=True))
         db.session.commit()
 
         # Sample assignment: olena gets a subset of master blocks (1, 3, 5) — new model.

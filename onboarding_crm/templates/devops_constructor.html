@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Конструктор — {{ tpl.name }}{% endblock %}
+{% macro counts(b) %}
+  {%- set sub = b.subblocks or [] %}{% set tests = (b.test.questions if b.test else []) or [] %}{% set openq = b.open_questions or [] -%}
+  Сабблоків: {{ sub|length }} · Тестів: {{ tests|length }} · Відкритих: {{ openq|length }}
+{% endmacro %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+  <div class="page-title mb-0">🧰 {{ tpl.name }}</div>
+  <a href="{{ url_for('main.devops_library') }}" class="btn btn-outline-secondary btn-sm">← До бібліотеки</a>
+</div>
+<div class="page-subtitle">
+  {% if tpl.is_library %}Бібліотечний шаблон{% elif tpl.is_master %}Мастер відділу «{{ tpl.department }}»{% else %}Шаблон{% endif %}
+  · {{ blocks|length }} блок(ів)
+</div>
+
+<div class="row g-3">
+  {# ── Поточні блоки ── #}
+  <div class="col-12 col-xl-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h6 mb-0">Блоки шаблону</h2>
+          <a href="{{ url_for('main.add_onboarding_template', template_id=tpl.id) }}" class="btn btn-outline-primary btn-sm">✏️ Редагувати блоки</a>
+        </div>
+        {% if blocks %}
+        <ol class="mb-0 ps-3">
+          {% for b in blocks %}
+          <li class="mb-2">
+            <span class="fw-semibold">{{ b.title or 'Без назви' }}</span>
+            <div class="text-muted small">{{ counts(b) }}</div>
+          </li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <p class="text-muted mb-0">Блоків ще немає — додайте з іншого шаблону або відредагуйте вручну.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Додати блоки з донора ── #}
+  <div class="col-12 col-xl-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="h6 mb-3">➕ Додати блоки з іншого шаблону</h2>
+        <form method="GET" class="d-flex gap-2 mb-3">
+          <select name="source" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">— оберіть шаблон-донор —</option>
+            {% for s in sources %}
+            <option value="{{ s.id }}" {% if source and s.id == source.id %}selected{% endif %}>
+              {{ s.name }}{% if s.department %} ({{ s.department }}){% endif %}{% if s.is_library %} · бібл.{% elif s.is_master %} · мастер{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
+
+        {% if source %}
+          {% if source_blocks %}
+          <form method="POST" action="{{ url_for('main.devops_pull_blocks', id=tpl.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="source_template_id" value="{{ source.id }}">
+            <div class="border rounded mb-2" style="max-height:320px; overflow:auto">
+              {% for b in source_blocks %}
+              <label class="d-flex align-items-start gap-2 p-2 border-bottom" style="cursor:pointer">
+                <input class="form-check-input mt-1" type="checkbox" name="block_ids" value="{{ b.id }}">
+                <span>
+                  <span class="fw-semibold">{{ loop.index }}. {{ b.title or 'Без назви' }}</span>
+                  <span class="d-block text-muted small">{{ counts(b) }}</span>
+                </span>
+              </label>
+              {% endfor %}
+            </div>
+            <button class="btn btn-primary btn-sm">Додати вибрані (копією)</button>
+          </form>
+          {% else %}
+          <p class="text-muted mb-0">У цього шаблону немає блоків.</p>
+          {% endif %}
+        {% else %}
+        <p class="text-muted mb-0">Оберіть донора, щоб побачити його блоки.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Скинути у відділ ── #}
+<div class="card mt-3">
+  <div class="card-body">
+    <h2 class="h6 mb-3">📤 Скинути копію у відділ</h2>
+    <form method="POST" action="{{ url_for('main.devops_send_to_department', id=tpl.id) }}" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-md-4">
+        <label class="form-label small">Відділ</label>
+        <select name="department" class="form-select form-select-sm">
+          <option value="">— оберіть відділ —</option>
+          {% for d in departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-5">
+        <label class="form-label small d-block">Режим</label>
+        <div class="btn-group btn-group-sm" role="group">
+          <input type="radio" class="btn-check" name="mode" id="mode_append" value="append" checked>
+          <label class="btn btn-outline-secondary" for="mode_append">Додати до мастера</label>
+          <input type="radio" class="btn-check" name="mode" id="mode_replace" value="replace">
+          <label class="btn btn-outline-danger" for="mode_replace">Замінити мастер</label>
+        </div>
+      </div>
+      <div class="col-12 col-md-3 text-md-end">
+        <button class="btn btn-primary btn-sm">Скинути у відділ</button>
+      </div>
+    </form>
+    <div class="text-muted small mt-2">Блоки копіюються з новими id — відділ отримує незалежну копію.</div>
+  </div>
+</div>
+{% endblock %}

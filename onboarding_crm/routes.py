@@ -22,6 +22,9 @@ from onboarding_crm.services.master import (
     get_or_create_master, get_master, ensure_block_ids, normalize_blocks, resolve_manager_blocks,
 )
 from onboarding_crm.services.scoring import answer_stats, onboarding_status, block_progress, block_breakdown
+from onboarding_crm.services.library import (
+    library_templates, pull_sources, add_blocks_to_template, send_to_department,
+)
 import json
 import random
 import re
@@ -650,7 +653,7 @@ def add_manager():
 
 
 @bp.route('/onboarding/manager/<int:manager_id>/blocks', methods=['GET', 'POST'])
-@roles_required(Role.MENTOR, Role.TEAMLEAD)
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.DEVELOPER)
 def select_manager_blocks(manager_id):
     """Step 2 / edit: pick which master blocks this manager receives (checkboxes)."""
     assert_can_manage_user(manager_id)
@@ -754,10 +757,17 @@ def onboarding_editor():
 
 
 @bp.route('/onboarding/master')
-@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.HEAD)
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.HEAD, Role.DEVELOPER)
 def master_onboarding():
-    """Open the department's single master onboarding (all blocks) in the editor."""
-    master = get_or_create_master(current_user.department, created_by=current_user.id)
+    """Open a department's single master onboarding (all blocks) in the editor.
+    Devops picks the department via ?department=; everyone else edits their own."""
+    dept = current_user.department
+    if current_user.role == Role.DEVELOPER:
+        dept = (request.args.get('department') or '').strip()
+        if not dept:
+            flash('Оберіть відділ', 'warning')
+            return redirect(url_for('main.devops_onboardings'))
+    master = get_or_create_master(dept, created_by=current_user.id)
     return redirect(url_for('main.add_onboarding_template', template_id=master.id))
 
 
@@ -807,7 +817,7 @@ def upload_onboarding_attachment():
     })
 
 @bp.route('/onboarding/template/add', methods=['GET', 'POST'])
-@roles_required(Role.MENTOR, Role.TEAMLEAD)
+@roles_required(Role.MENTOR, Role.TEAMLEAD, Role.DEVELOPER)
 def add_onboarding_template():
     """
     Создание/редактирование шаблона ИЛИ назначение/редактирование онбординга менеджеру.
@@ -856,10 +866,14 @@ def add_onboarding_template():
                     assert_can_edit_template(tpl)
                     tpl.name = name
                     tpl.structure = payload
-                    # ✅ FIX: если департамент пустой — проставляем текущий
-                    if not getattr(tpl, 'department', None):
+                    # ✅ FIX: department only for department templates (not library ones)
+                    if not getattr(tpl, 'is_library', False) and not getattr(tpl, 'department', None):
                         tpl.department = current_user.department
                     db.session.commit()
+                    if getattr(tpl, 'is_library', False):
+                        return redirect(url_for('main.devops_library_template', id=tpl.id))
+                    if current_user.role == Role.DEVELOPER:
+                        return redirect(url_for('main.devops_onboardings'))
                     return redirect(url_for('main.onboarding_plans'))
 
             # Иначе создаём новый шаблон
@@ -1857,6 +1871,105 @@ def archived_managers():
             archived_pairs.append((manager, instance))
 
     return render_template('archived_managers.html', archived_managers=archived_pairs)
+
+
+# ─────────────────────────────────────────────
+# 🔹 Devops: бібліотека шаблонів + конструктор (super-admin)
+# ─────────────────────────────────────────────
+def _all_departments():
+    rows = db.session.query(User.department).filter(User.department.isnot(None)).distinct().all()
+    return sorted({(d[0] or '').strip() for d in rows if (d[0] or '').strip()})
+
+
+@bp.route('/devops/library')
+@roles_required(Role.DEVELOPER)
+def devops_library():
+    templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
+    rows = []
+    for t in templates:
+        kind = 'library' if t.is_library else ('master' if t.is_master else 'legacy')
+        rows.append({'tpl': t, 'kind': kind, 'blocks': len(normalize_blocks(t.structure))})
+    return render_template('devops_library.html', rows=rows)
+
+
+@bp.route('/devops/library/new', methods=['POST'])
+@roles_required(Role.DEVELOPER)
+def devops_library_new():
+    name = (request.form.get('name') or '').strip() or 'Новий шаблон'
+    t = OnboardingTemplate(name=name, structure={'blocks': []}, is_library=True,
+                           created_by=current_user.id, department=None)
+    db.session.add(t)
+    db.session.commit()
+    return redirect(url_for('main.devops_library_template', id=t.id))
+
+
+@bp.route('/devops/library/<int:id>')
+@roles_required(Role.DEVELOPER)
+def devops_library_template(id):
+    tpl = OnboardingTemplate.query.get_or_404(id)
+    blocks = normalize_blocks(tpl.structure)
+    sources = pull_sources(exclude_id=id)
+    source_id = request.args.get('source', type=int)
+    source = OnboardingTemplate.query.get(source_id) if source_id else None
+    source_blocks = normalize_blocks(source.structure) if source else []
+    return render_template('devops_constructor.html', tpl=tpl, blocks=blocks,
+                           sources=sources, source=source, source_blocks=source_blocks,
+                           departments=_all_departments())
+
+
+@bp.route('/devops/library/<int:id>/pull-blocks', methods=['POST'])
+@roles_required(Role.DEVELOPER)
+def devops_pull_blocks(id):
+    tpl = OnboardingTemplate.query.get_or_404(id)
+    source = OnboardingTemplate.query.get_or_404(request.form.get('source_template_id', type=int))
+    block_ids = request.form.getlist('block_ids')
+    if not block_ids:
+        flash('Оберіть блоки для додавання', 'warning')
+        return redirect(url_for('main.devops_library_template', id=id, source=source.id))
+    n = add_blocks_to_template(tpl, source, block_ids)
+    flash(f'Додано блоків: {n}', 'success')
+    return redirect(url_for('main.devops_library_template', id=id))
+
+
+@bp.route('/devops/library/<int:id>/send-to-department', methods=['POST'])
+@roles_required(Role.DEVELOPER)
+def devops_send_to_department(id):
+    tpl = OnboardingTemplate.query.get_or_404(id)
+    dept = (request.form.get('department') or '').strip()
+    mode = request.form.get('mode') if request.form.get('mode') in ('append', 'replace') else 'append'
+    if not dept:
+        flash('Оберіть відділ', 'warning')
+        return redirect(url_for('main.devops_library_template', id=id))
+    master, n = send_to_department(tpl, dept, mode=mode, created_by=current_user.id)
+    verb = 'замінено' if mode == 'replace' else 'додано'
+    flash(f'Скинуто у відділ «{dept}»: {verb} {n} блок(ів).', 'success')
+    return redirect(url_for('main.devops_library_template', id=id))
+
+
+@bp.route('/devops/library/<int:id>/delete', methods=['POST'])
+@roles_required(Role.DEVELOPER)
+def devops_library_delete(id):
+    tpl = OnboardingTemplate.query.get_or_404(id)
+    OnboardingStep.query.filter_by(template_id=tpl.id).delete()
+    db.session.delete(tpl)
+    db.session.commit()
+    flash('Шаблон видалено', 'success')
+    return redirect(url_for('main.devops_library'))
+
+
+@bp.route('/devops/onboardings')
+@roles_required(Role.DEVELOPER)
+def devops_onboardings():
+    masters = (OnboardingTemplate.query.filter_by(is_master=True)
+               .order_by(OnboardingTemplate.department).all())
+    master_rows = [{'dept': m.department, 'blocks': len(normalize_blocks(m.structure)), 'id': m.id}
+                   for m in masters]
+
+    managers = User.query.filter_by(role=Role.MANAGER.value).order_by(User.department).all()
+    latest = _latest_instances_for([m.id for m in managers])
+    mgr_rows = [{'manager': m, 'instance': latest.get(m.id), 'status': onboarding_status(latest.get(m.id))}
+                for m in managers]
+    return render_template('devops_onboardings.html', master_rows=master_rows, mgr_rows=mgr_rows)
 
 
 # ─────────────────────────────────────────────

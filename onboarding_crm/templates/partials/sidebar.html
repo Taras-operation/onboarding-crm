@@ -12,13 +12,27 @@
       <span class="ico">📊</span> Статистика
     </a>
 
+  {% elif current_user.role == 'developer' %}
+    {# Devops = глава бібліотеки: керує всім онбордингом усіх відділів #}
+    <div class="sidebar-section-title">Девопс</div>
+    <a class="sidebar-link {{ 'active' if ep == 'main.developer_dashboard' }}" href="{{ url_for('main.developer_dashboard') }}">
+      <span class="ico">🛠️</span> Developer панель
+    </a>
+    <a class="sidebar-link {{ 'active' if ep in ['main.devops_library', 'main.devops_library_template'] }}" href="{{ url_for('main.devops_library') }}">
+      <span class="ico">📚</span> Бібліотека
+    </a>
+    <a class="sidebar-link {{ 'active' if ep == 'main.devops_onboardings' }}" href="{{ url_for('main.devops_onboardings') }}">
+      <span class="ico">🗂️</span> Онбординги
+    </a>
+    <a class="sidebar-link {{ 'active' if ep == 'main.managers_list' }}" href="{{ url_for('main.managers_list') }}">
+      <span class="ico">📋</span> Менеджери
+    </a>
+    <a class="sidebar-link {{ 'active' if ep == 'main.archived_managers' }}" href="{{ url_for('main.archived_managers') }}">
+      <span class="ico">📁</span> Архів
+    </a>
+
   {% else %}
     <div class="sidebar-section-title">Огляд</div>
-    {% if current_user.role == 'developer' %}
-      <a class="sidebar-link {{ 'active' if ep == 'main.developer_dashboard' }}" href="{{ url_for('main.developer_dashboard') }}">
-        <span class="ico">🛠️</span> Developer панель
-      </a>
-    {% endif %}
     {% if current_user.role in ['mentor', 'teamlead', 'head'] %}
       <a class="sidebar-link {{ 'active' if ep == 'main.mentor_dashboard' }}" href="{{ url_for('main.mentor_dashboard') }}">
         <span class="ico">🏠</span> Дашборд
