@@ -32,13 +32,12 @@
           <td class="text-end">
             <div class="d-inline-flex gap-2">
               <a href="{{ url_for('main.devops_library_template', id=r.tpl.id) }}" class="btn btn-outline-primary btn-sm">Відкрити</a>
-              {% if r.kind == 'library' %}
+              {% set confirm_msg = ('⚠️ Видалити МАСТЕР відділу «' ~ (r.tpl.department or '—') ~ '»? Менеджери цього відділу втратять живе джерело блоків (залишиться лише знімок пройденого).') if r.kind == 'master' else 'Видалити цей шаблон?' %}
               <form method="POST" action="{{ url_for('main.devops_library_delete', id=r.tpl.id) }}"
-                    onsubmit="return confirm('Видалити цей бібліотечний шаблон?');" class="d-inline">
+                    onsubmit="return confirm({{ confirm_msg|tojson }});" class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger btn-sm">🗑️</button>
               </form>
-              {% endif %}
             </div>
           </td>
         </tr>
