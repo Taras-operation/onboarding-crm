@@ -27,6 +27,10 @@ class User(db.Model, UserMixin):
     # Real column shadows UserMixin.is_active (a property). False → login is refused.
     is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=text('true'))
 
+    # 🔹 КОШИК (м'яке видалення): видалений юзер падає сюди; з кошика — жорстке видалення.
+    is_archived = db.Column(db.Boolean, default=False, server_default=text('false'), index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+
     added_by_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     added_by = db.relationship('User', remote_side=[id])
 
@@ -100,6 +104,10 @@ class OnboardingTemplate(db.Model):
     # 🔹 БІБЛІОТЕЧНИЙ ШАБЛОН — сировина девопса ("глави бібліотеки"). Менеджери його НЕ
     # тягнуть; девопс збирає з блоків і скидає КОПІЮ у мастер відділу.
     is_library = db.Column(db.Boolean, default=False, server_default=text('false'), index=True)
+
+    # 🔹 КОШИК (м'яке видалення): видалене падає сюди; з кошика — жорстке видалення.
+    is_archived = db.Column(db.Boolean, default=False, server_default=text('false'), index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
 
     # 🔹 ШЕРИНГ ШАБЛОНОВ
     is_global = db.Column(db.Boolean, default=False)

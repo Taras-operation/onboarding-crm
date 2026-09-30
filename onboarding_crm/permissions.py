@@ -31,9 +31,9 @@ def managers_query_for(user):
 
     role = user.role
 
-    # Deactivated managers must not surface in any supervisor's list/selection.
+    # Deactivated or archived (in trash) managers must not surface in any list/selection.
     if role == Role.DEVELOPER:
-        return User.query.filter_by(role=Role.MANAGER.value, is_active=True)
+        return User.query.filter_by(role=Role.MANAGER.value, is_active=True, is_archived=False)
 
     if role == Role.MENTOR:
         return User.query.filter_by(
@@ -41,6 +41,7 @@ def managers_query_for(user):
             added_by_id=user.id,
             department=user.department,
             is_active=True,
+            is_archived=False,
         )
 
     if role == Role.TEAMLEAD:
@@ -55,6 +56,7 @@ def managers_query_for(user):
             User.added_by_id.in_(mentor_ids),
             User.department == user.department,
             User.is_active.is_(True),
+            User.is_archived.is_(False),
         )
 
     if role == Role.HEAD:
@@ -62,6 +64,7 @@ def managers_query_for(user):
             role=Role.MANAGER.value,
             department=user.department,
             is_active=True,
+            is_archived=False,
         )
 
     return User.query.filter(False)
@@ -76,7 +79,10 @@ def visible_templates_for(user=None):
     """Templates visible to ``user``: developer sees all; otherwise own-department,
     own-created, global, or explicitly shared to the user's department."""
     user = user or current_user
-    templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
+    templates = (OnboardingTemplate.query
+                 .filter_by(is_archived=False)
+                 .order_by(OnboardingTemplate.id.desc())
+                 .all())
 
     if not getattr(user, 'is_authenticated', False):
         return []

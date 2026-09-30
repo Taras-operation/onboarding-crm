@@ -160,6 +160,19 @@
   const AUTOSAVE_KEY = `onboarding_template_draft_${window.templateId || 'new'}`;
   let isSubmitting = false;
 
+  // Content-only signature (field values, not Quill DOM) — to know if anything REALLY changed.
+  let INITIAL_SIG = null;
+  function contentSig() {
+    const form = document.querySelector('form');
+    if (!form) return '';
+    const parts = [];
+    form.querySelectorAll('[name="name"], [name^="blocks"]').forEach(el => {
+      const v = (el.type === 'checkbox' || el.type === 'radio') ? (el.checked ? '1' : '0') : (el.value || '');
+      parts.push(el.name + '=' + v);
+    });
+    return parts.join('|');
+  }
+
   function getEditorBlocks() {
     return Array.from(document.querySelectorAll('#blocks-container > .block'));
   }
@@ -327,7 +340,8 @@
       savedAt: new Date().toISOString(),
       name: form?.querySelector('[name="name"]')?.value || '',
       selected_manager: form?.querySelector('[name="selected_manager"]')?.value || '',
-      blocks_html: blocksHtml
+      blocks_html: blocksHtml,
+      sig: contentSig()
     };
   }
 
@@ -336,6 +350,12 @@
 
     const blocksContainer = document.getElementById('blocks-container');
     if (!blocksContainer) return;
+
+    // Nothing actually changed vs the loaded content → don't create a draft, clear any stale one.
+    if (INITIAL_SIG !== null && contentSig() === INITIAL_SIG) {
+      localStorage.removeItem(AUTOSAVE_KEY);
+      return;
+    }
 
     const payload = getDraftPayload();
 
@@ -380,6 +400,12 @@
 
     if (!draft || !draft.blocks_html) return;
 
+    // Draft is identical to what's already loaded → nothing to restore, don't nag.
+    if (draft.sig !== undefined && draft.sig === INITIAL_SIG) {
+      localStorage.removeItem(AUTOSAVE_KEY);
+      return;
+    }
+
     const savedDate = draft.savedAt
       ? new Date(draft.savedAt).toLocaleString()
       : 'невідомо';
@@ -418,6 +444,7 @@
 
   window.addEventListener('load', () => {
     setTimeout(() => {
+      INITIAL_SIG = contentSig();   // pristine content signature (before any restore)
       restoreDraftIfNeeded();
       initEditorSidebar();
     }, 800);

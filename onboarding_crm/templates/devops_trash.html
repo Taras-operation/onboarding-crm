@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Кошик — Onboarding CRM{% endblock %}
+{% block content %}
+{% set kind_badge = {'library': ('Бібліотека', 'primary'), 'master': ('Мастер відділу', 'success'), 'legacy': ('Старий', 'secondary')} %}
+
+<div class="page-title mb-0">🗑 Кошик</div>
+<div class="page-subtitle">
+  Усе видалене падає сюди. Звідси можна <strong>відновити</strong> запис або
+  <strong class="text-danger">видалити назавжди</strong> — остаточно, без можливості відновлення.
+</div>
+
+{# ─── Шаблони ─────────────────────────────────────────────────────────── #}
+<div class="table-card mb-4">
+  <div class="px-3 pt-3 fw-semibold">📚 Шаблони</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>№</th><th>Назва</th><th>Тип</th><th>Відділ</th><th class="text-center">Блоків</th><th>В кошику з</th><th class="text-end">Дії</th></tr>
+      </thead>
+      <tbody>
+        {% for r in tpl_rows %}
+        {% set kb = kind_badge[r.kind] %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td class="fw-semibold">{{ r.tpl.name }}</td>
+          <td><span class="badge bg-{{ kb[1] }}">{{ kb[0] }}</span></td>
+          <td>{{ r.tpl.department or '—' }}</td>
+          <td class="text-center">{{ r.blocks }}</td>
+          <td>{{ r.tpl.archived_at.strftime('%d.%m.%Y %H:%M') if r.tpl.archived_at else '—' }}</td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-2">
+              <form method="POST" action="{{ url_for('main.devops_trash_template_restore', id=r.tpl.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-success btn-sm">↩ Відновити</button>
+              </form>
+              {% set purge_msg = '⚠️ Видалити шаблон «' ~ r.tpl.name ~ '» НАЗАВЖДИ?\n\nЦе остаточне видалення з бази даних. Відновити буде неможливо.' %}
+              <form method="POST" action="{{ url_for('main.devops_trash_template_purge', id=r.tpl.id) }}"
+                    onsubmit="return confirm({{ purge_msg|tojson }});" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-danger btn-sm">🗑️ Видалити назавжди</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted py-3">У кошику немає шаблонів.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ─── Користувачі ─────────────────────────────────────────────────────── #}
+<div class="table-card">
+  <div class="px-3 pt-3 fw-semibold">👥 Користувачі</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>№</th><th>Логін</th><th>Роль</th><th>Відділ</th><th>Telegram</th><th>В кошику з</th><th class="text-end">Дії</th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td class="fw-semibold">{{ u.username }}</td>
+          <td><span class="badge bg-secondary">{{ u.role }}</span></td>
+          <td>{{ u.department or '—' }}</td>
+          <td>{{ u.tg_nick or '—' }}</td>
+          <td>{{ u.archived_at.strftime('%d.%m.%Y %H:%M') if u.archived_at else '—' }}</td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-2">
+              <form method="POST" action="{{ url_for('main.devops_trash_user_restore', id=u.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-success btn-sm">↩ Відновити</button>
+              </form>
+              {% set purge_msg = '⚠️ Видалити користувача «' ~ u.username ~ '» НАЗАВЖДИ?\n\nРазом із ним будуть остаточно видалені всі його онбординги та результати тестів. Відновити буде неможливо.' %}
+              <form method="POST" action="{{ url_for('main.devops_trash_user_purge', id=u.id) }}"
+                    onsubmit="return confirm({{ purge_msg|tojson }});" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-danger btn-sm">🗑️ Видалити назавжди</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted py-3">У кошику немає користувачів.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

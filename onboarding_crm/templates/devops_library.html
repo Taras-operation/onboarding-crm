@@ -32,11 +32,15 @@
           <td class="text-end">
             <div class="d-inline-flex gap-2">
               <a href="{{ url_for('main.devops_library_template', id=r.tpl.id) }}" class="btn btn-outline-primary btn-sm">Відкрити</a>
-              {% set confirm_msg = ('⚠️ Видалити МАСТЕР відділу «' ~ (r.tpl.department or '—') ~ '»? Менеджери цього відділу втратять живе джерело блоків (залишиться лише знімок пройденого).') if r.kind == 'master' else 'Видалити цей шаблон?' %}
+              {% if r.kind == 'master' %}
+                {% set confirm_msg = '⚠️ Перемістити МАСТЕР відділу «' ~ (r.tpl.department or '—') ~ '» у кошик? Менеджери цього відділу втратять живе джерело блоків (залишиться лише знімок пройденого). З кошика його можна відновити.' %}
+              {% else %}
+                {% set confirm_msg = 'Перемістити шаблон «' ~ r.tpl.name ~ '» у кошик? Звідти його можна відновити або видалити назавжди.' %}
+              {% endif %}
               <form method="POST" action="{{ url_for('main.devops_library_delete', id=r.tpl.id) }}"
                     onsubmit="return confirm({{ confirm_msg|tojson }});" class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-outline-danger btn-sm">🗑️</button>
+                <button class="btn btn-outline-danger btn-sm" title="В кошик">🗑️</button>
               </form>
             </div>
           </td>

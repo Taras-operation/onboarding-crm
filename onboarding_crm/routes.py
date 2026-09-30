@@ -206,7 +206,7 @@ def login():
         password_ok = check_password_hash(stored_hash, password_input)
 
         if user and password_ok:
-            if not user.is_active:
+            if not user.is_active or user.is_archived:
                 _record_login_attempt(user, login_input, success=False)
                 return "Обліковий запис деактивовано", 403
 
@@ -320,11 +320,11 @@ def developer_dashboard():
         # after add -> usually go to list
         return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
-    # --- Data for GET ---
-    users = User.query.order_by(User.id.desc()).all()
-    teamleads = User.query.filter_by(role=Role.TEAMLEAD.value).order_by(User.id.desc()).all()
-    mentors = User.query.filter_by(role=Role.MENTOR.value).order_by(User.id.desc()).all()
-    templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
+    # --- Data for GET --- (archived = in the trash → hidden everywhere but the Кошик)
+    users = User.query.filter_by(is_archived=False).order_by(User.id.desc()).all()
+    teamleads = User.query.filter_by(role=Role.TEAMLEAD.value, is_archived=False).order_by(User.id.desc()).all()
+    mentors = User.query.filter_by(role=Role.MENTOR.value, is_archived=False).order_by(User.id.desc()).all()
+    templates = OnboardingTemplate.query.filter_by(is_archived=False).order_by(OnboardingTemplate.id.desc()).all()
 
     # Last successful login per user (for the users table in the dashboard).
     last_login_rows = (
@@ -409,10 +409,12 @@ def developer_user_delete(user_id):
         flash('Неможливо видалити самого себе', 'danger')
         return redirect(url_for('main.developer_dashboard', tab='users', view='all'))
 
+    # М'яке видалення: користувач падає в кошик (звідти — жорстке видалення з БД).
     try:
-        db.session.delete(user)
+        user.is_archived = True
+        user.archived_at = datetime.utcnow()
         db.session.commit()
-        flash('Користувача видалено', 'success')
+        flash(f'Користувача «{user.username}» переміщено в кошик', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Помилка при видаленні: {str(e)}', 'danger')
@@ -1204,9 +1206,9 @@ def delete_onboarding_template(id):
     # Only the owner, a teamlead/head of the template's department, or a developer.
     # Global templates: developer only.
     assert_can_delete_template(template)
-    # Видаляємо всі кроки, пов’язані з шаблоном
-    OnboardingStep.query.filter_by(template_id=template.id).delete()
-    db.session.delete(template)
+    # М'яке видалення: шаблон падає в кошик (жорстке видалення — вже з кошика девопса).
+    template.is_archived = True
+    template.archived_at = datetime.utcnow()
     db.session.commit()
     return '', 204
 
@@ -1277,8 +1279,10 @@ def delete_user_onboarding(id):
         if user.id not in allowed_manager_ids(current_user):
             return {'message': 'Немає прав на видалення цього користувача'}, 403
 
+    # М'яке видалення: користувач падає в кошик (жорстке видалення — з кошика девопса).
     try:
-        db.session.delete(user)  # 🧼 Каскад сам видалить всі пов’язані записи
+        user.is_archived = True
+        user.archived_at = datetime.utcnow()
         db.session.commit()
         return '', 204
     except Exception as e:
@@ -1884,7 +1888,9 @@ def _all_departments():
 @bp.route('/devops/library')
 @roles_required(Role.DEVELOPER)
 def devops_library():
-    templates = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc()).all()
+    templates = (OnboardingTemplate.query
+                 .filter_by(is_archived=False)
+                 .order_by(OnboardingTemplate.id.desc()).all())
     rows = []
     for t in templates:
         kind = 'library' if t.is_library else ('master' if t.is_master else 'legacy')
@@ -1953,26 +1959,106 @@ def devops_send_to_department(id):
 @roles_required(Role.DEVELOPER)
 def devops_library_delete(id):
     tpl = OnboardingTemplate.query.get_or_404(id)
-    OnboardingStep.query.filter_by(template_id=tpl.id).delete()
-    db.session.delete(tpl)
+    # М'яке видалення: шаблон падає в кошик (жорстке видалення — з кошика).
+    tpl.is_archived = True
+    tpl.archived_at = datetime.utcnow()
     db.session.commit()
-    flash('Шаблон видалено', 'success')
+    flash(f'Шаблон «{tpl.name}» переміщено в кошик', 'success')
     return redirect(url_for('main.devops_library'))
 
 
 @bp.route('/devops/onboardings')
 @roles_required(Role.DEVELOPER)
 def devops_onboardings():
-    masters = (OnboardingTemplate.query.filter_by(is_master=True)
+    masters = (OnboardingTemplate.query.filter_by(is_master=True, is_archived=False)
                .order_by(OnboardingTemplate.department).all())
     master_rows = [{'dept': m.department, 'blocks': len(normalize_blocks(m.structure)), 'id': m.id}
                    for m in masters]
 
-    managers = User.query.filter_by(role=Role.MANAGER.value).order_by(User.department).all()
+    managers = (User.query.filter_by(role=Role.MANAGER.value, is_archived=False)
+                .order_by(User.department).all())
     latest = _latest_instances_for([m.id for m in managers])
     mgr_rows = [{'manager': m, 'instance': latest.get(m.id), 'status': onboarding_status(latest.get(m.id))}
                 for m in managers]
     return render_template('devops_onboardings.html', master_rows=master_rows, mgr_rows=mgr_rows)
+
+
+# ─────────────────────────────────────────────
+# 🔹 Кошик (soft delete): усе видалене падає сюди; звідси — жорстке видалення з БД
+# ─────────────────────────────────────────────
+@bp.route('/devops/trash')
+@roles_required(Role.DEVELOPER)
+def devops_trash():
+    templates = (OnboardingTemplate.query
+                 .filter_by(is_archived=True)
+                 .order_by(OnboardingTemplate.archived_at.desc().nullslast(),
+                           OnboardingTemplate.id.desc()).all())
+    tpl_rows = []
+    for t in templates:
+        kind = 'library' if t.is_library else ('master' if t.is_master else 'legacy')
+        tpl_rows.append({'tpl': t, 'kind': kind, 'blocks': len(normalize_blocks(t.structure))})
+
+    users = (User.query
+             .filter_by(is_archived=True)
+             .order_by(User.archived_at.desc().nullslast(), User.id.desc()).all())
+    return render_template('devops_trash.html', tpl_rows=tpl_rows, users=users)
+
+
+@bp.route('/devops/trash/template/<int:id>/restore', methods=['POST'])
+@roles_required(Role.DEVELOPER)
+def devops_trash_template_restore(id):
+    tpl = OnboardingTemplate.query.get_or_404(id)
+    tpl.is_archived = False
+    tpl.archived_at = None
+    db.session.commit()
+    flash(f'Шаблон «{tpl.name}» відновлено з кошика', 'success')
+    return redirect(url_for('main.devops_trash'))
+
+
+@bp.route('/devops/trash/template/<int:id>/purge', methods=['POST'])
+@roles_required(Role.DEVELOPER)
+def devops_trash_template_purge(id):
+    tpl = OnboardingTemplate.query.get_or_404(id)
+    name = tpl.name
+    # Жорстке видалення: назавжди з БД (разом із кроками шаблону).
+    OnboardingStep.query.filter_by(template_id=tpl.id).delete()
+    # Відв'язуємо інстанси, що посилались на цей майстер, щоб не лишати «висячий» FK.
+    OnboardingInstance.query.filter_by(master_template_id=tpl.id).update(
+        {OnboardingInstance.master_template_id: None}, synchronize_session=False)
+    db.session.delete(tpl)
+    db.session.commit()
+    flash(f'Шаблон «{name}» видалено назавжди', 'success')
+    return redirect(url_for('main.devops_trash'))
+
+
+@bp.route('/devops/trash/user/<int:id>/restore', methods=['POST'])
+@roles_required(Role.DEVELOPER)
+def devops_trash_user_restore(id):
+    user = User.query.get_or_404(id)
+    user.is_archived = False
+    user.archived_at = None
+    db.session.commit()
+    flash(f'Користувача «{user.username}» відновлено з кошика', 'success')
+    return redirect(url_for('main.devops_trash'))
+
+
+@bp.route('/devops/trash/user/<int:id>/purge', methods=['POST'])
+@roles_required(Role.DEVELOPER)
+def devops_trash_user_purge(id):
+    user = User.query.get_or_404(id)
+    if user.id == current_user.id:
+        flash('Неможливо видалити самого себе', 'danger')
+        return redirect(url_for('main.devops_trash'))
+    username = user.username
+    try:
+        # Жорстке видалення: назавжди з БД (каскад прибере пов'язані онбординги/тести).
+        db.session.delete(user)
+        db.session.commit()
+        flash(f'Користувача «{username}» видалено назавжди', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Помилка при видаленні: {str(e)}', 'danger')
+    return redirect(url_for('main.devops_trash'))
 
 
 # ─────────────────────────────────────────────

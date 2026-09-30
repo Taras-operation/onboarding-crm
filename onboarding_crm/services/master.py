@@ -45,7 +45,7 @@ def get_master(department):
     """The department's master template, or None."""
     dept = (department or '').strip()
     return (OnboardingTemplate.query
-            .filter_by(is_master=True, department=dept)
+            .filter_by(is_master=True, department=dept, is_archived=False)
             .order_by(OnboardingTemplate.id.asc())
             .first())
 

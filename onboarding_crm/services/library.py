@@ -33,14 +33,14 @@ def copy_blocks(source_structure, block_ids):
 def library_templates():
     """All library templates (devops pool)."""
     return (OnboardingTemplate.query
-            .filter_by(is_library=True)
+            .filter_by(is_library=True, is_archived=False)
             .order_by(OnboardingTemplate.id.desc())
             .all())
 
 
 def pull_sources(exclude_id=None):
-    """Templates a devops can pull blocks FROM — any template except the target itself."""
-    q = OnboardingTemplate.query.order_by(OnboardingTemplate.id.desc())
+    """Templates a devops can pull blocks FROM — any non-archived template except the target."""
+    q = OnboardingTemplate.query.filter_by(is_archived=False).order_by(OnboardingTemplate.id.desc())
     return [t for t in q.all() if t.id != exclude_id]
 
 
