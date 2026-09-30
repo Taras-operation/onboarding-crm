@@ -84,8 +84,7 @@
   </div>
 </div>
 
-{# ── Надіслати у відділ — лише для бібліотечних шаблонів (майстер редагується напряму) ── #}
-{% if tpl.is_library %}
+{# ── Надіслати у відділ ── #}
 <div class="card mt-3">
   <div class="card-body">
     <h2 class="h6 mb-3">📤 Надіслати копію у відділ</h2>
@@ -95,7 +94,7 @@
         <label class="form-label small">Відділ</label>
         <select name="department" class="form-select form-select-sm">
           <option value="">— оберіть відділ —</option>
-          {% for d in departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+          {% for d in departments %}{% if d != tpl.department %}<option value="{{ d }}">{{ d }}</option>{% endif %}{% endfor %}
         </select>
       </div>
       <div class="col-12 col-md-5">
@@ -114,5 +113,4 @@
     <div class="text-muted small mt-2">Блоки копіюються з новими id — відділ отримує незалежну копію.</div>
   </div>
 </div>
-{% endif %}
 {% endblock %}

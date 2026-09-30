@@ -1935,10 +1935,10 @@ def devops_pull_blocks(id):
 @roles_required(Role.DEVELOPER)
 def devops_send_to_department(id):
     tpl = OnboardingTemplate.query.get_or_404(id)
-    if not tpl.is_library:
-        flash('Надсилати у відділ можна лише бібліотечні шаблони (майстер редагується напряму).', 'warning')
-        return redirect(url_for('main.devops_library_template', id=id))
     dept = (request.form.get('department') or '').strip()
+    if tpl.department and dept == tpl.department:
+        flash(f'Шаблон закріплений за відділом «{dept}» — надіслати його в цей самий відділ не можна. Оберіть інший відділ.', 'warning')
+        return redirect(url_for('main.devops_library_template', id=id))
     mode = request.form.get('mode') if request.form.get('mode') in ('append', 'replace') else 'append'
     if not dept:
         flash('Оберіть відділ', 'warning')
