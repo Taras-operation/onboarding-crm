@@ -243,9 +243,14 @@
       </a>
     {% endif %}
 
-    <a href="{{ url_for('main.developer_dashboard', tab='templates') }}"
+    <a href="{{ url_for('main.devops_library') }}"
        class="sidebar-link {% if tab == 'templates' %}active{% endif %}">
-      <span>🧩 Templates</span>
+      <span>📚 Бібліотека</span>
+    </a>
+
+    <a href="{{ url_for('main.devops_onboardings') }}"
+       class="sidebar-link">
+      <span>🗂️ Онбординги</span>
     </a>
 
     <a href="{{ url_for('main.developer_dashboard', tab='instances') }}"
@@ -414,8 +419,8 @@
                 </a>
               </div>
               <div class="col-md-4">
-                <a href="{{ url_for('main.developer_dashboard', tab='templates') }}" class="btn btn-outline-secondary w-100 py-3">
-                  🧩 Відкрити templates
+                <a href="{{ url_for('main.devops_library') }}" class="btn btn-outline-secondary w-100 py-3">
+                  📚 Відкрити бібліотеку
                 </a>
               </div>
             </div>

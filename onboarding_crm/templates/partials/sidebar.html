@@ -13,10 +13,13 @@
     </a>
 
   {% elif current_user.role == 'developer' %}
-    {# Devops = глава бібліотеки: керує всім онбордингом усіх відділів #}
-    <div class="sidebar-section-title">Девопс</div>
-    <a class="sidebar-link {{ 'active' if ep == 'main.developer_dashboard' }}" href="{{ url_for('main.developer_dashboard') }}">
-      <span class="ico">🛠️</span> Developer панель
+    {# Devops = один кабінет: ті самі пункти, що й у Developer-панелі #}
+    <div class="sidebar-section-title">Адмін</div>
+    <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='overview') }}">
+      <span class="ico">📊</span> Overview
+    </a>
+    <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='users', view='all') }}">
+      <span class="ico">👥</span> Users
     </a>
     <a class="sidebar-link {{ 'active' if ep in ['main.devops_library', 'main.devops_library_template'] }}" href="{{ url_for('main.devops_library') }}">
       <span class="ico">📚</span> Бібліотека
@@ -24,11 +27,11 @@
     <a class="sidebar-link {{ 'active' if ep == 'main.devops_onboardings' }}" href="{{ url_for('main.devops_onboardings') }}">
       <span class="ico">🗂️</span> Онбординги
     </a>
-    <a class="sidebar-link {{ 'active' if ep == 'main.managers_list' }}" href="{{ url_for('main.managers_list') }}">
-      <span class="ico">📋</span> Менеджери
+    <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='instances') }}">
+      <span class="ico">📁</span> Instances
     </a>
-    <a class="sidebar-link {{ 'active' if ep == 'main.archived_managers' }}" href="{{ url_for('main.archived_managers') }}">
-      <span class="ico">📁</span> Архів
+    <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='departments') }}">
+      <span class="ico">🏢</span> Departments
     </a>
 
   {% else %}
