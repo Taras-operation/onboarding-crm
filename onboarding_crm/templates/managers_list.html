@@ -58,17 +58,17 @@
           <td>{{ manager.created_at.strftime('%d.%m.%Y') if manager.created_at else '—' }}</td>
           <td>{{ manager.added_by.tg_nick if manager.added_by else '—' }}</td>
           <td>
-            <div class="d-flex justify-content-center gap-2">
+            <div class="d-flex justify-content-center flex-nowrap gap-2">
               {% if current_user.role in ['mentor', 'teamlead'] %}
               <a href="{{ url_for('main.select_manager_blocks', manager_id=manager.id) }}"
-                 class="btn btn-outline-primary btn-sm">🧩 Блоки</a>
+                 class="btn btn-outline-primary btn-sm text-nowrap">🧩 Блоки</a>
               {% endif %}
               {% if instance %}
               <a href="{{ url_for('main.manager_results', manager_id=manager.id, onboarding_id=instance.id) }}"
-                 class="btn btn-outline-secondary btn-sm">📊 Результати</a>
+                 class="btn btn-outline-secondary btn-sm text-nowrap">📊 Результати</a>
               {% endif %}
               {% if current_user.role in ['teamlead', 'developer', 'head'] %}
-              <button class="btn btn-outline-danger btn-sm" title="В кошик"
+              <button class="btn btn-outline-danger btn-sm text-nowrap" title="В кошик"
                       onclick="deleteManager({{ manager.id }}, {{ (manager.tg_nick or manager.username or 'менеджера')|tojson }})">🗑️</button>
               {% endif %}
             </div>

@@ -1,5 +1,14 @@
 {% extends 'base.html' %}
 {% block title %}Онбординг — {{ block.title }}{% endblock %}
+
+{% block head_extra %}
+  {# Ця сторінка рендерить recursive_block.html — макрос побудований ПОВНІСТЮ на Tailwind
+     (гейтинг інфо/тест через .hidden, кольорові кнопки bg-*, form-checkbox). base.html на
+     Bootstrap, тож без Tailwind тут ламається весь крок: тест показується одразу, кнопки
+     стають прозорі, чекбокси «голі». Тому Tailwind вантажимо саме на цю сторінку. #}
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+{% endblock %}
+
 {% block content %}
 <div style="max-width: 820px; margin: 0 auto;">
 
