@@ -1902,8 +1902,11 @@ def devops_library():
 @roles_required(Role.DEVELOPER)
 def devops_library_new():
     name = (request.form.get('name') or '').strip() or 'Новий шаблон'
+    # Бібліотечний шаблон — сировина девопса, він НЕ належить жодному відділу.
+    # department='' (а не None): колонка nullable=False зі скаляр-дефолтом 'product',
+    # який спрацьовує саме на None — порожній рядок його обходить і показується як «—».
     t = OnboardingTemplate(name=name, structure={'blocks': []}, is_library=True,
-                           created_by=current_user.id, department=None)
+                           created_by=current_user.id, department='')
     db.session.add(t)
     db.session.commit()
     return redirect(url_for('main.devops_library_template', id=t.id))

@@ -60,11 +60,13 @@ def main():
         mk("teamlead", "tl_buying", "tl123", dept="buying")
         mk("manager", "petro", "petro123", dept="buying")
 
-        # Devops library pool (is_library) — raw material for the constructor.
+        # Devops library pool (is_library) — raw material for the constructor; no department.
+        # department='' (not None): the column's scalar default 'product' fires on None, so an
+        # empty string is how a library template stays department-less (shows as «—»).
         for nm, n in [("Компанія 101", 4), ("Безпека та доступи", 3), ("Продукт: базовий", 5)]:
             db.session.add(OnboardingTemplate(
                 name=nm, structure=ensure_block_ids({"blocks": _blocks(n)}),
-                created_by=dev, department=None, is_library=True))
+                created_by=dev, department='', is_library=True))
         db.session.commit()
 
         # Sample assignment: olena gets a subset of master blocks (1, 3, 5) — new model.
