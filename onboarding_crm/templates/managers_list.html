@@ -1,5 +1,14 @@
 {% extends 'base.html' %}
 {% block title %}Менеджери — Onboarding CRM{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* ОНБОРДИНГ: тримаємо назву інстанса в один рядок; якщо задовга — обрізаємо
+     трьома крапками, повна назва лишається в tooltip (title). */
+  td.onb-cell { max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
@@ -37,7 +46,7 @@
           <td>{{ manager.department or '—' }}</td>
           <td class="mono">{{ manager.username }}</td>
           <td>{{ manager.position or '—' }}</td>
-          <td>
+          <td class="onb-cell"{% if instance %} title="{{ instance.name }}"{% endif %}>
             {% if instance %}{{ instance.name }}{% else %}<span class="text-muted small">Немає</span>{% endif %}
           </td>
           <td>
