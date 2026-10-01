@@ -335,6 +335,35 @@ def developer_dashboard():
     )
     last_logins = {uid: ts for uid, ts in last_login_rows}
 
+    # Departments summary: role counts per department + whether it has a master onboarding.
+    all_users = User.query.filter_by(is_archived=False).all()
+    masters_by_dept = {
+        (m.department or '').strip(): m
+        for m in OnboardingTemplate.query.filter_by(is_master=True, is_archived=False).all()
+    }
+    dept_map = {}
+    for u in all_users:
+        dname = (u.department or '').strip()
+        if not dname:
+            continue  # users with no department aren't a department of their own
+        d = dept_map.setdefault(dname, {
+            'name': dname, 'total': 0, 'managers': 0, 'mentors': 0, 'teamleads': 0, 'heads': 0,
+        })
+        d['total'] += 1
+        if u.role == Role.MANAGER.value:
+            d['managers'] += 1
+        elif u.role == Role.MENTOR.value:
+            d['mentors'] += 1
+        elif u.role == Role.TEAMLEAD.value:
+            d['teamleads'] += 1
+        elif u.role == Role.HEAD.value:
+            d['heads'] += 1
+    for dname, d in dept_map.items():
+        master = masters_by_dept.get(dname)
+        d['has_master'] = master is not None
+        d['master_blocks'] = len(normalize_blocks(master.structure)) if master else 0
+    departments = sorted(dept_map.values(), key=lambda x: x['name'])
+
     return render_template(
         'developer_dashboard.html',
         users=users,
@@ -342,6 +371,7 @@ def developer_dashboard():
         mentors=mentors,
         templates=templates,
         last_logins=last_logins,
+        departments=departments,
         tab=tab,
         view=view
     )

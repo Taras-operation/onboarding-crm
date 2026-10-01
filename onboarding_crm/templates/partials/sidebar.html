@@ -27,11 +27,8 @@
     <a class="sidebar-link {{ 'active' if ep == 'main.devops_onboardings' }}" href="{{ url_for('main.devops_onboardings') }}">
       <span class="ico">🗂️</span> Онбординги
     </a>
-    <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='instances') }}">
-      <span class="ico">📁</span> Instances
-    </a>
     <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='departments') }}">
-      <span class="ico">🏢</span> Departments
+      <span class="ico">🏢</span> Відділи
     </a>
     <a class="sidebar-link {{ 'active' if ep == 'main.devops_trash' }}" href="{{ url_for('main.devops_trash') }}">
       <span class="ico">🗑</span> Кошик

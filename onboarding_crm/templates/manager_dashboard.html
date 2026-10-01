@@ -1,133 +1,105 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8">
-  <title>Онбординг менеджера</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <style>
-    a {
-      color: #2563eb;
-      text-decoration: underline;
-      font-weight: 500;
-    }
-    a:hover {
-      color: #1d4ed8;
-    }
-    .rich-content {
-      color: #374151;
-      font-size: 1.125rem;
-      line-height: 1.75;
-      margin-bottom: 1.5rem;
-    }
-    .rich-content p {
-      margin-bottom: 0.75rem;
-    }
-    .rich-content h1,
-    .rich-content h2,
-    .rich-content h3 {
-      font-weight: 700;
-      color: #111827;
-      margin: 1rem 0 0.5rem;
-    }
-    .rich-content h1 { font-size: 1.875rem; }
-    .rich-content h2 { font-size: 1.5rem; }
-    .rich-content h3 { font-size: 1.25rem; }
-    .rich-content ul,
-    .rich-content ol {
-      margin: 0.75rem 0 0.75rem 1.5rem;
-      padding-left: 1rem;
-    }
-    .rich-content ul { list-style-type: disc; }
-    .rich-content ol { list-style-type: decimal; }
-    .rich-content li {
-      margin-bottom: 0.35rem;
-    }
-    .rich-content blockquote {
-      border-left: 4px solid #d1d5db;
-      padding-left: 1rem;
-      color: #4b5563;
-      font-style: italic;
-      margin: 1rem 0;
-    }
-    .rich-content code {
-      background: #f3f4f6;
-      padding: 0.15rem 0.35rem;
-      border-radius: 0.25rem;
-      font-size: 0.95em;
-    }
-  </style>
-</head>
-<body class="bg-gray-100">
+{% extends 'base.html' %}
+{% block title %}Онбординг менеджера — Onboarding CRM{% endblock %}
+{% block head_extra %}
+<style>
+  .rich-content {
+    color: #374151;
+    font-size: 1.125rem;
+    line-height: 1.75;
+    margin-bottom: 1.5rem;
+  }
+  .rich-content a { color: var(--accent); text-decoration: underline; font-weight: 500; }
+  .rich-content a:hover { color: var(--accent-hover); }
+  .rich-content p { margin-bottom: 0.75rem; }
+  .rich-content h1,
+  .rich-content h2,
+  .rich-content h3 {
+    font-weight: 700;
+    color: #111827;
+    margin: 1rem 0 0.5rem;
+  }
+  .rich-content h1 { font-size: 1.875rem; }
+  .rich-content h2 { font-size: 1.5rem; }
+  .rich-content h3 { font-size: 1.25rem; }
+  .rich-content ul,
+  .rich-content ol {
+    margin: 0.75rem 0 0.75rem 1.5rem;
+    padding-left: 1rem;
+  }
+  .rich-content ul { list-style-type: disc; }
+  .rich-content ol { list-style-type: decimal; }
+  .rich-content li { margin-bottom: 0.35rem; }
+  .rich-content blockquote {
+    border-left: 4px solid #d1d5db;
+    padding-left: 1rem;
+    color: #4b5563;
+    font-style: italic;
+    margin: 1rem 0;
+  }
+  .rich-content code {
+    background: #f3f4f6;
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.95em;
+  }
+  .stage-card { border: 1px solid var(--card-border); border-radius: 16px; background: #fff; padding: 28px 30px; margin-bottom: 1.5rem; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+  .stage-card.current { border-color: var(--accent); border-width: 2px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-title">👋 Привіт, {{ (current_user.tg_nick or current_user.username)|handle }}!</div>
 
-  <!-- 🔷 Сайдбар -->
-  {% include 'components/manager_sidebar.html' %}
-
-  <!-- 🔷 Основна частина -->
-  <div class="ml-64 p-6 w-[calc(100%-16rem)]">
-    <div class="max-w-4xl mx-auto space-y-6">
-
-      <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-extrabold text-gray-900">
-          Привіт, {{ (current_user.tg_nick or current_user.username)|handle }}!
-        </h1>
-      </div>
-
-      {# ── Статус онбордингу ── #}
-      {% if status.decided %}
-        <div class="mb-8 p-5 rounded-2xl border-l-4
-          {% if status.code == 'approved' %}bg-green-50 border-green-500 text-green-800
-          {% elif status.code == 'rejected' %}bg-red-50 border-red-500 text-red-800
-          {% else %}bg-yellow-50 border-yellow-500 text-yellow-800{% endif %}">
-          <div class="text-xl font-bold mb-1">{{ status.label }}</div>
-          {% if status.code == 'approved' %}
-            <p class="mb-1">Вітаємо! Ти успішно завершив онбординг 🎉 Тепер ти повноцінний учасник команди.</p>
-            <p class="text-sm">📚 Уся інформація нижче лишається доступною як твоя база знань — заходь і перечитуй будь-який етап, коли щось забудеш. Це твоя шпаргалка.</p>
-          {% elif status.code == 'rejected' %}
-            <p>На жаль, онбординг не зараховано. З тобою звʼяжеться ментор або тімлід.</p>
-          {% else %}
-            <p>Потрібне доопрацювання — ментор додасть блок для проходження.</p>
-          {% endif %}
-        </div>
-      {% elif status.finished %}
-        <div class="mb-8 p-5 rounded-2xl border-l-4 bg-blue-50 border-blue-500 text-blue-800">
-          <div class="text-xl font-bold mb-1">🎉 Ти завершив усі етапи онбордингу!</div>
-          <p>Очікуй фінального рішення від ментора / тімліда — воно зʼявиться тут.</p>
-        </div>
-      {% else %}
-        <div class="mb-8 p-4 rounded-xl bg-white border border-gray-200 text-gray-700">
-          Прогрес: <strong>{{ status.progress.completed }}/{{ status.progress.total }}</strong> етапів пройдено.
-        </div>
-      {% endif %}
-
-      {% for block in blocks %}
-        {% set i = loop.index0 %}
-        <div class="bg-white rounded-2xl shadow-lg p-8 mb-6 border-2 {{ 'border-blue-600' if i == current_step else 'border-gray-300' }}">
-          <h2 class="text-2xl font-bold mb-4 text-gray-900">{{ block.title }}</h2>
-          <div class="rich-content">
-            {{ block.description | safe }}
-          </div>
-
-          {% if steps_meta[i].accessible %}
-            <div class="flex justify-between items-center">
-              <a href="{{ steps_meta[i].url }}"
-                 class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-3 rounded-xl shadow">
-                Перейти
-              </a>
-              {% if steps_meta[i].completed %}
-                <span class="text-green-600 font-semibold text-lg">✅ Пройдено</span>
-              {% endif %}
-            </div>
-          {% else %}
-            <button class="bg-gray-400 text-white text-lg px-6 py-3 rounded-xl cursor-not-allowed" disabled>
-              Заблоковано
-            </button>
-          {% endif %}
-
-        </div>
-      {% endfor %}
-
+{# ── Статус онбордингу ── #}
+{% if status.decided %}
+  <div class="mb-4 p-4 rounded-3 border-start border-4
+    {% if status.code == 'approved' %}bg-success-subtle border-success text-success-emphasis
+    {% elif status.code == 'rejected' %}bg-danger-subtle border-danger text-danger-emphasis
+    {% else %}bg-warning-subtle border-warning text-warning-emphasis{% endif %}">
+    <div class="fs-5 fw-bold mb-1">{{ status.label }}</div>
+    {% if status.code == 'approved' %}
+      <p class="mb-1">Вітаємо! Ти успішно завершив онбординг 🎉 Тепер ти повноцінний учасник команди.</p>
+      <p class="small mb-0">📚 Уся інформація нижче лишається доступною як твоя база знань — заходь і перечитуй будь-який етап, коли щось забудеш. Це твоя шпаргалка.</p>
+    {% elif status.code == 'rejected' %}
+      <p class="mb-0">На жаль, онбординг не зараховано. З тобою звʼяжеться ментор або тімлід.</p>
+    {% else %}
+      <p class="mb-0">Потрібне доопрацювання — ментор додасть блок для проходження.</p>
+    {% endif %}
+  </div>
+{% elif status.finished %}
+  <div class="mb-4 p-4 rounded-3 border-start border-4 bg-primary-subtle border-primary text-primary-emphasis">
+    <div class="fs-5 fw-bold mb-1">🎉 Ти завершив усі етапи онбордингу!</div>
+    <p class="mb-0">Очікуй фінального рішення від ментора / тімліда — воно зʼявиться тут.</p>
+  </div>
+{% else %}
+  <div class="card mb-4">
+    <div class="card-body">
+      Прогрес: <strong>{{ status.progress.completed }}/{{ status.progress.total }}</strong> етапів пройдено.
     </div>
   </div>
+{% endif %}
 
-</body>
-</html>
+{% for block in blocks %}
+  {% set i = loop.index0 %}
+  <div class="stage-card {{ 'current' if i == current_step else '' }}">
+    <h2 class="fs-4 fw-bold mb-3">{{ block.title }}</h2>
+    <div class="rich-content">
+      {{ block.description | safe }}
+    </div>
+
+    {% if steps_meta[i].accessible %}
+      <div class="d-flex justify-content-between align-items-center">
+        <a href="{{ steps_meta[i].url }}" class="btn btn-primary">
+          Перейти
+        </a>
+        {% if steps_meta[i].completed %}
+          <span class="text-success fw-semibold">✅ Пройдено</span>
+        {% endif %}
+      </div>
+    {% else %}
+      <button class="btn btn-secondary" disabled>
+        Заблоковано
+      </button>
+    {% endif %}
+  </div>
+{% endfor %}
+{% endblock %}
