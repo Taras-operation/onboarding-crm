@@ -11,21 +11,14 @@
       radial-gradient(900px 600px at -10% -10%, #eaf0fe 0%, rgba(234,240,254,0) 60%),
       linear-gradient(180deg,#f7f9fe 0%,#eef2fb 100%);
   }
-  /* big dark rounded shape on the right (stands in for the hero photo) */
+  /* big rounded shape on the right — the office/laptop photo */
   .login-visual {
     position:absolute; top:-12%; right:-14%; width:62%; height:124%;
     border-radius:46% 0 0 46% / 50%;
     background:
-      radial-gradient(120% 90% at 80% 20%, #35507f 0%, rgba(53,80,127,0) 55%),
-      linear-gradient(135deg,#0f1b33 0%,#16233f 45%,#22345c 100%);
+      linear-gradient(90deg, rgba(15,27,51,.10) 0%, rgba(15,27,51,0) 22%),
+      url("{{ url_for('static', filename='img/login-bg.jpg') }}") center right / cover no-repeat;
     box-shadow:-30px 0 80px rgba(15,27,51,.18);
-  }
-  .login-visual::after {       /* soft glow dots to hint a workspace */
-    content:""; position:absolute; inset:0; border-radius:inherit;
-    background:
-      radial-gradient(3px 3px at 70% 30%, rgba(255,255,255,.35), transparent),
-      radial-gradient(2px 2px at 82% 55%, rgba(255,255,255,.25), transparent),
-      radial-gradient(2px 2px at 64% 68%, rgba(255,255,255,.2), transparent);
   }
 
   .login-grid { position:relative; z-index:2; width:100%; max-width:1240px; margin:0 auto;
