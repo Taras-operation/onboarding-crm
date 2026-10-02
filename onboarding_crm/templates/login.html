@@ -43,9 +43,23 @@
 
   /* ── right: login card ── */
   .login-col { display:flex; justify-content:center; }
+  /* «Liquid glass» card — frosted translucent panel so it reads as a framed pane and
+     doesn't get lost against the background. */
   .login-card {
-    width:100%; max-width:420px; background:#fff; border-radius:22px; padding:2.4rem 2.2rem;
-    box-shadow:0 30px 70px rgba(15,27,51,.22), 0 2px 6px rgba(15,27,51,.06);
+    width:100%; max-width:420px; border-radius:24px; padding:2.4rem 2.2rem;
+    background:rgba(255,255,255,.72);
+    -webkit-backdrop-filter:blur(24px) saturate(165%);
+    backdrop-filter:blur(24px) saturate(165%);
+    border:1px solid rgba(255,255,255,.6);
+    box-shadow:
+      0 28px 64px rgba(15,27,51,.32),
+      0 2px 10px rgba(15,27,51,.10),
+      inset 0 1px 0 rgba(255,255,255,.75),
+      inset 0 0 0 1px rgba(255,255,255,.18);
+  }
+  /* Fallback if the browser can't frost the backdrop → keep it solid white. */
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
+    .login-card { background:#fff; }
   }
   .card-mark { width:56px; height:56px; border-radius:16px; margin:0 auto .9rem;
     background:linear-gradient(135deg,var(--brand),#4f7cff); display:flex; align-items:center; justify-content:center;
