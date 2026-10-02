@@ -11,14 +11,13 @@
       radial-gradient(900px 600px at -10% -10%, #eaf0fe 0%, rgba(234,240,254,0) 60%),
       linear-gradient(180deg,#f7f9fe 0%,#eef2fb 100%);
   }
-  /* rounded shape on the right — the office/laptop photo. Keep it ~mockup width so on
-     wide monitors the photo isn't upscaled/zoomed (it downsamples → sharp, full scene). */
+  /* rounded shape on the right — shows the WHOLE photo (contain, никакой обрезки).
+     Empty space is filled with a dark tone that matches the photo, and the sweeping
+     curve sits in that dark area on the left. */
   .login-visual {
-    position:absolute; top:-12%; right:-6%; width:52%; height:124%;
-    border-radius:46% 0 0 46% / 50%;
-    background:
-      linear-gradient(90deg, rgba(15,27,51,.10) 0%, rgba(15,27,51,0) 22%),
-      url("{{ url_for('static', filename='img/login-bg.jpg') }}") center center / cover no-repeat;
+    position:absolute; top:0; right:0; bottom:0; width:48%;
+    border-radius:44% 0 0 44% / 50%;
+    background: #10203a url("{{ url_for('static', filename='img/login-bg.jpg') }}") right center / contain no-repeat;
     box-shadow:-30px 0 80px rgba(15,27,51,.18);
   }
 
