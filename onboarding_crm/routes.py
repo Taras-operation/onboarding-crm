@@ -210,7 +210,7 @@ def login():
                 _record_login_attempt(user, login_input, success=False)
                 return "Обліковий запис деактивовано", 403
 
-            login_user(user)
+            login_user(user, remember=bool(request.form.get('remember')))
             _record_login_attempt(user, login_input, success=True)
 
             next_url = request.args.get('next')
