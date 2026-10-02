@@ -64,13 +64,12 @@
       position: sticky;
       top: 1.5rem;
       align-self: start;
-      max-height: calc(100vh - 3rem);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      /* Reuse the app sidebar's colour here (the global sidebar is hidden on this page). */
+      /* Reuse the app sidebar's colour here (the global sidebar is hidden on this page),
+         but keep it a CONTAINED, rounded card that wraps its content — not a full-height
+         dark column. */
       background: var(--sidebar-bg);
       color: #fff;
+      border-radius: 16px !important; /* beat Bootstrap .rounded-3 (which is !important) */
     }
     /* panel labels/heading readable on the dark background */
     .editor-sidebar .es-label { color: var(--sidebar-muted); }
@@ -88,17 +87,29 @@
       border-color: rgba(255, 255, 255, .45);
       color: #fff;
     }
-    /* Flex so the list takes exactly the remaining height and scrolls fully —
-       no fragile calc(100vh - Npx) that clips the last item at some zoom levels. */
+    /* Cap the tile list so the panel stays a neat card; long lists scroll inside it. */
     .editor-sidebar-list {
-      flex: 1 1 auto;
-      min-height: 0;
+      max-height: 48vh;
       overflow-y: auto;
     }
     .editor-nav-item.active {
       background: #dbeafe;
       border-color: #3b82f6;
       color: #1d4ed8;
+    }
+
+    /* Match the rest of the CRM: block cards sit on the page background (not white-on-white)
+       and use the same 16px radius + soft border/shadow as .card/.table-card elsewhere. */
+    .editor-shell .form-card {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+    }
+    #blocks-container > .block {
+      border-radius: 16px !important;
+      border: 1px solid var(--card-border) !important;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, .04) !important;
     }
     @media (max-width: 1024px) {
       .editor-shell {
