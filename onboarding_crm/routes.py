@@ -6,7 +6,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from onboarding_crm.extensions import db, limiter
 from onboarding_crm.utils import parse_nested_structure
-from onboarding_crm.roles import Role, SUPERVISOR_ROLES
+from onboarding_crm.roles import Role, SUPERVISOR_ROLES, SUPER_ROLES
 from onboarding_crm.decorators import roles_required
 from onboarding_crm.permissions import (
     managers_query_for,
@@ -155,6 +155,7 @@ def _sanitize_onboarding_structure(blocks):
 # login never dead-ends on a 401 (that was the `head` bug — head had no branch).
 ROLE_HOME = {
     Role.DEVELOPER: 'main.developer_dashboard',
+    Role.ADMIN: 'main.devops_library',  # template steward lands in the library
     Role.TEAMLEAD: 'main.mentor_dashboard',
     Role.HEAD: 'main.mentor_dashboard',
     Role.MENTOR: 'main.mentor_dashboard',
@@ -233,18 +234,27 @@ def logout():
     return redirect(url_for('main.login'))
 
 @bp.route('/dashboard/developer', methods=['GET', 'POST'])
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def developer_dashboard():
+    # Account management (the Users tab + creating users) is developer-only; an admin
+    # ("template steward") may view the cabinet but not manage accounts.
+    is_dev = current_user.role == Role.DEVELOPER
+
     # --- Tabs (single route UI) ---
     tab = (request.args.get('tab') or 'overview').strip()
     view = (request.args.get('view') or '').strip()
+
+    if not is_dev and tab == 'users':
+        return redirect(url_for('main.developer_dashboard', tab='overview'))
 
     # sensible defaults for Users section
     if tab == 'users' and view not in ['all', 'add']:
         view = 'all'
 
-    # --- Create new user ---
+    # --- Create new user --- (developer only)
     if request.method == 'POST':
+        if not is_dev:
+            abort(403)
         # allow POST to control where we redirect back
         tab = (request.form.get('tab') or tab or 'users').strip()
         view = (request.form.get('view') or view or 'add').strip()
@@ -1916,7 +1926,7 @@ def _all_departments():
 
 
 @bp.route('/devops/library')
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_library():
     templates = (OnboardingTemplate.query
                  .filter_by(is_archived=False)
@@ -1929,7 +1939,7 @@ def devops_library():
 
 
 @bp.route('/devops/library/new', methods=['POST'])
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_library_new():
     name = (request.form.get('name') or '').strip() or 'Новий шаблон'
     # Бібліотечний шаблон — сировина девопса, він НЕ належить жодному відділу.
@@ -1943,7 +1953,7 @@ def devops_library_new():
 
 
 @bp.route('/devops/library/<int:id>')
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_library_template(id):
     tpl = OnboardingTemplate.query.get_or_404(id)
     blocks = normalize_blocks(tpl.structure)
@@ -1957,7 +1967,7 @@ def devops_library_template(id):
 
 
 @bp.route('/devops/library/<int:id>/pull-blocks', methods=['POST'])
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_pull_blocks(id):
     tpl = OnboardingTemplate.query.get_or_404(id)
     source = OnboardingTemplate.query.get_or_404(request.form.get('source_template_id', type=int))
@@ -1971,7 +1981,7 @@ def devops_pull_blocks(id):
 
 
 @bp.route('/devops/library/<int:id>/send-to-department', methods=['POST'])
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_send_to_department(id):
     tpl = OnboardingTemplate.query.get_or_404(id)
     dept = (request.form.get('department') or '').strip()
@@ -1989,7 +1999,7 @@ def devops_send_to_department(id):
 
 
 @bp.route('/devops/library/<int:id>/delete', methods=['POST'])
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_library_delete(id):
     tpl = OnboardingTemplate.query.get_or_404(id)
     # М'яке видалення: шаблон падає в кошик (жорстке видалення — з кошика).
@@ -2001,7 +2011,7 @@ def devops_library_delete(id):
 
 
 @bp.route('/devops/onboardings')
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_onboardings():
     masters = (OnboardingTemplate.query.filter_by(is_master=True, is_archived=False)
                .order_by(OnboardingTemplate.department).all())
@@ -2020,7 +2030,7 @@ def devops_onboardings():
 # 🔹 Кошик (soft delete): усе видалене падає сюди; звідси — жорстке видалення з БД
 # ─────────────────────────────────────────────
 @bp.route('/devops/trash')
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_trash():
     templates = (OnboardingTemplate.query
                  .filter_by(is_archived=True)
@@ -2038,7 +2048,7 @@ def devops_trash():
 
 
 @bp.route('/devops/trash/template/<int:id>/restore', methods=['POST'])
-@roles_required(Role.DEVELOPER)
+@roles_required(SUPER_ROLES)
 def devops_trash_template_restore(id):
     tpl = OnboardingTemplate.query.get_or_404(id)
     tpl.is_archived = False

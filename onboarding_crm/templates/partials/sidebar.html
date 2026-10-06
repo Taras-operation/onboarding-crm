@@ -12,15 +12,18 @@
       <span class="ico">📊</span> Статистика
     </a>
 
-  {% elif current_user.role == 'developer' %}
-    {# Devops = один кабінет: ті самі пункти, що й у Developer-панелі #}
+  {% elif current_user.role in ['developer', 'admin'] %}
+    {# Devops-кабінет. Admin («управляючий шаблонами») бачить ті самі пункти, крім
+       Users (управління акаунтами — лише developer). #}
     <div class="sidebar-section-title">Адмін</div>
     <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='overview') }}">
       <span class="ico">📊</span> Overview
     </a>
+    {% if current_user.role == 'developer' %}
     <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='users', view='all') }}">
       <span class="ico">👥</span> Users
     </a>
+    {% endif %}
     <a class="sidebar-link {{ 'active' if ep in ['main.devops_library', 'main.devops_library_template'] }}" href="{{ url_for('main.devops_library') }}">
       <span class="ico">📚</span> Бібліотека
     </a>

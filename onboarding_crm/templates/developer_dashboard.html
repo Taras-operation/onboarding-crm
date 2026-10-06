@@ -118,6 +118,7 @@
           </div>
 
           <div class="row g-3">
+            {% if current_user.role == 'developer' %}
             <div class="col-md-4">
               <a href="{{ url_for('main.developer_dashboard', tab='users', view='add') }}" class="btn btn-primary w-100 py-3">
                 ➕ Додати користувача
@@ -128,6 +129,7 @@
                 👥 Відкрити users
               </a>
             </div>
+            {% endif %}
             <div class="col-md-4">
               <a href="{{ url_for('main.devops_library') }}" class="btn btn-outline-secondary w-100 py-3">
                 📚 Відкрити бібліотеку
@@ -223,6 +225,7 @@
                 <select name="role" class="form-select" id="roleSelect" required>
                   <option disabled selected value="">🔽 Оберіть роль</option>
                   <option value="developer">Developer</option>
+                  <option value="admin">Admin (шаблони)</option>
                   <option value="head">Head</option>
                   <option value="teamlead">Teamlead</option>
                   <option value="mentor">Mentor</option>
@@ -326,6 +329,7 @@
               <option value="head">Head</option>
               <option value="manager">Manager</option>
               <option value="developer">Developer</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
         </div>
@@ -731,6 +735,7 @@
               <label class="form-label">Роль</label>
               <select class="form-select" name="role" id="edit_role">
                 <option value="developer">Developer</option>
+                <option value="admin">Admin (шаблони)</option>
                 <option value="head">Head</option>
                 <option value="teamlead">Teamlead</option>
                 <option value="mentor">Mentor</option>

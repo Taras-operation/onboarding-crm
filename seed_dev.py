@@ -42,6 +42,7 @@ def main():
             return u.id
 
         dev = mk("developer", "dev", "dev123", dept=None)
+        mk("admin", "admin_t", "admin123", dept=None)  # template-steward admin
         tl = mk("teamlead", "tl", "tl123")
         mentor = mk("mentor", "mentor", "mentor123", added_by=tl)
         m1 = mk("manager", "olena", "olena123", added_by=mentor, pos="Sales")
@@ -81,6 +82,7 @@ def main():
 
         print("Готово. Тестовые логины (пароль):")
         print("  dev / dev123          (developer)")
+        print("  admin_t / admin123    (admin — шаблони)")
         print("  tl / tl123            (teamlead)")
         print("  mentor / mentor123    (mentor — редактирует шаблоны)")
         print("  olena / olena123      (manager)")

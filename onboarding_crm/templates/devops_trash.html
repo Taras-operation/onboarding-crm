@@ -33,12 +33,14 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-success btn-sm">↩ Відновити</button>
               </form>
+              {% if current_user.role == 'developer' %}
               {% set purge_msg = '⚠️ Видалити шаблон «' ~ r.tpl.name ~ '» НАЗАВЖДИ?\n\nЦе остаточне видалення з бази даних. Відновити буде неможливо.' %}
               <form method="POST" action="{{ url_for('main.devops_trash_template_purge', id=r.tpl.id) }}"
                     onsubmit="return confirm({{ purge_msg|tojson }});" class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-danger btn-sm">🗑️ Видалити назавжди</button>
               </form>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -50,7 +52,8 @@
   </div>
 </div>
 
-{# ─── Користувачі ─────────────────────────────────────────────────────── #}
+{# ─── Користувачі ─── (управління акаунтами — лише developer) ─────────────── #}
+{% if current_user.role == 'developer' %}
 <div class="table-card">
   <div class="px-3 pt-3 fw-semibold">👥 Користувачі</div>
   <div class="table-responsive">
@@ -89,4 +92,5 @@
     </table>
   </div>
 </div>
+{% endif %}
 {% endblock %}

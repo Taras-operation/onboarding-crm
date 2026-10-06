@@ -11,6 +11,7 @@ class Role(str, Enum):
     """
 
     DEVELOPER = 'developer'
+    ADMIN = 'admin'
     TEAMLEAD = 'teamlead'
     HEAD = 'head'
     MENTOR = 'mentor'
@@ -26,3 +27,9 @@ class Role(str, Enum):
 
 # Roles that manage other people's onboarding (everyone except a plain manager).
 SUPERVISOR_ROLES = {Role.MENTOR, Role.TEAMLEAD, Role.HEAD, Role.DEVELOPER}
+
+# Super-admin cabinet (devops: template library, constructor, send-to-department,
+# onboardings overview, Кошик restore/soft-delete). ADMIN is a "template steward": it
+# shares the devops TEMPLATE workflow but NOT the destructive/account powers that stay
+# developer-only (hard purge from the trash, user management, creating privileged roles).
+SUPER_ROLES = {Role.DEVELOPER, Role.ADMIN}

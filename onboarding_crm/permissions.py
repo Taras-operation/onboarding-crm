@@ -14,7 +14,7 @@ from flask import abort
 from flask_login import current_user
 
 from onboarding_crm.models import User, OnboardingTemplate
-from onboarding_crm.roles import Role
+from onboarding_crm.roles import Role, SUPER_ROLES
 
 
 def managers_query_for(user):
@@ -87,7 +87,7 @@ def visible_templates_for(user=None):
     if not getattr(user, 'is_authenticated', False):
         return []
 
-    if user.role == Role.DEVELOPER:
+    if user.role in SUPER_ROLES:   # developer + admin (template steward) see every template
         return templates
 
     visible = []
@@ -142,7 +142,7 @@ def assert_can_edit_template(template, user=None):
     user = user or current_user
     if template is None:
         abort(404)
-    if user.role == Role.DEVELOPER:
+    if user.role in SUPER_ROLES:   # developer + admin manage any template
         return
     if template.id not in {t.id for t in visible_templates_for(user)}:
         abort(403)
@@ -156,7 +156,7 @@ def assert_can_delete_template(template, user=None):
     user = user or current_user
     if template is None:
         abort(404)
-    if user.role == Role.DEVELOPER:
+    if user.role in SUPER_ROLES:   # developer + admin may delete (soft) any template
         return
     if bool(getattr(template, 'is_global', False)):
         abort(403)
