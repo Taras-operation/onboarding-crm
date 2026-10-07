@@ -19,6 +19,10 @@ function initRichEditor(editorEl, hiddenInput, initialValue = '') {
   const quill = new Quill(editorEl, {
     theme: 'snow',
     placeholder: editorEl.getAttribute('data-placeholder') || 'Опис...',
+    // Clamp popups (the link-insert tooltip) to the editor wrapper instead of the whole
+    // page. By default Quill keeps the tooltip inside document.body, so for a short word
+    // near the left edge it hangs past the wrapper and gets cut off by overflow:hidden.
+    bounds: editorEl.closest('.rich-editor-wrapper') || editorEl.parentElement,
     modules: {
       toolbar: [
         [{ header: [1, 2, 3, false] }],
