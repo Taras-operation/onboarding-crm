@@ -377,6 +377,9 @@ function renumberTests(blockDiv, blockIndex) {
         input.name = input.name.replace(/questions\]\[\d+\]/, `questions][${i}]`);
       }
     });
+    // Visible question number within the block (1., 2., 3. …)
+    const num = testDiv.querySelector('.test-number');
+    if (num) num.textContent = (i + 1) + '.';
     renumberAnswers(testDiv, blockIndex, i);
   });
 }
@@ -747,7 +750,10 @@ function addTest(parentEl, blockIndex, testIndex = null, data = {}) {
   div.className = 'test border p-2 mb-2 rounded bg-green-50 relative';
   div.innerHTML = `
     <button type="button" class="absolute top-1 right-2 text-red-500 hover:text-red-700 text-xl" onclick="deleteTest(this)">✖</button>
-    <input type="text" name="blocks[${blockIndex}][test][questions][${idx}][question]" placeholder="Питання" class="w-full p-1 mb-1 border rounded" value="${data.question || ''}" />
+    <div class="flex items-center gap-2 mb-1 pr-6">
+      <span class="test-number font-semibold text-gray-500 shrink-0">${idx + 1}.</span>
+      <input type="text" name="blocks[${blockIndex}][test][questions][${idx}][question]" placeholder="Питання" class="flex-1 p-1 border rounded" value="${data.question || ''}" />
+    </div>
     <div class="answers"></div>
     <button type="button" onclick="addAnswer(this, ${blockIndex}, ${idx})" class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">+ Відповідь</button>
   `;

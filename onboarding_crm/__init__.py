@@ -55,6 +55,15 @@ def create_app():
 
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+    # Велика форма збереження шаблону: кожен блок/сабблок/тест/відповідь — окреме поле
+    # одного urlencoded-POST. Дефолти Werkzeug 3.1 ріжуть форму на 500 КБ у памʼяті та
+    # 1000 полів — шаблон на 8–15 тем це перевищує → 413 Request Entity Too Large
+    # («The data value transmitted exceeds the capacity limit»). Піднімаємо ліміти із
+    # запасом (форма текстова; файли-вкладення вантажаться окремим AJAX-ендпоінтом).
+    app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024    # 25 МБ на все тіло запиту
+    app.config['MAX_FORM_MEMORY_SIZE'] = 25 * 1024 * 1024  # 25 МБ нефайлових полів форми
+    app.config['MAX_FORM_PARTS'] = 20000                   # багато полів у великому шаблоні
+
     # ✅ 3. Ініціалізація всіх розширень
     db.init_app(app)
     migrate.init_app(app, db)
