@@ -131,6 +131,9 @@ function reinitRichEditorsFromDOM() {
       existingHtml
     );
   });
+
+  // Draft restore rebuilds blocks from HTML, so subblock Sortables are gone — re-arm them.
+  initAllSubblockSortables();
 }
 
 // ===== Attachments helpers =====
@@ -366,6 +369,36 @@ function renumberSubblocks(blockDiv, blockIndex) {
       }
     });
   });
+}
+
+// 🔀 Drag-reorder subblocks WITHIN one block (so a new subblock can be inserted
+// anywhere, not only at the end). Each block's .subblocks container gets its own
+// Sortable; after a drop we renumber the field indices and refresh the Quill map.
+function initSubblockSortable(subblocksEl) {
+  if (!subblocksEl || typeof Sortable === 'undefined' || subblocksEl.__sortable) return;
+  subblocksEl.__sortable = true;
+  new Sortable(subblocksEl, {
+    handle: '.sub-drag-handle',
+    draggable: '.subblock',
+    animation: 150,
+    // Keep reordering out of an already-passed (locked) block.
+    onMove: function () {
+      const blk = subblocksEl.closest('.block');
+      return !(blk && blk.classList.contains('locked'));
+    },
+    onEnd: function () {
+      const blk = subblocksEl.closest('.block');
+      renumberSubblocks(blk);
+      rebuildRichEditorsMap();
+      if (typeof window.autosaveTemplate === 'function') {
+        try { window.autosaveTemplate(); } catch (_) {}
+      }
+    }
+  });
+}
+
+function initAllSubblockSortables() {
+  document.querySelectorAll('#blocks-container .subblocks').forEach(initSubblockSortable);
 }
 
 // 🔄 Перенумерация тестов
@@ -681,6 +714,7 @@ function addStage(data = {}, index = null) {
       addSubblock(block.querySelector('.subblocks'), blockIndex, i, sub);
     }
   });
+  initSubblockSortable(block.querySelector('.subblocks'));
 
   (data.test?.questions || []).forEach((test, i) => {
     const hasQuestion = isMeaningfulText(test?.question);
@@ -718,7 +752,10 @@ function addSubblock(parentEl, blockIndex, subIndex = null, data = {}) {
   div.className = 'subblock border p-2 mb-2 rounded bg-blue-50 relative';
   div.innerHTML = `
     <button type="button" class="absolute top-1 right-2 text-red-500 hover:text-red-700 text-xl" onclick="deleteSubblock(this)">✖</button>
-    <input type="text" name="blocks[${blockIndex}][subblocks][${idx}][title]" placeholder="Назва сабблоку" class="w-full mb-1 p-1 border rounded" value="${data.title || ''}" />
+    <div class="flex items-center gap-2 mb-1 pr-6">
+      <span class="sub-drag-handle cursor-move text-gray-400 shrink-0 select-none" title="Перетягніть, щоб змінити порядок">⋮⋮</span>
+      <input type="text" name="blocks[${blockIndex}][subblocks][${idx}][title]" placeholder="Назва сабблоку" class="flex-1 p-1 border rounded" value="${data.title || ''}" />
+    </div>
     <div class="rich-editor-wrapper border rounded overflow-hidden bg-gray-50">
       <input type="hidden" class="rich-hidden" name="blocks[${blockIndex}][subblocks][${idx}][description]" value="${escapeHtml(data.description || '')}" />
       <div class="rich-editor bg-white" data-placeholder="Опис сабблоку"></div>

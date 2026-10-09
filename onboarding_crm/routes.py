@@ -25,6 +25,8 @@ from onboarding_crm.services.scoring import answer_stats, onboarding_status, blo
 from onboarding_crm.services.library import (
     library_templates, pull_sources, add_blocks_to_template, send_to_department,
 )
+from onboarding_crm.services.changelog import structure_counts, log_template_event
+from onboarding_crm.models import TemplateChangeLog
 import json
 import random
 import re
@@ -906,12 +908,26 @@ def add_onboarding_template():
                 tpl = OnboardingTemplate.query.get(int(existing_template_id))
                 if tpl:
                     assert_can_edit_template(tpl)
+                    # Change-log: snapshot BEFORE overwriting, so we can diff by category.
+                    _old_blocks = normalize_blocks(tpl.structure)
+                    _before = structure_counts(_old_blocks)
+                    _old_name = tpl.name
+                    _old_json = json.dumps(_old_blocks, sort_keys=True, ensure_ascii=False)
                     tpl.name = name
                     tpl.structure = payload
                     # ✅ FIX: department only for department templates (not library ones)
                     if not getattr(tpl, 'is_library', False) and not getattr(tpl, 'department', None):
                         tpl.department = current_user.department
                     db.session.commit()
+                    # Log only a real change (ignore an open-and-save with no edits).
+                    _after = structure_counts(structure)
+                    _new_json = json.dumps(structure, sort_keys=True, ensure_ascii=False)
+                    if _before != _after or _old_name != name or _old_json != _new_json:
+                        _note = None
+                        if _before == _after:
+                            _note = ('перейменовано' if _old_name != name and _old_json == _new_json
+                                     else 'правки тексту/оформлення')
+                        log_template_event(tpl, 'updated', before=_before, after=_after, note=_note)
                     if getattr(tpl, 'is_library', False):
                         return redirect(url_for('main.devops_library_template', id=tpl.id))
                     if current_user.role == Role.DEVELOPER:
@@ -928,6 +944,8 @@ def add_onboarding_template():
             )
             db.session.add(new_template)
             db.session.commit()
+            log_template_event(new_template, 'created',
+                               before=structure_counts([]), after=structure_counts(structure))
             return redirect(url_for('main.onboarding_plans'))
 
         # ---- Ветка: выбран конкретный менеджер ----
@@ -2006,8 +2024,19 @@ def devops_library_delete(id):
     tpl.is_archived = True
     tpl.archived_at = datetime.utcnow()
     db.session.commit()
+    log_template_event(tpl, 'archived', note='переміщено в кошик')
     flash(f'Шаблон «{tpl.name}» переміщено в кошик', 'success')
     return redirect(url_for('main.devops_library'))
+
+
+@bp.route('/devops/changelog')
+@roles_required(SUPER_ROLES)
+def devops_changelog():
+    """Audit feed of template edits (who changed what, by category). Dev + admin."""
+    entries = (TemplateChangeLog.query
+               .order_by(TemplateChangeLog.created_at.desc())
+               .limit(500).all())
+    return render_template('devops_changelog.html', entries=entries)
 
 
 @bp.route('/devops/onboardings')
@@ -2054,6 +2083,7 @@ def devops_trash_template_restore(id):
     tpl.is_archived = False
     tpl.archived_at = None
     db.session.commit()
+    log_template_event(tpl, 'restored', note='відновлено з кошика')
     flash(f'Шаблон «{tpl.name}» відновлено з кошика', 'success')
     return redirect(url_for('main.devops_trash'))
 
@@ -2063,6 +2093,7 @@ def devops_trash_template_restore(id):
 def devops_trash_template_purge(id):
     tpl = OnboardingTemplate.query.get_or_404(id)
     name = tpl.name
+    log_template_event(tpl, 'deleted', note='видалено назавжди')  # log while the row still exists
     # Жорстке видалення: назавжди з БД (разом із кроками шаблону).
     OnboardingStep.query.filter_by(template_id=tpl.id).delete()
     # Відв'язуємо інстанси, що посилались на цей майстер, щоб не лишати «висячий» FK.

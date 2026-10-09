@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Журнал змін — Onboarding CRM{% endblock %}
+{% block content %}
+{% set action_badge = {
+  'created':  ('Створив', 'success'),
+  'updated':  ('Оновив', 'primary'),
+  'archived': ('У кошик', 'warning'),
+  'restored': ('Відновив', 'info'),
+  'deleted':  ('Видалив', 'danger'),
+} %}
+{% set kind_label = {'library': 'Бібліотека', 'master': 'Мастер відділу', 'department': 'Відділ'} %}
+
+<div class="page-title mb-0">📝 Журнал змін</div>
+<div class="page-subtitle">
+  Хто і що міняв у шаблонах — по категоріях (блоки / сабблоки / тести / відкриті питання),
+  без деталізації по тексту. Останні 500 записів, новіші зверху.
+</div>
+
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Коли</th><th>Хто</th><th>Дія</th><th>Тип</th><th>Шаблон</th><th>Зміни</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        {% set ab = action_badge.get(e.action, (e.action, 'secondary')) %}
+        <tr>
+          <td class="text-nowrap text-muted">{{ e.created_at.strftime('%d.%m.%Y %H:%M') if e.created_at else '—' }}</td>
+          <td class="fw-semibold">
+            {{ e.username or '—' }}
+            {% if e.user_role %}<span class="badge bg-light text-dark border ms-1">{{ e.user_role }}</span>{% endif %}
+          </td>
+          <td><span class="badge bg-{{ ab[1] }}">{{ ab[0] }}</span></td>
+          <td class="text-muted">{{ kind_label.get(e.kind, e.kind or '—') }}</td>
+          <td>{{ e.template_name or '—' }}</td>
+          <td>{{ e.summary or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted py-3">Журнал поки порожній.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

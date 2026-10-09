@@ -33,6 +33,9 @@
     <a class="sidebar-link" href="{{ url_for('main.developer_dashboard', tab='departments') }}">
       <span class="ico">🏢</span> Відділи
     </a>
+    <a class="sidebar-link {{ 'active' if ep == 'main.devops_changelog' }}" href="{{ url_for('main.devops_changelog') }}">
+      <span class="ico">📝</span> Журнал змін
+    </a>
     <a class="sidebar-link {{ 'active' if ep == 'main.devops_trash' }}" href="{{ url_for('main.devops_trash') }}">
       <span class="ico">🗑</span> Кошик
     </a>

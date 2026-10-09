@@ -243,3 +243,23 @@ class LoginAttempt(db.Model):
     user_agent = db.Column(db.String(400))
     success = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class TemplateChangeLog(db.Model):
+    """Audit trail of template edits: who did what, summarised by category
+    (blocks/subblocks/tests/open questions added or removed), not a full content diff."""
+    __tablename__ = 'template_change_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    # SET NULL, not CASCADE: keep the trail even if the editor is later deleted.
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    username = db.Column(db.String(150))          # snapshot of the editor's login
+    user_role = db.Column(db.String(50))          # snapshot of their role
+    # No FK: a template can be hard-purged, but its history row should survive.
+    template_id = db.Column(db.Integer, nullable=True, index=True)
+    template_name = db.Column(db.String(255))     # snapshot of the name at edit time
+    action = db.Column(db.String(32))             # created | updated | archived | restored | deleted
+    kind = db.Column(db.String(32))               # library | master | department
+    details = db.Column(JSON_TYPE)                # {'before': {...}, 'after': {...}}
+    summary = db.Column(db.String(500))           # human line, e.g. "блоки +1, тести +2"
