@@ -94,11 +94,24 @@ def resolve_manager_blocks(instance):
     if instance is None:
         return []
 
+    locked = instance.locked_blocks if isinstance(instance.locked_blocks, dict) else {}
+
+    # Customized onboarding → serve the instance's OWN blocks in their own order (a completed
+    # block still comes from its frozen snapshot). Edits/new blocks made for this manager win
+    # over the live master.
+    if getattr(instance, 'customized', False):
+        out = []
+        for b in normalize_blocks(instance.structure):
+            if not isinstance(b, dict):
+                continue
+            bid = b.get('id')
+            out.append(locked[bid] if isinstance(locked.get(bid), dict) else b)
+        return out
+
     selected = instance.selected_block_ids or []
     if not selected:
         return [b for b in normalize_blocks(instance.structure) if isinstance(b, dict)]
 
-    locked = instance.locked_blocks if isinstance(instance.locked_blocks, dict) else {}
     master = (OnboardingTemplate.query.get(instance.master_template_id)
               if instance.master_template_id else None)
     master_list = normalize_blocks(master.structure) if master else []

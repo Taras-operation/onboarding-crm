@@ -190,6 +190,11 @@ class OnboardingInstance(db.Model):
 
     archived = db.Column(db.Boolean, default=False)  # ✅ Поле Архива
 
+    # Edited per-manager via the block editor → this onboarding is an INDEPENDENT copy:
+    # resolve_manager_blocks serves its own structure (+ custom blocks) instead of pulling
+    # unpassed blocks live from the department master.
+    customized = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+
     # How many completed blocks a reviewer (mentor/TL) has already seen on the results page.
     # When the manager passes more than this, the plans list flags "new progress" so the
     # reviewer knows to look; opening results resets it to the current completed count.

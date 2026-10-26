@@ -17,8 +17,9 @@
   </div>
 </div>
 
-{# ── Менеджери та їхні блоки ── #}
-<div class="table-card">
+{# ── Активні онбординги ── #}
+<h5 class="mb-2">🟢 Активні <span class="text-muted fw-normal">({{ active_rows|length }})</span></h5>
+<div class="table-card mb-4">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
       <thead>
@@ -28,12 +29,13 @@
         </tr>
       </thead>
       <tbody>
-        {% for r in rows %}
+        {% for r in active_rows %}
         <tr{% if r.new_passed %} class="table-warning"{% endif %}>
           <td>{{ loop.index }}</td>
           <td class="fw-semibold">
             {{ (r.manager.tg_nick or r.manager.username)|handle }}
             {% if r.new_passed %}<span class="badge bg-danger ms-1" title="Нових пройдених блоків з часу останнього перегляду">🔔 {{ r.new_passed }} нов.</span>{% endif %}
+            {% if r.status == 'revision' %}<span class="badge bg-warning text-dark ms-1">✍️ Доопрацювання</span>{% endif %}
           </td>
           <td>{{ r.mentor }}</td>
           <td>{{ r.selected }} / {{ master_block_count }}</td>
@@ -43,6 +45,10 @@
               {% if current_user.role in ['mentor', 'teamlead'] %}
               <a href="{{ url_for('main.select_manager_blocks', manager_id=r.manager.id) }}"
                  class="btn btn-outline-primary btn-sm">🧩 Блоки</a>
+              {% if r.instance %}
+              <a href="{{ url_for('main.edit_onboarding', manager_id=r.manager.id) }}"
+                 class="btn btn-outline-primary btn-sm" title="Редагувати вміст блоків цього менеджера">✏️ Редагувати</a>
+              {% endif %}
               {% endif %}
               {% if r.instance %}
               <a href="{{ url_for('main.manager_results', manager_id=r.manager.id, onboarding_id=r.instance.id) }}"
@@ -52,10 +58,49 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-muted py-3">Немає менеджерів.</td></tr>
+        <tr><td colspan="6" class="text-muted py-3">Немає активних онбордингів.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+
+{# ── Архівні / завершені ── #}
+{% if archived_rows %}
+<h5 class="mb-2">📁 Архівні <span class="text-muted fw-normal">({{ archived_rows|length }})</span></h5>
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>№</th><th>Менеджер</th><th>Ментор</th>
+          <th>Блоків обрано</th><th>Пройдено</th><th>Рішення</th><th class="text-end">Дії</th>
+        </tr>
+      </thead>
+      <tbody class="text-muted">
+        {% for r in archived_rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td class="fw-semibold">{{ (r.manager.tg_nick or r.manager.username)|handle }}</td>
+          <td>{{ r.mentor }}</td>
+          <td>{{ r.selected }} / {{ master_block_count }}</td>
+          <td>{{ r.completed }} / {{ r.selected }}</td>
+          <td>
+            {% if r.decision == 'approved' %}<span class="badge bg-success">✅ Зараховано</span>
+            {% elif r.decision == 'rejected' %}<span class="badge bg-danger">❌ Не зараховано</span>
+            {% else %}<span class="badge bg-secondary">Завершено</span>{% endif %}
+          </td>
+          <td class="text-end">
+            {% if r.instance %}
+            <a href="{{ url_for('main.manager_results', manager_id=r.manager.id, onboarding_id=r.instance.id) }}"
+               class="btn btn-outline-secondary btn-sm">📊 Результати</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

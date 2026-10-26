@@ -1,10 +1,19 @@
 {% extends 'base.html' %}
 {% block title %}Вибір блоків — Onboarding CRM{% endblock %}
 {% block content %}
-<div class="page-title">🧩 Блоки для {{ (manager.tg_nick or manager.username)|handle }}</div>
-<div class="page-subtitle">
-  Відзначте, які блоки майстер-онбордингу отримає цей менеджер. Правки контенту робляться в
-  <a href="{{ url_for('main.master_onboarding') }}">майстрі</a> — тут лише вибір.
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <div>
+    <div class="page-title mb-0">🧩 Блоки для {{ (manager.tg_nick or manager.username)|handle }}</div>
+    <div class="page-subtitle">
+      Відзначте, які блоки майстер-онбордингу отримає цей менеджер. Правки контенту робляться в
+      <a href="{{ url_for('main.master_onboarding') }}">майстрі</a> — тут лише вибір.
+    </div>
+  </div>
+  {% if has_instance %}
+  {# Edit THIS manager's blocks (passed = locked, add custom blocks saved only for them). #}
+  <a href="{{ url_for('main.edit_onboarding', manager_id=manager.id) }}"
+     class="btn btn-outline-primary text-nowrap">✏️ Редагувати вміст блоків</a>
+  {% endif %}
 </div>
 
 {% macro status_badge(status) %}
@@ -23,58 +32,64 @@
 <form method="POST">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  {# ─── Вже призначені ─────────────────────────────────────────────────── #}
-  <div class="d-flex align-items-center justify-content-between mb-2 mt-1">
-    <h5 class="mb-0">✅ Призначені блоки
-      <span class="text-muted fw-normal">({{ assigned_rows|length }})</span></h5>
-    {% if completed_count %}<span class="text-muted small">Пройдено: {{ completed_count }} / {{ assigned_rows|length }}</span>{% endif %}
-  </div>
-  <div class="table-card mb-4">
-    <div class="list-group list-group-flush">
-      {% for row in assigned_rows %}
-        <label class="list-group-item d-flex align-items-start gap-3 py-3"
-               style="cursor:{{ 'not-allowed' if row.locked else 'pointer' }};">
-          <input class="form-check-input block-cb mt-1" type="checkbox" name="block_ids"
-                 value="{{ row.id }}" checked
-                 {% if row.locked %}disabled title="Пройдений блок не можна зняти"{% endif %}>
-          {% if row.locked %}<input type="hidden" name="block_ids" value="{{ row.id }}">{% endif %}
-          <span class="flex-grow-1">
-            <span class="fw-semibold">{{ row.num }}. {{ row.title }}</span>
-            {{ status_badge(row.status) }}
-            {{ block_meta(row) }}
-          </span>
-        </label>
-      {% else %}
-        <div class="list-group-item text-muted py-3">Ще жодного блоку не призначено.</div>
-      {% endfor %}
+  <div class="row g-3">
+    {# ─── Ліва колонка: вже призначені ─────────────────────────────────── #}
+    <div class="col-lg-6">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h5 class="mb-0">✅ Призначені
+          <span class="text-muted fw-normal">({{ assigned_rows|length }})</span></h5>
+        {% if completed_count %}<span class="text-muted small">Пройдено: {{ completed_count }} / {{ assigned_rows|length }}</span>{% endif %}
+      </div>
+      <div class="table-card">
+        <div class="list-group list-group-flush">
+          {% for row in assigned_rows %}
+            <label class="list-group-item d-flex align-items-start gap-3 py-3"
+                   style="cursor:{{ 'not-allowed' if row.locked else 'pointer' }};">
+              <input class="form-check-input block-cb mt-1" type="checkbox" name="block_ids"
+                     value="{{ row.id }}" checked
+                     {% if row.locked %}disabled title="Пройдений блок не можна зняти"{% endif %}>
+              {% if row.locked %}<input type="hidden" name="block_ids" value="{{ row.id }}">{% endif %}
+              <span class="flex-grow-1">
+                <span class="fw-semibold">{{ row.num }}. {{ row.title }}</span>
+                {{ status_badge(row.status) }}
+                {{ block_meta(row) }}
+              </span>
+            </label>
+          {% else %}
+            <div class="list-group-item text-muted py-3">Ще жодного блоку не призначено.</div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
-  </div>
 
-  {# ─── Доступні для додавання ─────────────────────────────────────────── #}
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <h5 class="mb-0">➕ Доступні для додавання
-      <span class="text-muted fw-normal">({{ available_rows|length }})</span></h5>
-    {% if available_rows %}
-    <label class="form-check m-0">
-      <input class="form-check-input" type="checkbox" id="toggleAvailable">
-      <span class="form-check-label small">Обрати всі доступні</span>
-    </label>
-    {% endif %}
-  </div>
-  <div class="table-card mb-3">
-    <div class="list-group list-group-flush">
-      {% for row in available_rows %}
-        <label class="list-group-item d-flex align-items-start gap-3 py-3" style="cursor:pointer;">
-          <input class="form-check-input block-cb avail-cb mt-1" type="checkbox" name="block_ids"
-                 value="{{ row.id }}">
-          <span class="flex-grow-1">
-            <span class="fw-semibold">{{ row.num }}. {{ row.title }}</span>
-            {{ block_meta(row) }}
-          </span>
+    {# ─── Права колонка: доступні для додавання ─────────────────────────── #}
+    <div class="col-lg-6">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h5 class="mb-0">➕ Доступні для додавання
+          <span class="text-muted fw-normal">({{ available_rows|length }})</span></h5>
+        {% if available_rows %}
+        <label class="form-check m-0">
+          <input class="form-check-input" type="checkbox" id="toggleAvailable">
+          <span class="form-check-label small">Обрати всі</span>
         </label>
-      {% else %}
-        <div class="list-group-item text-muted py-3">Усі блоки майстра вже призначені.</div>
-      {% endfor %}
+        {% endif %}
+      </div>
+      <div class="table-card">
+        <div class="list-group list-group-flush">
+          {% for row in available_rows %}
+            <label class="list-group-item d-flex align-items-start gap-3 py-3" style="cursor:pointer;">
+              <input class="form-check-input block-cb avail-cb mt-1" type="checkbox" name="block_ids"
+                     value="{{ row.id }}">
+              <span class="flex-grow-1">
+                <span class="fw-semibold">{{ row.num }}. {{ row.title }}</span>
+                {{ block_meta(row) }}
+              </span>
+            </label>
+          {% else %}
+            <div class="list-group-item text-muted py-3">Усі блоки майстра вже призначені.</div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
   </div>
 

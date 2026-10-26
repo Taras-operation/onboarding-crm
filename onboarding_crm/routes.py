@@ -791,7 +791,7 @@ def select_manager_blocks(manager_id):
 
     return render_template('select_blocks.html', manager=manager,
                            assigned_rows=assigned_rows, available_rows=available_rows,
-                           total_blocks=len(blocks),
+                           total_blocks=len(blocks), has_instance=instance is not None,
                            completed_count=len([r for r in assigned_rows if r['status'] == 'completed']))
 
 def _completed_block_count(instance):
@@ -815,7 +815,7 @@ def onboarding_plans():
     managers = managers_query_for(current_user).all()
     latest_by_manager = _latest_instances_for([m.id for m in managers])
 
-    rows = []
+    active_rows, archived_rows = [], []
     for m in managers:
         instance = latest_by_manager.get(m.id)
         selected = len(instance.selected_block_ids or []) if instance else 0
@@ -823,20 +823,29 @@ def onboarding_plans():
         # "New progress" = blocks passed since a reviewer last opened this manager's results.
         reviewed = (instance.reviewed_blocks or 0) if instance else 0
         new_passed = max(0, completed - reviewed)
-        rows.append({
+        row = {
             'manager': m,
             'instance': instance,
             'selected': selected,
             'completed': completed,
             'new_passed': new_passed,
             'mentor': (m.added_by.tg_nick if m.added_by else '—'),
-        })
+            'decision': (instance.final_decision if instance else None),
+            'status': (instance.onboarding_status if instance else None),
+        }
+        # A finished onboarding (approved/rejected) is archived — keep it out of the
+        # active list so it doesn't clutter the ones still in progress.
+        if instance and instance.archived:
+            archived_rows.append(row)
+        else:
+            active_rows.append(row)
 
     return render_template(
         "onboarding_plans.html",
         master=master,
         master_block_count=master_block_count,
-        rows=rows,
+        active_rows=active_rows,
+        archived_rows=archived_rows,
     )
 
 @bp.route('/onboarding/editor')
@@ -1094,7 +1103,6 @@ def edit_onboarding(manager_id):
         return redirect(url_for('main.onboarding_plans'))
 
     user = User.query.get(manager_id)
-    onboarding_step = user.onboarding_step or 0  # курсор следующего к прохождению кроку
 
     # --- Текущая структура (аккуратный парсинг)
     try:
@@ -1107,33 +1115,18 @@ def edit_onboarding(manager_id):
         print(f"[edit_onboarding] ❌ JSON parse error: {e}")
         current_blocks = []
 
-    # --- Индексы stage-блоков (для надёжного сравнения по индексам)
-    current_stage_indices = [i for i, b in enumerate(current_blocks) if b.get("type") == "stage"]
+    # --- Прогресс (нормализуем к dict). НОВА МОДЕЛЬ: test_progress ключами є stable
+    #     block-id, а НЕ індекс кроку (стара логіка `progress.get(str(i))` тут більше не
+    #     працювала — тому локи «загубились» після рефактору).
+    progress = instance.test_progress if isinstance(instance.test_progress, dict) else {}
 
-    # --- Прогресс по шагам (нормализуем к dict)
-    progress = instance.test_progress or {}
-    if not isinstance(progress, dict):
-        try:
-            progress = json.loads(progress)
-        except Exception:
-            progress = {}
-
-    # --- Формируем множество залоченных индексов:
-    #     1) все, где completed == True,
-    #     2) все индексы строго меньше onboarding_step (логически завершённые)
-    locked_indices = set()
-    for i in current_stage_indices:
-        p = progress.get(str(i), {}) if isinstance(progress, dict) else {}
-        if bool(p.get('completed', False)):
-            locked_indices.add(i)
-        if i < onboarding_step:
-            locked_indices.add(i)
-
-    def _normalize_for_compare(obj):
-        try:
-            return json.dumps(obj, ensure_ascii=False, sort_keys=True)
-        except Exception:
-            return str(obj)
+    # Залочені (пройдені) блоки — за їх block-id, map у позиції в структурі.
+    locked_indices = {i for i, b in enumerate(current_blocks)
+                      if b.get('type') == 'stage'
+                      and (progress.get(b.get('id')) or {}).get('completed')}
+    # Редактор у editor_blocks.js лочить блоки з index < onboarding_step. Проходження
+    # послідовне, тож курсор = кількість пройдених (вони завжди префікс структури).
+    onboarding_step = len(locked_indices)
 
     if request.method == 'POST':
         new_structure_raw = request.form.get('structure')
@@ -1147,30 +1140,23 @@ def edit_onboarding(manager_id):
             return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
 
         new_blocks = _sanitize_onboarding_structure(new_blocks)
+        new_blocks = ensure_block_ids({'blocks': new_blocks})['blocks']
 
-        # --- СЕРВЕРНАЯ ВАЛИДАЦИЯ: запрещаем менять / удалять / сдвигать залоченные шаги
-        for idx in sorted(list(locked_indices)):
-            # 1) Новый массив должен содержать элемент на этом индексе
-            if idx >= len(new_blocks):
-                flash("Неможливо видалити або зсунути вже пройдені кроки.", "danger")
-                return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
+        # Passed (locked) blocks are immutable: restore them verbatim from storage and keep
+        # them first (completion is sequential, so they're a prefix), then append the editor's
+        # edited + newly-added blocks. This both forbids changing a completed block and lets
+        # the supervisor add brand-new blocks just for this manager.
+        locked_by_id = {current_blocks[i].get('id'): current_blocks[i]
+                        for i in locked_indices if current_blocks[i].get('id')}
+        passed = [current_blocks[i] for i in sorted(locked_indices)]
+        rest = [b for b in new_blocks if b.get('id') not in locked_by_id]
+        new_blocks = passed + rest
 
-            # 2) Тип блока на этом индексе должен быть stage и оставаться stage
-            old_is_stage = (current_blocks[idx].get("type") == "stage")
-            new_is_stage = (new_blocks[idx].get("type") == "stage")
-            if not old_is_stage or not new_is_stage:
-                flash("Неможливо змінювати тип або позицію вже пройденого кроку.", "danger")
-                return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
-
-            # 3) Содержимое пройденного шага не должно измениться
-            before = _normalize_for_compare(current_blocks[idx])
-            after  = _normalize_for_compare(new_blocks[idx])
-            if before != after:
-                flash("Зміни в уже пройдених кроках заборонені. Відкотіть правки в цих кроках.", "danger")
-                return redirect(url_for('main.edit_onboarding', manager_id=manager_id))
-
-        # Если валидация прошла — сохраняем новую структуру целиком
+        # This manager's onboarding becomes an INDEPENDENT copy: its content and new blocks
+        # live on the instance (customized=True) instead of being pulled live from the master.
         instance.structure = {'blocks': new_blocks}
+        instance.selected_block_ids = [b.get('id') for b in new_blocks if b.get('id')]
+        instance.customized = True
         db.session.commit()
         flash("Онбординг оновлено", "success")
         return redirect(url_for('main.onboarding_plans'))
