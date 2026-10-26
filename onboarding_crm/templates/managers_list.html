@@ -68,8 +68,11 @@
                  class="btn btn-outline-secondary btn-sm text-nowrap">📊 Результати</a>
               {% endif %}
               {% if current_user.role in ['teamlead', 'developer', 'head'] %}
+              {# tojson emits a "..."-quoted string; keep it out of the double-quoted
+                 onclick by wrapping the handler in single quotes (tojson escapes any ' it
+                 contains), otherwise the first " ends the attribute and the click throws. #}
               <button class="btn btn-outline-danger btn-sm text-nowrap" title="В кошик"
-                      onclick="deleteManager({{ manager.id }}, {{ (manager.tg_nick or manager.username or 'менеджера')|tojson }})">🗑️</button>
+                      onclick='deleteManager({{ manager.id }}, {{ (manager.tg_nick or manager.username or "менеджера")|tojson }})'>🗑️</button>
               {% endif %}
             </div>
           </td>

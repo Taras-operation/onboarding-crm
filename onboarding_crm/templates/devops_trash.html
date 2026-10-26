@@ -36,7 +36,7 @@
               {% if current_user.role == 'developer' %}
               {% set purge_msg = '⚠️ Видалити шаблон «' ~ r.tpl.name ~ '» НАЗАВЖДИ?\n\nЦе остаточне видалення з бази даних. Відновити буде неможливо.' %}
               <form method="POST" action="{{ url_for('main.devops_trash_template_purge', id=r.tpl.id) }}"
-                    onsubmit="return confirm({{ purge_msg|tojson }});" class="d-inline">
+                    onsubmit='return confirm({{ purge_msg|tojson }});' class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-danger btn-sm">🗑️ Видалити назавжди</button>
               </form>
@@ -78,7 +78,7 @@
               </form>
               {% set purge_msg = '⚠️ Видалити користувача «' ~ u.username ~ '» НАЗАВЖДИ?\n\nРазом із ним будуть остаточно видалені всі його онбординги та результати тестів. Відновити буде неможливо.' %}
               <form method="POST" action="{{ url_for('main.devops_trash_user_purge', id=u.id) }}"
-                    onsubmit="return confirm({{ purge_msg|tojson }});" class="d-inline">
+                    onsubmit='return confirm({{ purge_msg|tojson }});' class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-danger btn-sm">🗑️ Видалити назавжди</button>
               </form>

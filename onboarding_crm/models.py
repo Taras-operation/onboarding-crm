@@ -190,6 +190,11 @@ class OnboardingInstance(db.Model):
 
     archived = db.Column(db.Boolean, default=False)  # ✅ Поле Архива
 
+    # How many completed blocks a reviewer (mentor/TL) has already seen on the results page.
+    # When the manager passes more than this, the plans list flags "new progress" so the
+    # reviewer knows to look; opening results resets it to the current completed count.
+    reviewed_blocks = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+
     # Результаты тестов
     test_results = db.relationship(
         'TestResult',

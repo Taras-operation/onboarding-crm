@@ -711,6 +711,14 @@ def select_manager_blocks(manager_id):
                 .first())
     current_ids = set((instance.selected_block_ids if instance else []) or [])
 
+    # Per-block progress, so the page can show which assigned blocks are already passed.
+    progress = instance.test_progress if (instance and isinstance(instance.test_progress, dict)) else {}
+    locked = (instance.locked_blocks if (instance and isinstance(instance.locked_blocks, dict)) else {}) or {}
+    completed_ids = {bid for bid, v in progress.items() if isinstance(v, dict) and v.get('completed')}
+    completed_ids |= set(locked.keys())
+    started_ids = {bid for bid, v in progress.items()
+                   if isinstance(v, dict) and v.get('started') and bid not in completed_ids}
+
     if request.method == 'POST':
         chosen = set(request.form.getlist('block_ids'))
 
@@ -761,7 +769,41 @@ def select_manager_blocks(manager_id):
         flash(f'Менеджеру призначено блоків: {len(ordered)}', 'success')
         return redirect(url_for('main.managers_list'))
 
-    return render_template('select_blocks.html', manager=manager, blocks=blocks, current_ids=current_ids)
+    # Split into two sections: already-assigned (with pass status) and available-to-add.
+    assigned_rows, available_rows = [], []
+    for i, block in enumerate(blocks, start=1):
+        bid = block.get('id')
+        row = {
+            'id': bid,
+            'num': i,  # position in the master
+            'title': block.get('title') or 'Без назви',
+            'subs': len(block.get('subblocks') or []),
+            'tests': len((block.get('test') or {}).get('questions') or []),
+            'open': len(block.get('open_questions') or []),
+        }
+        if bid in current_ids:
+            row['status'] = ('completed' if bid in completed_ids
+                             else 'in_progress' if bid in started_ids else 'assigned')
+            row['locked'] = bid in completed_ids  # a passed block can't be unassigned
+            assigned_rows.append(row)
+        else:
+            available_rows.append(row)
+
+    return render_template('select_blocks.html', manager=manager,
+                           assigned_rows=assigned_rows, available_rows=available_rows,
+                           total_blocks=len(blocks),
+                           completed_count=len([r for r in assigned_rows if r['status'] == 'completed']))
+
+def _completed_block_count(instance):
+    """How many of the manager's ASSIGNED blocks are completed (from test_progress)."""
+    if not instance:
+        return 0
+    structure = instance.structure
+    blocks = structure.get('blocks', []) if isinstance(structure, dict) else (structure or [])
+    assigned_ids = [b.get('id') for b in blocks if isinstance(b, dict) and b.get('id')]
+    progress = instance.test_progress if isinstance(instance.test_progress, dict) else {}
+    return sum(1 for bid in assigned_ids if (progress.get(bid) or {}).get('completed'))
+
 
 @bp.route('/onboarding/plans')
 @roles_required(Role.MENTOR, Role.TEAMLEAD, Role.DEVELOPER, Role.HEAD)
@@ -777,12 +819,16 @@ def onboarding_plans():
     for m in managers:
         instance = latest_by_manager.get(m.id)
         selected = len(instance.selected_block_ids or []) if instance else 0
-        completed = (instance.onboarding_step or 0) if instance else 0
+        completed = _completed_block_count(instance)
+        # "New progress" = blocks passed since a reviewer last opened this manager's results.
+        reviewed = (instance.reviewed_blocks or 0) if instance else 0
+        new_passed = max(0, completed - reviewed)
         rows.append({
             'manager': m,
             'instance': instance,
             'selected': selected,
             'completed': completed,
+            'new_passed': new_passed,
             'mentor': (m.added_by.tg_nick if m.added_by else '—'),
         })
 
@@ -1635,12 +1681,24 @@ def manager_results(manager_id, onboarding_id):
         print(f"🧪 Step={r.step} | Approved={r.approved} | Draft={r.draft}")
 
     # --- Попап логіка ---
-    test_progress = instance.test_progress or {}
-    completed_blocks = [k for k, v in test_progress.items() if v.get("completed")]
-    total_blocks = len(structure or [])
+    # structure is {'blocks': [...]} (or a bare list) — the blocks ASSIGNED to this manager.
+    # Count completion against those assigned block ids, not len(dict) (that was always 1 →
+    # the "final decision" banner showed after a single completed block).
+    blocks_list = structure.get('blocks', []) if isinstance(structure, dict) else (structure or [])
+    assigned_ids = [b.get('id') for b in blocks_list if isinstance(b, dict) and b.get('id')]
+    total_blocks = len(assigned_ids)
 
-    all_blocks_completed = len(completed_blocks) >= total_blocks
+    test_progress = instance.test_progress or {}
+    completed_count = sum(1 for bid in assigned_ids if (test_progress.get(bid) or {}).get("completed"))
+
+    all_blocks_completed = total_blocks > 0 and completed_count >= total_blocks
     all_open_checked = all(r.approved is not None and not r.draft for r in open_results)
+
+    # Reviewer is looking at this manager now → clear the "new progress" flag in the plans
+    # list by marking the current completed count as seen.
+    if (instance.reviewed_blocks or 0) != completed_count:
+        instance.reviewed_blocks = completed_count
+        db.session.commit()
 
     locked = bool(instance.archived)  # decided → review-only, no re-grading / re-decision
     show_popup = all_blocks_completed and (not open_results or all_open_checked) and not locked

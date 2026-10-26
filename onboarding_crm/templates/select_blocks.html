@@ -7,36 +7,73 @@
   <a href="{{ url_for('main.master_onboarding') }}">майстрі</a> — тут лише вибір.
 </div>
 
-{% if blocks %}
+{% macro status_badge(status) %}
+  {% if status == 'completed' %}<span class="badge bg-success">✅ Пройдено</span>
+  {% elif status == 'in_progress' %}<span class="badge bg-warning text-dark">⏳ В процесі</span>
+  {% else %}<span class="badge bg-secondary">⬜ Не розпочато</span>{% endif %}
+{% endmacro %}
+
+{% macro block_meta(row) %}
+  <span class="d-block text-muted small mt-1">
+    Сабблоків: {{ row.subs }} · Тестів: {{ row.tests }} · Відкритих: {{ row.open }}
+  </span>
+{% endmacro %}
+
+{% if total_blocks %}
 <form method="POST">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  <div class="card mb-3">
-    <div class="card-body d-flex align-items-center justify-content-between">
-      <label class="form-check m-0">
-        <input class="form-check-input" type="checkbox" id="toggleAll">
-        <span class="form-check-label fw-semibold">Обрати всі</span>
-      </label>
-      <span class="text-muted small"><span id="selCount">{{ current_ids|length }}</span> / {{ blocks|length }} обрано</span>
+  {# ─── Вже призначені ─────────────────────────────────────────────────── #}
+  <div class="d-flex align-items-center justify-content-between mb-2 mt-1">
+    <h5 class="mb-0">✅ Призначені блоки
+      <span class="text-muted fw-normal">({{ assigned_rows|length }})</span></h5>
+    {% if completed_count %}<span class="text-muted small">Пройдено: {{ completed_count }} / {{ assigned_rows|length }}</span>{% endif %}
+  </div>
+  <div class="table-card mb-4">
+    <div class="list-group list-group-flush">
+      {% for row in assigned_rows %}
+        <label class="list-group-item d-flex align-items-start gap-3 py-3"
+               style="cursor:{{ 'not-allowed' if row.locked else 'pointer' }};">
+          <input class="form-check-input block-cb mt-1" type="checkbox" name="block_ids"
+                 value="{{ row.id }}" checked
+                 {% if row.locked %}disabled title="Пройдений блок не можна зняти"{% endif %}>
+          {% if row.locked %}<input type="hidden" name="block_ids" value="{{ row.id }}">{% endif %}
+          <span class="flex-grow-1">
+            <span class="fw-semibold">{{ row.num }}. {{ row.title }}</span>
+            {{ status_badge(row.status) }}
+            {{ block_meta(row) }}
+          </span>
+        </label>
+      {% else %}
+        <div class="list-group-item text-muted py-3">Ще жодного блоку не призначено.</div>
+      {% endfor %}
     </div>
   </div>
 
-  <div class="table-card">
+  {# ─── Доступні для додавання ─────────────────────────────────────────── #}
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h5 class="mb-0">➕ Доступні для додавання
+      <span class="text-muted fw-normal">({{ available_rows|length }})</span></h5>
+    {% if available_rows %}
+    <label class="form-check m-0">
+      <input class="form-check-input" type="checkbox" id="toggleAvailable">
+      <span class="form-check-label small">Обрати всі доступні</span>
+    </label>
+    {% endif %}
+  </div>
+  <div class="table-card mb-3">
     <div class="list-group list-group-flush">
-      {% for block in blocks %}
-        {% set sub = block.subblocks or [] %}
-        {% set tests = (block.test.questions if block.test else []) or [] %}
-        {% set openq = block.open_questions or [] %}
+      {% for row in available_rows %}
         <label class="list-group-item d-flex align-items-start gap-3 py-3" style="cursor:pointer;">
-          <input class="form-check-input block-cb mt-1" type="checkbox" name="block_ids"
-                 value="{{ block.id }}" {% if block.id in current_ids %}checked{% endif %}>
+          <input class="form-check-input block-cb avail-cb mt-1" type="checkbox" name="block_ids"
+                 value="{{ row.id }}">
           <span class="flex-grow-1">
-            <span class="fw-semibold">{{ loop.index }}. {{ block.title or 'Без назви' }}</span>
-            <span class="d-block text-muted small mt-1">
-              Сабблоків: {{ sub|length }} · Тестів: {{ tests|length }} · Відкритих: {{ openq|length }}
-            </span>
+            <span class="fw-semibold">{{ row.num }}. {{ row.title }}</span>
+            {{ block_meta(row) }}
           </span>
         </label>
+      {% else %}
+        <div class="list-group-item text-muted py-3">Усі блоки майстра вже призначені.</div>
       {% endfor %}
     </div>
   </div>
@@ -57,16 +94,18 @@
 
 {% block scripts %}
 <script>
-  const cbs = Array.from(document.querySelectorAll('.block-cb'));
-  const toggleAll = document.getElementById('toggleAll');
-  const selCount = document.getElementById('selCount');
+  const toggleAvailable = document.getElementById('toggleAvailable');
+  const availCbs = Array.from(document.querySelectorAll('.avail-cb'));
   function refresh() {
-    const n = cbs.filter(c => c.checked).length;
-    if (selCount) selCount.textContent = n;
-    if (toggleAll) toggleAll.checked = n === cbs.length && n > 0;
+    if (toggleAvailable) {
+      const n = availCbs.filter(c => c.checked).length;
+      toggleAvailable.checked = n === availCbs.length && n > 0;
+    }
   }
-  toggleAll?.addEventListener('change', () => { cbs.forEach(c => c.checked = toggleAll.checked); refresh(); });
-  cbs.forEach(c => c.addEventListener('change', refresh));
+  toggleAvailable?.addEventListener('change', () => {
+    availCbs.forEach(c => c.checked = toggleAvailable.checked); refresh();
+  });
+  availCbs.forEach(c => c.addEventListener('change', refresh));
   refresh();
 </script>
 {% endblock %}

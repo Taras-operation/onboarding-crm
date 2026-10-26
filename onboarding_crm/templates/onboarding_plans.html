@@ -29,9 +29,12 @@
       </thead>
       <tbody>
         {% for r in rows %}
-        <tr>
+        <tr{% if r.new_passed %} class="table-warning"{% endif %}>
           <td>{{ loop.index }}</td>
-          <td class="fw-semibold">{{ (r.manager.tg_nick or r.manager.username)|handle }}</td>
+          <td class="fw-semibold">
+            {{ (r.manager.tg_nick or r.manager.username)|handle }}
+            {% if r.new_passed %}<span class="badge bg-danger ms-1" title="Нових пройдених блоків з часу останнього перегляду">🔔 {{ r.new_passed }} нов.</span>{% endif %}
+          </td>
           <td>{{ r.mentor }}</td>
           <td>{{ r.selected }} / {{ master_block_count }}</td>
           <td>{{ r.completed }} / {{ r.selected }}</td>
@@ -43,7 +46,7 @@
               {% endif %}
               {% if r.instance %}
               <a href="{{ url_for('main.manager_results', manager_id=r.manager.id, onboarding_id=r.instance.id) }}"
-                 class="btn btn-outline-secondary btn-sm">📊 Результати</a>
+                 class="btn btn-sm {{ 'btn-danger' if r.new_passed else 'btn-outline-secondary' }}">📊 Результати</a>
               {% endif %}
             </div>
           </td>

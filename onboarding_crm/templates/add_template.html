@@ -429,6 +429,11 @@
       INITIAL_SIG = contentSig();   // pristine content signature (before any restore)
       restoreDraftIfNeeded();
       initEditorSidebar();
+      // Quill settles its selection asynchronously and can leave the last editor focused
+      // (page jumps to the bottom / stray keystrokes land there). Blur it and pin to top.
+      const ae = document.activeElement;
+      if (ae && ae.classList && ae.classList.contains('ql-editor')) ae.blur();
+      window.scrollTo(0, 0);
     }, 800);
   });
 

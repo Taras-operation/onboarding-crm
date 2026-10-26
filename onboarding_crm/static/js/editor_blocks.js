@@ -929,6 +929,15 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Quill grabs focus while initialising each editor, so the LAST block's editor ends up
+  // focused and the browser jumps to the bottom of the page. Blur it and pin the view to
+  // the top so the master always opens at block №1.
+  requestAnimationFrame(() => {
+    const ae = document.activeElement;
+    if (ae && ae.classList && ae.classList.contains('ql-editor')) ae.blur();
+    window.scrollTo(0, 0);
+  });
+
   // Повторна ініціалізація rich editors після restore draft
   window.reinitRichEditorsFromDOM = reinitRichEditorsFromDOM;
 

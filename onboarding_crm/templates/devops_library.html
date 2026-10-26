@@ -38,7 +38,7 @@
                 {% set confirm_msg = 'Перемістити шаблон «' ~ r.tpl.name ~ '» у кошик? Звідти його можна відновити або видалити назавжди.' %}
               {% endif %}
               <form method="POST" action="{{ url_for('main.devops_library_delete', id=r.tpl.id) }}"
-                    onsubmit="return confirm({{ confirm_msg|tojson }});" class="d-inline">
+                    onsubmit='return confirm({{ confirm_msg|tojson }});' class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger btn-sm" title="В кошик">🗑️</button>
               </form>
