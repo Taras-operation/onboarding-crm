@@ -28,9 +28,23 @@
       <div class="topbar">
         <button class="btn btn-sm btn-outline-secondary d-lg-none" type="button"
                 onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
-        <div class="who ms-auto">
-          {{ (current_user.tg_nick or current_user.username)|handle }}
-          <small>· {{ current_user.role }}{% if current_user.department %} · {{ current_user.department }}{% endif %}</small>
+        <div class="d-flex align-items-center gap-3 ms-auto">
+          {# Updates bell: new onboarding progress to review, from any page (supervisors). #}
+          {% if current_user.role in ['mentor', 'teamlead', 'head', 'developer'] %}
+          <a href="{{ url_for('main.onboarding_plans') }}" class="topbar-bell position-relative text-decoration-none"
+             title="{% if onboarding_updates_count %}{{ onboarding_updates_count }} онбординг(ів) з новим прогресом{% else %}Немає нових оновлень{% endif %}"
+             style="font-size:1.3rem; line-height:1;{% if not onboarding_updates_count %} opacity:.45;{% endif %}">
+            🔔
+            {% if onboarding_updates_count %}
+            <span class="badge rounded-pill bg-danger position-absolute"
+                  style="top:-7px; right:-9px; font-size:.7rem;">{{ onboarding_updates_count }}</span>
+            {% endif %}
+          </a>
+          {% endif %}
+          <div class="who">
+            {{ (current_user.tg_nick or current_user.username)|handle }}
+            <small>· {{ current_user.role }}{% if current_user.department %} · {{ current_user.department }}{% endif %}</small>
+          </div>
         </div>
       </div>
       <div class="content">

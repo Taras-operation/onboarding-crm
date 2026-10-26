@@ -805,6 +805,24 @@ def _completed_block_count(instance):
     return sum(1 for bid in assigned_ids if (progress.get(bid) or {}).get('completed'))
 
 
+@bp.app_context_processor
+def inject_onboarding_updates():
+    """Topbar bell (every page): how many of the current supervisor's managers have passed
+    blocks not yet reviewed (completed > reviewed_blocks). Opening a manager's results clears
+    their part. Cheap — one managers query + one batched instances query."""
+    count = 0
+    try:
+        if getattr(current_user, 'is_authenticated', False) and current_user.role in SUPERVISOR_ROLES:
+            managers = managers_query_for(current_user).all()
+            latest = _latest_instances_for([m.id for m in managers])
+            count = sum(1 for inst in latest.values()
+                        if inst and not inst.archived
+                        and _completed_block_count(inst) > (inst.reviewed_blocks or 0))
+    except Exception:
+        count = 0
+    return {'onboarding_updates_count': count}
+
+
 @bp.route('/onboarding/plans')
 @roles_required(Role.MENTOR, Role.TEAMLEAD, Role.DEVELOPER, Role.HEAD)
 def onboarding_plans():
@@ -1152,11 +1170,11 @@ def edit_onboarding(manager_id):
         rest = [b for b in new_blocks if b.get('id') not in locked_by_id]
         new_blocks = passed + rest
 
-        # This manager's onboarding becomes an INDEPENDENT copy: its content and new blocks
-        # live on the instance (customized=True) instead of being pulled live from the master.
+        # Save the manager's block set. Master-derived blocks keep pulling the LIVE master
+        # version (resolve_manager_blocks), only the custom blocks added here are stored
+        # per-manager — so a later master edit still reaches this manager's master blocks.
         instance.structure = {'blocks': new_blocks}
         instance.selected_block_ids = [b.get('id') for b in new_blocks if b.get('id')]
-        instance.customized = True
         db.session.commit()
         flash("Онбординг оновлено", "success")
         return redirect(url_for('main.onboarding_plans'))

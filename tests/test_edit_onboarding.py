@@ -36,13 +36,41 @@ def test_edit_adds_custom_block_manager_sees_it(app, client, login, users):
 
     with app.app_context():
         inst = OnboardingInstance.query.get(iid)
-        assert inst.customized is True
         assert 'new1' in (inst.selected_block_ids or [])
         ids = [b['id'] for b in inst.structure['blocks']]
         assert ids[0] == 'a'          # locked block stays first
         assert 'new1' in ids
         # the manager actually resolves the custom block
         assert any(b.get('id') == 'new1' for b in resolve_manager_blocks(inst))
+
+
+def test_master_block_stays_live_custom_stays_fixed(app, users):
+    """A master-derived block always reflects the CURRENT master; a custom block added for
+    the manager stays as saved."""
+    from onboarding_crm.models import OnboardingTemplate
+    tl, mgr = users['teamlead'], users['manager_of_a']
+    with app.app_context():
+        master = OnboardingTemplate(name='Master', department='product', is_master=True,
+                                    structure={'blocks': _blocks(['m1'])})
+        db.session.add(master)
+        db.session.commit()
+        snap = _blocks(['m1', 'c1'])
+        snap[0]['title'] = 'OLD snapshot'   # stale copy of the master block
+        snap[1]['title'] = 'CUSTOM stays'   # per-manager custom block
+        inst = OnboardingInstance(name='o', manager_id=mgr, mentor_id=tl,
+                                  master_template_id=master.id, structure={'blocks': snap},
+                                  selected_block_ids=['m1', 'c1'], test_progress={})
+        db.session.add(inst)
+        db.session.commit()
+        # master edits its m1 after assignment (fresh objects so SQLAlchemy flushes the JSON)
+        newm = _blocks(['m1'])
+        newm[0]['title'] = 'NEW live'
+        master.structure = {'blocks': newm}
+        db.session.commit()
+
+        by_id = {b['id']: b for b in resolve_manager_blocks(inst)}
+        assert by_id['m1']['title'] == 'NEW live'       # master block pulls live version
+        assert by_id['c1']['title'] == 'CUSTOM stays'   # custom block unchanged
 
 
 def test_edit_cannot_change_passed_block(app, client, login, users):

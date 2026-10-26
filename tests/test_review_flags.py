@@ -55,7 +55,7 @@ def test_plans_flags_new_progress(app, client, login):
     _mk_instance(app, mgr, dev, n_blocks=5, completed=3, reviewed=1)  # 2 new
     login(dev)
     html = client.get('/onboarding/plans').get_data(as_text=True)
-    assert '🔔' in html
+    assert ' нов.' in html   # row badge "🔔 N нов." (not the always-present topbar bell)
 
 
 def test_opening_results_marks_progress_seen(app, client, login):
@@ -66,5 +66,5 @@ def test_opening_results_marks_progress_seen(app, client, login):
     client.get(f'/manager_results/{mgr}/{iid}')
     with app.app_context():
         assert OnboardingInstance.query.get(iid).reviewed_blocks == 3
-    # plans no longer flags it as new
-    assert '🔔' not in client.get('/onboarding/plans').get_data(as_text=True)
+    # plans no longer flags it as new (row badge gone; the topbar bell may still render)
+    assert ' нов.' not in client.get('/onboarding/plans').get_data(as_text=True)
