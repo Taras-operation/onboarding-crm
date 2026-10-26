@@ -64,6 +64,22 @@ def create_app():
     app.config['MAX_FORM_MEMORY_SIZE'] = 25 * 1024 * 1024  # 25 МБ нефайлових полів форми
     app.config['MAX_FORM_PARTS'] = 20000                   # багато полів у великому шаблоні
 
+    # Static assets were served with `Cache-Control: no-cache` (Flask's default), so the
+    # browser re-validated app.css / editor_blocks.js / login-bg.jpg on EVERY navigation —
+    # a round-trip each, which on Render is 0.3–0.5s and makes transitions feel laggy. Cache
+    # them long-term and bust by file mtime (see _static_cache_bust): the ?v changes when a
+    # file changes (i.e. on deploy), so caching is safe and no hard-refresh is needed.
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = timedelta(days=30)
+
+    @app.url_defaults
+    def _static_cache_bust(endpoint, values):
+        if endpoint == 'static' and values.get('filename'):
+            try:
+                fp = os.path.join(app.static_folder, values['filename'])
+                values['v'] = int(os.stat(fp).st_mtime)
+            except OSError:
+                pass
+
     # ✅ 3. Ініціалізація всіх розширень
     db.init_app(app)
     migrate.init_app(app, db)
